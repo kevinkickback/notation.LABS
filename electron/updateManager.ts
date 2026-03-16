@@ -1,4 +1,4 @@
-import { app, BrowserWindow, net } from 'electron';
+import { app, BrowserWindow, net, shell } from 'electron';
 import {
 	autoUpdater,
 	type UpdateInfo,
@@ -35,14 +35,8 @@ const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 const STARTUP_CHECK_DELAY = 5000; // 5 seconds after launch
 
 function detectPortableMode(): boolean {
-	const exePath = app.getPath('exe');
-	const appDataPath = app.getPath('appData');
-	const isInstalled =
-		exePath.includes(appDataPath) ||
-		exePath.includes('Program Files') ||
-		exePath.includes('Program Files (x86)') ||
-		exePath.includes('/Applications/');
-	return !isInstalled;
+	// electron-builder sets this env var only for portable builds
+	return !!process.env.PORTABLE_EXECUTABLE_DIR;
 }
 
 function getMainWindow(): BrowserWindow | null {
@@ -256,6 +250,16 @@ export async function downloadUpdate(): Promise<void> {
 				sendToRenderer('update-downloaded', { version: mockVersion });
 			}
 		}, 800);
+		return;
+	}
+
+	// Portable builds can't auto-update — open GitHub releases page
+	if (isPortableMode) {
+		const version = currentStatus.version ?? '';
+		const tag = version ? `tag/v${version}` : 'latest';
+		await shell.openExternal(
+			`https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/${tag}`,
+		);
 		return;
 	}
 
