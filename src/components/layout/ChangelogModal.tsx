@@ -43,7 +43,7 @@ export function ChangelogModal({
 
 				<ScrollArea className="max-h-64 rounded-md border p-4">
 					{changelog ? (
-						<div className="prose prose-sm dark:prose-invert max-w-none text-sm [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_p]:text-muted-foreground [&_p]:my-1 [&_li]:text-muted-foreground [&_ul]:my-1 [&_ol]:my-1 [&_strong]:text-foreground [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded">
+						<div className="prose prose-sm dark:prose-invert max-w-none text-sm [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_p]:text-muted-foreground [&_p]:my-1 [&_li]:text-muted-foreground [&_ul]:my-1 [&_ol]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:text-foreground [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded">
 							<Markdown>{changelog}</Markdown>
 						</div>
 					) : (

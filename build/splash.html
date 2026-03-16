@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self'">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 480px;
+            height: 360px;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            -webkit-app-region: drag;
+            user-select: none;
+        }
+
+        img {
+            width: 480px;
+            height: 360px;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .loader {
+            position: absolute;
+            bottom: 56px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .loader span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #e94560;
+            opacity: 0.3;
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+
+        .loader span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loader span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        .loader span:nth-child(4) {
+            animation-delay: 0.6s;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.4);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <img src="splash.png" alt="notation.LABS">
+    <div class="loader">
+        <span></span><span></span><span></span><span></span>
+    </div>
+</body>
+
+</html>
