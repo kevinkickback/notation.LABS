@@ -16,6 +16,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	downloadGameCover: (imageId: string) =>
 		ipcRenderer.invoke('igdb:download-cover', imageId),
 
+	// Character image search (DuckDuckGo)
+	searchCharacterImages: (query: string) =>
+		ipcRenderer.invoke('image-search:search', query),
+	getCharacterThumbnails: (urls: string[]) =>
+		ipcRenderer.invoke('image-search:get-thumbnails', urls),
+	downloadCharacterImage: (url: string) =>
+		ipcRenderer.invoke('image-search:download', url),
+
 	// Auto-update
 	checkForUpdate: () => ipcRenderer.invoke('update:check'),
 	downloadUpdate: () => ipcRenderer.invoke('update:download'),
@@ -25,6 +33,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	setAutoCheck: (enabled: boolean) =>
 		ipcRenderer.invoke('update:set-auto-check', enabled),
 	getAppVersion: () => ipcRenderer.invoke('update:get-version'),
+	getCurrentChangelog: () =>
+		ipcRenderer.invoke('update:get-current-changelog') as Promise<{
+			version: string;
+			changelog: string | null;
+		}>,
 
 	// Update event listeners
 	onUpdateChecking: (callback: () => void) => {
@@ -142,6 +155,14 @@ interface IGDBSearchResult {
 	firstReleaseDate: number | null;
 }
 
+interface ImageSearchResult {
+	title: string;
+	thumbnailUrl: string;
+	imageUrl: string;
+	width: number;
+	height: number;
+}
+
 interface UpdateIPCResponse<T> {
 	success: boolean;
 	data: T | null;
@@ -173,6 +194,15 @@ declare global {
 			) => Promise<IGDBIPCResponse<Record<string, string>>>;
 			downloadGameCover: (imageId: string) => Promise<IGDBIPCResponse<string>>;
 
+			// Character image search
+			searchCharacterImages: (
+				query: string,
+			) => Promise<IGDBIPCResponse<ImageSearchResult[]>>;
+			getCharacterThumbnails: (
+				urls: string[],
+			) => Promise<IGDBIPCResponse<Record<string, string>>>;
+			downloadCharacterImage: (url: string) => Promise<IGDBIPCResponse<string>>;
+
 			// Auto-update
 			checkForUpdate: () => Promise<UpdateIPCResponse<unknown>>;
 			downloadUpdate: () => Promise<UpdateIPCResponse<null>>;
@@ -185,6 +215,10 @@ declare global {
 			}>;
 			setAutoCheck: (enabled: boolean) => Promise<void>;
 			getAppVersion: () => Promise<string>;
+			getCurrentChangelog: () => Promise<{
+				version: string;
+				changelog: string | null;
+			}>;
 
 			// Update event listeners (return unsubscribe functions)
 			onUpdateChecking: (callback: () => void) => () => void;

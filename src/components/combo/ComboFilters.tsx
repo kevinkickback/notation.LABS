@@ -17,6 +17,8 @@ interface ComboFiltersProps {
 	onToggleFilterTag: (tag: string) => void;
 	filterDifficulty: string;
 	onFilterDifficultyChange: (value: string) => void;
+	filterOutdated: 'all' | 'outdated' | 'current';
+	onFilterOutdatedChange: (value: 'all' | 'outdated' | 'current') => void;
 	allTags: string[];
 	hasActiveFilters: boolean;
 	onClearFilters: () => void;
@@ -31,6 +33,8 @@ export function ComboFilters({
 	onToggleFilterTag,
 	filterDifficulty,
 	onFilterDifficultyChange,
+	filterOutdated,
+	onFilterOutdatedChange,
 	allTags,
 	hasActiveFilters,
 	onClearFilters,
@@ -71,6 +75,16 @@ export function ComboFilters({
 					<SelectItem value="3">3 / 5</SelectItem>
 					<SelectItem value="4">4 / 5</SelectItem>
 					<SelectItem value="5">5 / 5</SelectItem>
+				</SelectContent>
+			</Select>
+			<Select value={filterOutdated} onValueChange={(v) => onFilterOutdatedChange(v as 'all' | 'outdated' | 'current')}>
+				<SelectTrigger className="w-36">
+					<SelectValue placeholder="Status" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="all">All Status</SelectItem>
+					<SelectItem value="outdated">Outdated</SelectItem>
+					<SelectItem value="current">Current</SelectItem>
 				</SelectContent>
 			</Select>
 			{hasActiveFilters && (

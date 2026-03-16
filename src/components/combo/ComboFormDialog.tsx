@@ -19,6 +19,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
@@ -64,6 +65,7 @@ export function ComboFormDialog({
 	const [demoUrl, setDemoUrl] = useState('');
 	const [demoFileName, setDemoFileName] = useState('');
 	const [demoVideoTitle, setDemoVideoTitle] = useState('');
+	const [outdated, setOutdated] = useState(false);
 
 	const comboNameId = useId();
 	const comboNotationId = useId();
@@ -84,6 +86,7 @@ export function ComboFormDialog({
 		setDemoUrl('');
 		setDemoFileName('');
 		setDemoVideoTitle('');
+		setOutdated(false);
 	}, []);
 
 	// Populate form when editing
@@ -102,6 +105,7 @@ export function ComboFormDialog({
 			setDemoUrl(editingCombo.demoUrl || '');
 			setDemoFileName(editingCombo.demoFileName || '');
 			setDemoVideoTitle(editingCombo.demoVideoTitle || '');
+			setOutdated(editingCombo.outdated || false);
 		} else {
 			resetForm();
 		}
@@ -157,6 +161,7 @@ export function ComboFormDialog({
 				demoUrl: demoUrl.trim() || undefined,
 				demoFileName: demoFileName || undefined,
 				demoVideoTitle: demoVideoTitle || undefined,
+				outdated: outdated || undefined,
 			});
 			toast.success('Combo added');
 			onOpenChange(false);
@@ -198,6 +203,7 @@ export function ComboFormDialog({
 					.filter(Boolean),
 				demoUrl: demoUrl.trim() || undefined,
 				demoFileName: demoFileName || undefined,
+				outdated: outdated || undefined,
 				demoVideoTitle: demoVideoTitle || undefined,
 			});
 			toast.success('Combo updated');
@@ -479,6 +485,20 @@ export function ComboFormDialog({
 							onChange={(e) => setDescription(e.target.value)}
 							rows={3}
 							placeholder="Works in the corner after any starter..."
+						/>
+					</div>
+
+					<div className="flex items-center justify-between rounded-lg border border-border p-3">
+						<div className="space-y-0.5">
+							<Label htmlFor="outdated-toggle" className="text-sm font-medium">Mark as outdated</Label>
+							<p className="text-xs text-muted-foreground">
+								Flag this combo as potentially outdated due to a game patch
+							</p>
+						</div>
+						<Switch
+							id="outdated-toggle"
+							checked={outdated}
+							onCheckedChange={setOutdated}
 						/>
 					</div>
 

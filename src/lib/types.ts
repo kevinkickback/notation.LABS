@@ -40,6 +40,7 @@ export interface Combo {
 	demoFileName?: string;
 	demoVideoTitle?: string;
 	notes?: string;
+	outdated?: boolean;
 	sortOrder: number;
 	createdAt: number;
 	updatedAt: number;
@@ -107,4 +108,12 @@ export interface IGDBSearchResult {
 	name: string;
 	coverImageId: string | null;
 	firstReleaseDate: number | null;
+}
+
+export interface ImageSearchResult {
+	title: string;
+	thumbnailUrl: string;
+	imageUrl: string;
+	width: number;
+	height: number;
 }

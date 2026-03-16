@@ -50,6 +50,7 @@ import {
 	SpinnerGap,
 	CheckCircle,
 	WarningCircle,
+	Scroll,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/lib/store';
@@ -69,6 +70,9 @@ export function GeneralSettings() {
 	const [updateChangelog, setUpdateChangelog] = useState<string | null>(null);
 	const [showChangelog, setShowChangelog] = useState(false);
 	const [showProgress, setShowProgress] = useState(false);
+	const [showCurrentChangelog, setShowCurrentChangelog] = useState(false);
+	const [currentChangelog, setCurrentChangelog] = useState<string | null>(null);
+	const [changelogLoading, setChangelogLoading] = useState(false);
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 
 	const loadSettings = useCallback(async () => {
@@ -317,6 +321,43 @@ export function GeneralSettings() {
 							{updateChecking ? 'Checking...' : 'Check Now'}
 						</Button>
 					</div>
+
+					<div className="flex items-center justify-between">
+						<div>
+							<Label>Changelog</Label>
+							<p className="text-sm text-muted-foreground">
+								View what's new in the current version
+							</p>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={changelogLoading}
+							onClick={async () => {
+								if (!window.electronAPI?.getCurrentChangelog) {
+									toast.error('Not available in dev mode');
+									return;
+								}
+								setChangelogLoading(true);
+								try {
+									const result = await window.electronAPI.getCurrentChangelog();
+									setCurrentChangelog(result.changelog);
+									setShowCurrentChangelog(true);
+								} catch {
+									toast.error('Failed to load changelog');
+								} finally {
+									setChangelogLoading(false);
+								}
+							}}
+						>
+							{changelogLoading ? (
+								<SpinnerGap size={16} className="animate-spin mr-1" />
+							) : (
+								<Scroll size={16} className="mr-1" />
+							)}
+							Show Changelog
+						</Button>
+					</div>
 				</CardContent>
 			</Card>
 
@@ -360,6 +401,13 @@ export function GeneralSettings() {
 			/>
 
 			<UpdateProgressModal open={showProgress} version={updateVersion ?? ''} />
+
+			<ChangelogModal
+				open={showCurrentChangelog}
+				onOpenChange={setShowCurrentChangelog}
+				version={appVersion ?? ''}
+				changelog={currentChangelog}
+			/>
 		</div>
 	);
 }

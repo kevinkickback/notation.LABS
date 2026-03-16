@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowSquareOut } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 
 const FGC_RESOURCES = [
 	{
@@ -31,8 +32,12 @@ const FGC_RESOURCES = [
 ];
 
 export function AboutTab() {
-	const appVersion = '1.0.0';
+	const [appVersion, setAppVersion] = useState<string>('');
 	const currentYear = new Date().getFullYear();
+
+	useEffect(() => {
+		window.electronAPI?.getAppVersion().then(setAppVersion);
+	}, []);
 
 	return (
 		<div className="space-y-6">

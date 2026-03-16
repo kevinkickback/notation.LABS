@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
 import type { Game, Character, Combo, UserSettings } from '../types';
 import { DEFAULT_SETTINGS } from '../defaults';
+import { importDataSchema } from '../schemas';
 
 export interface DemoVideo {
 	id: string;
@@ -53,6 +54,15 @@ db.version(3).stores({
 	demoVideos: 'id',
 });
 
+db.version(4).stores({
+	games: 'id, name, createdAt',
+	characters: 'id, gameId, name, createdAt',
+	combos:
+		'id, characterId, name, notation, createdAt, updatedAt, *tags, sortOrder',
+	settings: 'id',
+	demoVideos: 'id',
+});
+
 function generateId(): string {
 	return uuidv4();
 }
@@ -79,15 +89,21 @@ export const indexedDbStorage = {
 			});
 		},
 		delete: async (id: string) => {
-			await db.games.delete(id);
-			const characters = await db.characters
-				.where('gameId')
-				.equals(id)
-				.toArray();
-			for (const char of characters) {
-				await db.combos.where('characterId').equals(char.id).delete();
-			}
-			await db.characters.where('gameId').equals(id).delete();
+			await db.transaction(
+				'rw',
+				[db.games, db.characters, db.combos],
+				async () => {
+					const characters = await db.characters
+						.where('gameId')
+						.equals(id)
+						.toArray();
+					for (const char of characters) {
+						await db.combos.where('characterId').equals(char.id).delete();
+					}
+					await db.characters.where('gameId').equals(id).delete();
+					await db.games.delete(id);
+				},
+			);
 		},
 	},
 
@@ -116,8 +132,10 @@ export const indexedDbStorage = {
 			});
 		},
 		delete: async (id: string) => {
-			await db.characters.delete(id);
-			await db.combos.where('characterId').equals(id).delete();
+			await db.transaction('rw', [db.characters, db.combos], async () => {
+				await db.combos.where('characterId').equals(id).delete();
+				await db.characters.delete(id);
+			});
 		},
 	},
 
@@ -276,7 +294,8 @@ export const indexedDbStorage = {
 	},
 
 	import: async (data: string, includeVideos = false) => {
-		const parsed = JSON.parse(data);
+		const json = JSON.parse(data);
+		const parsed = importDataSchema.parse(json);
 
 		await db.transaction(
 			'rw',

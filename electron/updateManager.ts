@@ -61,7 +61,7 @@ function setStatus(status: UpdateStatus) {
 	currentStatus = status;
 }
 
-async function fetchChangelog(version: string): Promise<string | null> {
+export async function fetchChangelog(version: string): Promise<string | null> {
 	// Fetch release body from GitHub Releases API (public, no auth needed)
 	const tag = `v${version}`;
 	const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tags/${tag}`;

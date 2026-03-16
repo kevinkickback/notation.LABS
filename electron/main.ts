@@ -3,9 +3,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { downloadCover, downloadThumbnails, searchGames } from './igdb';
 import {
+	downloadFullImage,
+	downloadImageThumbnails,
+	searchImages,
+} from './imageSearch';
+import {
 	cancelDownload,
 	checkForUpdate,
 	downloadUpdate,
+	fetchChangelog,
 	getUpdateStatus,
 	initAutoUpdater,
 	installUpdate,
@@ -200,6 +206,46 @@ app.on('ready', async () => {
 		}
 	});
 
+	// --- Character Image Search IPC Handlers ---
+	ipcMain.handle('image-search:search', async (_event, query: unknown) => {
+		if (typeof query !== 'string' || !query.trim()) {
+			return { success: false, data: null, error: 'Invalid query' };
+		}
+		try {
+			const results = await searchImages(query);
+			return { success: true, data: results, error: null };
+		} catch (err) {
+			return { success: false, data: null, error: (err as Error).message };
+		}
+	});
+
+	ipcMain.handle(
+		'image-search:get-thumbnails',
+		async (_event, urls: unknown) => {
+			if (!Array.isArray(urls) || !urls.every((u) => typeof u === 'string')) {
+				return { success: false, data: null, error: 'Invalid URLs' };
+			}
+			try {
+				const thumbnails = await downloadImageThumbnails(urls);
+				return { success: true, data: thumbnails, error: null };
+			} catch (err) {
+				return { success: false, data: null, error: (err as Error).message };
+			}
+		},
+	);
+
+	ipcMain.handle('image-search:download', async (_event, url: unknown) => {
+		if (typeof url !== 'string' || !url.trim()) {
+			return { success: false, data: null, error: 'Invalid URL' };
+		}
+		try {
+			const base64 = await downloadFullImage(url);
+			return { success: true, data: base64, error: null };
+		} catch (err) {
+			return { success: false, data: null, error: (err as Error).message };
+		}
+	});
+
 	// --- Auto-Update ---
 	initAutoUpdater();
 
@@ -250,6 +296,12 @@ app.on('ready', async () => {
 
 	ipcMain.handle('update:get-version', () => {
 		return app.getVersion();
+	});
+
+	ipcMain.handle('update:get-current-changelog', async () => {
+		const version = app.getVersion();
+		const changelog = await fetchChangelog(version);
+		return { version, changelog };
 	});
 
 	// --- Dev-only: Simulate update for UI testing ---

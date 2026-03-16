@@ -1,7 +1,7 @@
 import type { Combo, Game, DisplayMode } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash, Pencil, DotsSixVertical, Play } from '@phosphor-icons/react';
+import { Trash, Pencil, Copy, DotsSixVertical, Play, Warning } from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
@@ -15,6 +15,7 @@ interface SortableComboCardProps {
 	game: Game;
 	displayMode: DisplayMode;
 	onEdit: (combo: Combo) => void;
+	onDuplicate: (combo: Combo) => void;
 	onDelete: (id: string) => void;
 	onTagClick: (tag: string) => void;
 	onWatchDemo: (combo: Combo) => void;
@@ -29,6 +30,7 @@ export function SortableComboCard({
 	game,
 	displayMode,
 	onEdit,
+	onDuplicate,
 	onDelete,
 	onTagClick,
 	onWatchDemo,
@@ -59,7 +61,7 @@ export function SortableComboCard({
 		<Card
 			ref={setNodeRef}
 			style={style}
-			className={`hover:shadow-md transition-shadow ${isSelected ? 'ring-2 ring-primary' : ''}`}
+			className={`hover:shadow-md transition-shadow ${isSelected ? 'ring-2 ring-primary' : ''} ${combo.outdated ? 'border-l-4 border-l-amber-500' : ''}`}
 		>
 			<CardContent className="px-3 py-2">
 				<div className="flex items-start justify-between mb-2">
@@ -93,6 +95,12 @@ export function SortableComboCard({
 								>
 									{combo.name}
 								</h3>
+								{combo.outdated && (
+									<Badge variant="secondary" className="text-sm py-0 bg-amber-500/15 text-amber-500 border-amber-500/30 gap-1">
+										<Warning className="w-3 h-3" weight="fill" />
+										Outdated
+									</Badge>
+								)}
 								{combo.difficulty && (
 									<Badge variant="secondary" className="text-sm py-0">
 										Difficulty: {combo.difficulty}/5
@@ -146,6 +154,14 @@ export function SortableComboCard({
 							onClick={() => onEdit(combo)}
 						>
 							<Pencil className="size-5" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-10 text-muted-foreground hover:text-foreground"
+							onClick={() => onDuplicate(combo)}
+						>
+							<Copy className="size-5" />
 						</Button>
 						<Button
 							variant="ghost"

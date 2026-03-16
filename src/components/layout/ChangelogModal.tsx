@@ -1,5 +1,5 @@
 import { ArrowSquareOut } from '@phosphor-icons/react';
-import type { ReactNode } from 'react';
+import Markdown from 'react-markdown';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -17,38 +17,7 @@ interface ChangelogModalProps {
 	onOpenChange: (open: boolean) => void;
 	version: string;
 	changelog: string | null;
-	onInstall: () => void;
-}
-
-function renderChangelog(markdown: string): ReactNode[] {
-	const lines = markdown.split('\n');
-	const elements: ReactNode[] = [];
-
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
-
-		if (line.startsWith('## ')) {
-			elements.push(
-				<h3 key={i} className="text-sm font-semibold mt-4 mb-2 text-foreground">
-					{line.replace('## ', '')}
-				</h3>,
-			);
-		} else if (line.startsWith('- ')) {
-			elements.push(
-				<li key={i} className="text-sm text-muted-foreground ml-4 list-disc">
-					{line.replace('- ', '')}
-				</li>,
-			);
-		} else if (!line.startsWith('# ') && line.trim() !== '') {
-			elements.push(
-				<p key={i} className="text-sm text-muted-foreground">
-					{line}
-				</p>,
-			);
-		}
-	}
-
-	return elements;
+	onInstall?: () => void;
 }
 
 export function ChangelogModal({
@@ -62,15 +31,21 @@ export function ChangelogModal({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Update Available — v{version}</DialogTitle>
+					<DialogTitle>
+						{onInstall ? `Update Available — v${version}` : `Changelog — v${version}`}
+					</DialogTitle>
 					<DialogDescription>
-						A new version is ready to install. Review the changes below.
+						{onInstall
+							? 'A new version is ready to install. Review the changes below.'
+							: 'Changes included in this version.'}
 					</DialogDescription>
 				</DialogHeader>
 
 				<ScrollArea className="max-h-64 rounded-md border p-4">
 					{changelog ? (
-						<ul className="space-y-1">{renderChangelog(changelog)}</ul>
+						<div className="prose prose-sm dark:prose-invert max-w-none text-sm [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_p]:text-muted-foreground [&_p]:my-1 [&_li]:text-muted-foreground [&_ul]:my-1 [&_ol]:my-1 [&_strong]:text-foreground [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded">
+							<Markdown>{changelog}</Markdown>
+						</div>
 					) : (
 						<div className="text-sm text-muted-foreground space-y-2">
 							<p>No changelog available for this release.</p>
@@ -87,10 +62,18 @@ export function ChangelogModal({
 				</ScrollArea>
 
 				<DialogFooter>
-					<Button variant="outline" onClick={() => onOpenChange(false)}>
-						Skip
-					</Button>
-					<Button onClick={onInstall}>Install Now</Button>
+					{onInstall ? (
+						<>
+							<Button variant="outline" onClick={() => onOpenChange(false)}>
+								Skip
+							</Button>
+							<Button onClick={onInstall}>Install Now</Button>
+						</>
+					) : (
+						<Button variant="outline" onClick={() => onOpenChange(false)}>
+							Close
+						</Button>
+					)}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

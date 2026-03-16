@@ -511,7 +511,12 @@ export function GameLibrary({ games }: GameLibraryProps) {
 		<div>
 			<div className="flex items-center justify-between mb-8">
 				<div>
-					<h2 className="text-3xl font-bold mb-2">Game Library</h2>
+					<h2 className="text-3xl font-bold mb-2 flex items-center gap-3">
+						Game Library
+						<span className="inline-flex items-center justify-center rounded-full bg-primary/15 text-primary text-sm font-semibold px-2.5 py-0.5 tabular-nums">
+							{games.length}
+						</span>
+					</h2>
 					<p className="text-muted-foreground">
 						Select a game to manage characters and combos
 					</p>

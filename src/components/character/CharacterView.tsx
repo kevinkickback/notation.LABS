@@ -13,8 +13,10 @@ import {
 	GameController,
 	SquaresFour,
 	List,
+	MagnifyingGlass,
 } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
+import { CharacterImageSearchDialog } from './CharacterImageSearchDialog';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -81,6 +83,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 	/* eslint-enable react-hooks/set-state-in-effect */
 	const charNameId = useId();
 	const charNotesId = useId();
+	const [imageSearchOpen, setImageSearchOpen] = useState(false);
 
 	// Get combo counts per character
 	const combos = useLiveQuery(
@@ -205,6 +208,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 		setPortraitZoom(100);
 		setPortraitPanX(50);
 		setPortraitPanY(50);
+		setImageSearchOpen(false);
 	};
 
 	const handleDeleteCharacter = async (character: Character) => {
@@ -276,7 +280,17 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 									size="sm"
 									onClick={handleImageSelect}
 								>
-									Choose Image
+									<ImageSquare className="w-4 h-4 mr-2 shrink-0" />
+									Upload Image
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setImageSearchOpen(true)}
+								>
+									<MagnifyingGlass className="w-4 h-4 mr-2 shrink-0" />
+									Search Images
 								</Button>
 								{portraitImage && (
 									<Button
@@ -399,6 +413,15 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 				</div>
 
 				{characterDialog}
+				<CharacterImageSearchDialog
+					open={imageSearchOpen}
+					onOpenChange={setImageSearchOpen}
+					defaultQuery={`${game.name} ${name}`.trim()}
+					onImageSelect={(base64) => {
+						setPortraitImage(base64);
+						setImageSearchOpen(false);
+					}}
+				/>
 			</div>
 		);
 	}
@@ -672,6 +695,15 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 			</div>
 
 			{characterDialog}
+			<CharacterImageSearchDialog
+				open={imageSearchOpen}
+				onOpenChange={setImageSearchOpen}
+				defaultQuery={`${game.name} ${name}`.trim()}
+				onImageSelect={(base64) => {
+					setPortraitImage(base64);
+					setImageSearchOpen(false);
+				}}
+			/>
 
 			<AlertDialog
 				open={!!deleteTarget}

@@ -425,7 +425,7 @@ describe('indexedDbStorage.settings', () => {
 		expect(settings.colorTheme).toBe('dark');
 		expect(settings.fontFamily).toBe('system-ui');
 		expect(settings.displayMode).toBe('colored-text');
-		expect(settings.iconStyle).toBe('hexagon');
+		expect(settings.iconStyle).toBe('round');
 		expect(settings.comboScale).toBe(1);
 		expect(settings.autoUpdate).toBe(true);
 		expect(settings.confirmBeforeDelete).toBe(true);
@@ -650,6 +650,7 @@ describe('indexedDbStorage.import', () => {
 	it('imports games, characters, and combos', async () => {
 		const data = JSON.stringify({
 			version: 1,
+			exported: new Date().toISOString(),
 			games: [
 				{
 					id: 'g1',
@@ -696,7 +697,22 @@ describe('indexedDbStorage.import', () => {
 	it('imports settings', async () => {
 		const data = JSON.stringify({
 			version: 1,
-			settings: { comboScale: 2.5, displayMode: 'visual-icons' },
+			exported: new Date().toISOString(),
+			settings: {
+				colorTheme: 'dark',
+				fontFamily: 'system-ui',
+				notationColors: { direction: '#fff', separator: '#ccc' },
+				displayMode: 'visual-icons',
+				iconStyle: 'round',
+				uiTheme: 'default',
+				comboScale: 2.5,
+				autoUpdate: true,
+				confirmBeforeDelete: true,
+				videoPlayerSize: 'lg',
+				gameCardSize: 180,
+				characterCardSize: 180,
+				showChangelogBeforeUpdate: true,
+			},
 		});
 
 		await indexedDbStorage.import(data);
@@ -711,6 +727,7 @@ describe('indexedDbStorage.import', () => {
 		const base64Data = btoa(String.fromCharCode(10, 20, 30));
 		const data = JSON.stringify({
 			version: 2,
+			exported: new Date().toISOString(),
 			demoVideos: [
 				{
 					id: 'v1',
@@ -731,6 +748,7 @@ describe('indexedDbStorage.import', () => {
 	it('skips videos when includeVideos is false', async () => {
 		const data = JSON.stringify({
 			version: 2,
+			exported: new Date().toISOString(),
 			demoVideos: [
 				{
 					id: 'v1',
@@ -754,6 +772,7 @@ describe('indexedDbStorage.import', () => {
 
 		const data = JSON.stringify({
 			version: 1,
+			exported: new Date().toISOString(),
 			games: [
 				{
 					id: 'new-game',

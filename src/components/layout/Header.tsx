@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { GearSix, Download, Upload, Notebook } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
@@ -10,6 +10,11 @@ import { ExportDialog } from '@/components/layout/ExportDialog';
 export function Header() {
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+	const [appVersion, setAppVersion] = useState<string>('');
+
+	useEffect(() => {
+		window.electronAPI?.getAppVersion().then(setAppVersion);
+	}, []);
 
 	const handleExport = async (
 		includeVideos: boolean,
@@ -67,7 +72,7 @@ export function Header() {
 							notation<span className="text-primary">.LABS</span>
 						</h1>
 						<span className="text-xs text-muted-foreground font-mono ml-1 self-end mb-0.5">
-							v1.0.0
+							{appVersion ? `v${appVersion}` : ''}
 						</span>
 					</div>
 				</div>

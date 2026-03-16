@@ -6,6 +6,7 @@ import {
 	Funnel,
 	CheckSquare,
 	Trash,
+	Warning,
 } from '@phosphor-icons/react';
 import { useState, useMemo, useCallback } from 'react';
 import { useSettings } from '@/hooks/useSettings';
@@ -67,6 +68,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	const [showFilters, setShowFilters] = useState(false);
 	const [filterTags, setFilterTags] = useState<string[]>([]);
 	const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
+	const [filterOutdated, setFilterOutdated] = useState<'all' | 'outdated' | 'current'>('all');
 	const [filterSearch, setFilterSearch] = useState('');
 
 	// Multi-select state
@@ -110,6 +112,8 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 				combo.difficulty !== parseInt(filterDifficulty, 10)
 			)
 				return false;
+			if (filterOutdated === 'outdated' && !combo.outdated) return false;
+			if (filterOutdated === 'current' && combo.outdated) return false;
 			if (filterSearch) {
 				const q = filterSearch.toLowerCase();
 				const matches =
@@ -121,10 +125,10 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 			}
 			return true;
 		});
-	}, [combos, filterTags, filterDifficulty, filterSearch]);
+	}, [combos, filterTags, filterDifficulty, filterOutdated, filterSearch]);
 
 	const hasActiveFilters =
-		filterTags.length > 0 || filterDifficulty !== 'all' || filterSearch !== '';
+		filterTags.length > 0 || filterDifficulty !== 'all' || filterOutdated !== 'all' || filterSearch !== '';
 	const isFiltering = hasActiveFilters;
 
 	const handleDisplayModeChange = async (mode: DisplayMode) => {
@@ -147,6 +151,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	const clearFilters = () => {
 		setFilterTags([]);
 		setFilterDifficulty('all');
+		setFilterOutdated('all');
 		setFilterSearch('');
 	};
 
@@ -166,6 +171,20 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	const handleEdit = (combo: Combo) => {
 		setEditingCombo(combo);
 		setDialogOpen(true);
+	};
+
+	const handleDuplicate = async (combo: Combo) => {
+		try {
+			const { id, createdAt, updatedAt, sortOrder, ...rest } = combo;
+			await indexedDbStorage.combos.add({
+				...rest,
+				name: `${combo.name} (copy)`,
+				demoUrl: combo.demoUrl?.startsWith('local:') ? '' : (combo.demoUrl ?? ''),
+			});
+			toast.success('Combo duplicated');
+		} catch {
+			toast.error('Failed to duplicate combo');
+		}
 	};
 
 	const handleDelete = async (comboId: string) => {
@@ -207,6 +226,22 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 			return;
 		}
 		executeBulkDelete();
+	};
+
+	const handleBulkMarkOutdated = async (outdated: boolean) => {
+		if (selectedIds.size === 0) return;
+		try {
+			for (const id of selectedIds) {
+				await indexedDbStorage.combos.update(id, { outdated: outdated || undefined });
+			}
+			toast.success(
+				`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
+			);
+			setSelectedIds(new Set());
+			setIsSelecting(false);
+		} catch {
+			toast.error('Failed to update combos');
+		}
 	};
 
 	const executeBulkDelete = async () => {
@@ -360,6 +395,8 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 					onToggleFilterTag={toggleFilterTag}
 					filterDifficulty={filterDifficulty}
 					onFilterDifficultyChange={setFilterDifficulty}
+					filterOutdated={filterOutdated}
+					onFilterOutdatedChange={setFilterOutdated}
 					allTags={allTags}
 					hasActiveFilters={hasActiveFilters}
 					onClearFilters={clearFilters}
@@ -383,16 +420,28 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 							</Button>
 						)}
 					</div>
-					<Button
-						variant="destructive"
-						size="sm"
-						className="gap-1.5"
-						disabled={selectedIds.size === 0}
-						onClick={handleBulkDelete}
-					>
-						<Trash className="w-4 h-4" />
-						Delete ({selectedIds.size})
-					</Button>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							className="gap-1.5 text-amber-500 border-amber-500/30 hover:bg-amber-500/10"
+							disabled={selectedIds.size === 0}
+							onClick={() => handleBulkMarkOutdated(true)}
+						>
+							<Warning className="w-4 h-4" />
+							Mark Outdated ({selectedIds.size})
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							className="gap-1.5"
+							disabled={selectedIds.size === 0}
+							onClick={handleBulkDelete}
+						>
+							<Trash className="w-4 h-4" />
+							Delete ({selectedIds.size})
+						</Button>
+					</div>
 				</div>
 			)}
 
@@ -413,6 +462,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 								game={game}
 								displayMode={displayMode}
 								onEdit={handleEdit}
+								onDuplicate={handleDuplicate}
 								onDelete={handleDelete}
 								onTagClick={handleTagClick}
 								onWatchDemo={handleWatchDemo}

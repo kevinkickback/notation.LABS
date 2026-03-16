@@ -10,7 +10,12 @@ export function useSettings() {
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: settingsVersion is an intentional re-fetch trigger
 	useEffect(() => {
-		indexedDbStorage.settings.get().then(setSettings);
+		indexedDbStorage.settings
+			.get()
+			.then(setSettings)
+			.catch(() => {
+				setSettings(DEFAULT_SETTINGS);
+			});
 	}, [settingsVersion]);
 
 	return settings;
