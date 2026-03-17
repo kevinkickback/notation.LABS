@@ -28,17 +28,17 @@ export function DisplayModeToggle({
 	];
 
 	return (
-		<div className={`inline-flex bg-muted rounded-lg p-1 gap-1 ${className}`}>
-			{modes.map((m) => (
+		<div className={`inline-flex items-center rounded-md ${className}`}>
+			{modes.map((m, i) => (
 				<Button
 					key={m.value}
-					variant={mode === m.value ? 'default' : 'ghost'}
-					size="sm"
+					variant={mode === m.value ? 'secondary' : 'ghost'}
+					size="icon"
 					onClick={() => onChange(m.value)}
-					className="gap-2 min-w-[100px]"
+					className={`h-9 w-9 ${i === 0 ? 'rounded-r-none' : 'rounded-l-none'}`}
+					title={m.label}
 				>
 					{m.icon}
-					{m.label}
 				</Button>
 			))}
 		</div>

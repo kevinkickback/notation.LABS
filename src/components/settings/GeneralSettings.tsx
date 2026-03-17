@@ -388,6 +388,19 @@ export function GeneralSettings() {
 							}}
 						/>
 					</div>
+
+					<div className="flex items-center justify-between">
+						<div>
+							<Label>Notes Open by Default</Label>
+							<p className="text-sm text-muted-foreground">
+								Show notes panels expanded when navigating to a game or character
+							</p>
+						</div>
+						<Switch
+							checked={settings.notesDefaultOpen ?? false}
+							onCheckedChange={(v) => updateSetting('notesDefaultOpen', v)}
+						/>
+					</div>
 				</CardContent>
 			</Card>
 

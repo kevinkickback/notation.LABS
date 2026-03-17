@@ -16,5 +16,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
 	videoPlayerSize: 'lg',
 	gameCardSize: 180,
 	characterCardSize: 180,
+	notesDefaultOpen: false,
 	showChangelogBeforeUpdate: true,
 };

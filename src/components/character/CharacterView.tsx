@@ -14,6 +14,9 @@ import {
 	SquaresFour,
 	List,
 	MagnifyingGlass,
+	Note,
+	CaretDown,
+	Palette,
 } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
 import { CharacterImageSearchDialog } from './CharacterImageSearchDialog';
@@ -34,6 +37,7 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
+	DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,8 +54,11 @@ import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/hooks/useSettings';
 import { toast } from 'sonner';
+import { colorToHex } from '@/lib/utils';
 
 type CharacterSort = 'name-asc' | 'name-desc' | 'combos' | 'modified';
+
+const clampCharSize = (v: number) => Math.min(300, Math.max(120, v));
 
 interface CharacterViewProps {
 	game: Game;
@@ -69,18 +76,88 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 	const [portraitPanY, setPortraitPanY] = useState(50);
 	const { setSelectedCharacter } = useAppStore();
 
+	const DEFAULT_BTN_PALETTE = ['#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#319795', '#3182ce', '#5a67d8', '#805ad5', '#d53f8c', '#718096'];
+
+	const [colorDialogOpen, setColorDialogOpen] = useState(false);
+	const [tempGameColors, setTempGameColors] = useState<Record<string, string>>({});
+	const [colorHexEdits, setColorHexEdits] = useState<Record<string, string>>({});
+	const [tempButtonLayout, setTempButtonLayout] = useState<string[]>([]);
+	const [newButtonName, setNewButtonName] = useState('');
+
+	const openColorDialog = () => {
+		const layout = [...game.buttonLayout];
+		const initial: Record<string, string> = {};
+		layout.forEach((btn, i) => {
+			initial[btn] = colorToHex(game.buttonColors?.[btn] || DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length]);
+		});
+		setTempButtonLayout(layout);
+		setTempGameColors(initial);
+		setColorHexEdits({});
+		setNewButtonName('');
+		setColorDialogOpen(true);
+	};
+
+	const handleSaveGameColors = async () => {
+		try {
+			const colorsToSave: Record<string, string> = {};
+			tempButtonLayout.forEach((btn) => {
+				colorsToSave[btn] = tempGameColors[btn] || DEFAULT_BTN_PALETTE[tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length];
+			});
+			await indexedDbStorage.games.update(game.id, { buttonLayout: tempButtonLayout, buttonColors: colorsToSave });
+			useAppStore.getState().notifySettingsChanged();
+			toast.success('Button colors updated');
+			setColorDialogOpen(false);
+		} catch {
+			toast.error('Failed to update colors');
+		}
+	};
+
+	const addButton = () => {
+		const name = newButtonName.trim();
+		if (name && !tempButtonLayout.includes(name)) {
+			const i = tempButtonLayout.length;
+			setTempButtonLayout((prev) => [...prev, name]);
+			setTempGameColors((prev) => ({ ...prev, [name]: DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length] }));
+			setNewButtonName('');
+		}
+	};
+
+	const [showNotes, setShowNotes] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
 	const [sortBy, setSortBy] = useState<CharacterSort>('name-asc');
 	const [filterSearch, setFilterSearch] = useState('');
 	const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
 	const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 	const settings = useSettings();
-	const [cardSize, setCardSize] = useState(settings.characterCardSize);
+	const [cardSize, setCardSize] = useState(() => clampCharSize(settings.characterCardSize));
 	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
-		setCardSize(settings.characterCardSize);
+		setCardSize(clampCharSize(settings.characterCardSize));
 	}, [settings.characterCardSize]);
+
+	// Initialise notes panel from default setting + per-entity localStorage override
+	const defaultNotesOpen = settings.notesDefaultOpen ?? false;
+	useEffect(() => {
+		const overrides: string[] = JSON.parse(
+			localStorage.getItem('notes_overrides') ?? '[]',
+		);
+		const isOverridden = overrides.includes(game.id);
+		setShowNotes(isOverridden ? !defaultNotesOpen : defaultNotesOpen);
+	}, [game.id, defaultNotesOpen]);
 	/* eslint-enable react-hooks/set-state-in-effect */
+
+	const handleToggleNotes = () => {
+		const next = !showNotes;
+		setShowNotes(next);
+		const overrides: string[] = JSON.parse(
+			localStorage.getItem('notes_overrides') ?? '[]',
+		);
+		const updated =
+			next !== defaultNotesOpen
+				? [...new Set([...overrides, game.id])]
+				: overrides.filter((id) => id !== game.id);
+		localStorage.setItem('notes_overrides', JSON.stringify(updated));
+	};
 	const charNameId = useId();
 	const charNotesId = useId();
 	const [imageSearchOpen, setImageSearchOpen] = useState(false);
@@ -142,6 +219,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 	}, [characters, sortBy, filterSearch, comboCountByChar, lastModifiedByChar]);
 
 	const hasActiveFilters = filterSearch !== '' || sortBy !== 'name-asc';
+	const activeFilterCount = (filterSearch !== '' ? 1 : 0) + (sortBy !== 'name-asc' ? 1 : 0);
 
 	const handleAdd = async () => {
 		if (!name.trim()) {
@@ -292,66 +370,62 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 									<MagnifyingGlass className="w-4 h-4 mr-2 shrink-0" />
 									Search Images
 								</Button>
-								{portraitImage && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() => setPortraitImage('')}
-										className="text-xs h-6 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
-									>
-										<X className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-										Remove
-									</Button>
-								)}
-								{portraitImage && (
-									<div className="flex items-center gap-2 mt-1">
-										<span className="text-xs text-muted-foreground shrink-0">
-											Zoom
-										</span>
-										<Slider
-											min={100}
-											max={200}
-											step={5}
-											value={[portraitZoom]}
-											onValueChange={([v]) => setPortraitZoom(v)}
-											className="flex-1"
-										/>
-										<span className="text-xs text-muted-foreground w-8 text-right">
-											{portraitZoom}%
-										</span>
-									</div>
-								)}
-								{portraitImage && portraitZoom > 100 && (
-									<>
-										<div className="flex items-center gap-2">
-											<span className="text-xs text-muted-foreground shrink-0">
-												Pan X
-											</span>
-											<Slider
-												min={0}
-												max={100}
-												step={1}
-												value={[portraitPanX]}
-												onValueChange={([v]) => setPortraitPanX(v)}
-												className="flex-1"
-											/>
-										</div>
-										<div className="flex items-center gap-2">
-											<span className="text-xs text-muted-foreground shrink-0">
-												Pan Y
-											</span>
-											<Slider
-												min={0}
-												max={100}
-												step={1}
-												value={[portraitPanY]}
-												onValueChange={([v]) => setPortraitPanY(v)}
-												className="flex-1"
-											/>
-										</div>
-									</>
-								)}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									disabled={!portraitImage}
+									onClick={() => setPortraitImage('')}
+									className="text-xs h-6 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 disabled:opacity-40 disabled:pointer-events-none"
+								>
+									<X className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+									Remove
+								</Button>
+								<div className={`flex items-center gap-2 mt-1 ${!portraitImage ? 'opacity-40 pointer-events-none' : ''}`}>
+									<span className="text-xs text-muted-foreground shrink-0">
+										Zoom
+									</span>
+									<Slider
+										min={100}
+										max={200}
+										step={5}
+										value={[portraitZoom]}
+										onValueChange={([v]) => setPortraitZoom(v)}
+										className="flex-1"
+										disabled={!portraitImage}
+									/>
+									<span className="text-xs text-muted-foreground w-8 text-right">
+										{portraitZoom}%
+									</span>
+								</div>
+								<div className={`flex items-center gap-2 ${!portraitImage ? 'opacity-40 pointer-events-none' : ''}`}>
+									<span className="text-xs text-muted-foreground shrink-0">
+										Pan X
+									</span>
+									<Slider
+										min={0}
+										max={100}
+										step={1}
+										value={[portraitPanX]}
+										onValueChange={([v]) => setPortraitPanX(v)}
+										className="flex-1"
+										disabled={!portraitImage}
+									/>
+								</div>
+								<div className={`flex items-center gap-2 ${!portraitImage ? 'opacity-40 pointer-events-none' : ''}`}>
+									<span className="text-xs text-muted-foreground shrink-0">
+										Pan Y
+									</span>
+									<Slider
+										min={0}
+										max={100}
+										step={1}
+										value={[portraitPanY]}
+										onValueChange={([v]) => setPortraitPanY(v)}
+										className="flex-1"
+										disabled={!portraitImage}
+									/>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -435,24 +509,27 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 						Select a character to manage combos
 					</p>
 				</div>
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-2">
 					{viewMode === 'grid' && (
-						<Slider
-							min={120}
-							max={300}
-							step={10}
-							value={[cardSize]}
-							onValueChange={([v]) => {
-								setCardSize(v);
-								indexedDbStorage.settings
-									.update({ characterCardSize: v })
-									.then(() => useAppStore.getState().notifySettingsChanged());
-							}}
-							className="w-28"
-							title="Card size"
-						/>
+						<div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9">
+							<span className="text-xs text-muted-foreground select-none">Size</span>
+							<Slider
+								min={120}
+								max={300}
+								step={10}
+								value={[cardSize]}
+								onValueChange={([v]) => {
+									setCardSize(v);
+									indexedDbStorage.settings
+										.update({ characterCardSize: v })
+										.then(() => useAppStore.getState().notifySettingsChanged());
+								}}
+								className="w-24"
+								title="Card size"
+							/>
+						</div>
 					)}
-					<div className="flex items-center border border-border rounded-md">
+					<div className="flex items-center bg-muted rounded-md">
 						<Button
 							variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
 							size="icon"
@@ -472,24 +549,59 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 							<List className="w-5 h-5" />
 						</Button>
 					</div>
-					<Button
-						variant={showFilters ? 'secondary' : 'ghost'}
-						size="icon"
-						onClick={() => setShowFilters(!showFilters)}
-						title="Sort & Filter"
-						className="relative"
-					>
-						<Funnel className="w-5 h-5" />
-						{hasActiveFilters && (
-							<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full" />
-						)}
-					</Button>
+					<div className="bg-muted rounded-md">
+						<Button
+							variant={showFilters ? 'secondary' : 'ghost'}
+							size="icon"
+							onClick={() => setShowFilters(!showFilters)}
+							title="Sort & Filter"
+							className="relative"
+						>
+							<Funnel className="w-5 h-5" />
+							{activeFilterCount > 0 && (
+								<span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center leading-none px-0.5">
+									{activeFilterCount}
+								</span>
+							)}
+						</Button>
+					</div>
+					<div className="bg-muted rounded-md">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={openColorDialog}
+							title="Edit button colors"
+						>
+							<Palette className="w-5 h-5" />
+						</Button>
+					</div>
 					<Button onClick={() => setDialogOpen(true)} className="gap-2">
 						<Plus weight="bold" />
 						Add Character
 					</Button>
 				</div>
 			</div>
+
+			{game.notes?.trim() && (
+				<div className="mb-6 border border-border rounded-lg overflow-hidden">
+					<button
+						type="button"
+						onClick={handleToggleNotes}
+						className="w-full flex items-center justify-between px-4 py-2.5 bg-card hover:bg-muted/50 transition-colors"
+					>
+						<span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+							<Note className="w-4 h-4" />
+							Notes
+						</span>
+						<CaretDown className={`w-4 h-4 text-muted-foreground transition-transform duration-150 ${showNotes ? 'rotate-180' : ''}`} />
+					</button>
+					{showNotes && (
+						<div className="px-4 py-3 bg-card border-t border-border">
+							<p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{game.notes}</p>
+						</div>
+					)}
+				</div>
+			)}
 
 			{showFilters && (
 				<div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-card border border-border rounded-lg">
@@ -540,7 +652,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 				style={
 					viewMode === 'grid'
 						? {
-							gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize}px, 1fr))`,
+							gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(cardSize * 4 / 3)}px, 1fr))`,
 						}
 						: undefined
 				}
@@ -549,36 +661,34 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					viewMode === 'grid' ? (
 						<Card
 							key={character.id}
-							className="group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative !py-0 !gap-0"
-							style={{ height: `${Math.round(cardSize * 0.65)}px` }}
+							className="group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative aspect-[4/3] !py-0 !gap-0 hover:scale-[1.03]"
 							onClick={() => setSelectedCharacter(character.id)}
 						>
 							<div
-								className="absolute top-0 bottom-0 right-0"
+								className="absolute inset-0"
 								style={{
-									left: '30%',
 									backgroundImage: `url(${character.portraitImage || defaultCharacterImage})`,
-									backgroundSize: `${character.portraitZoom || 100}%`,
-									backgroundPosition: `${character.portraitPanX ?? 50}% ${character.portraitPanY ?? 50}%`,
+									backgroundSize: character.portraitZoom
+										? `${character.portraitZoom}%`
+										: 'cover',
+									backgroundPosition: character.portraitZoom
+										? `${character.portraitPanX ?? 50}% ${character.portraitPanY ?? 50}%`
+										: 'center',
 									backgroundRepeat: 'no-repeat',
-									maskImage:
-										'linear-gradient(to left, black 0%, transparent 100%)',
-									WebkitMaskImage:
-										'linear-gradient(to left, black 0%, transparent 100%)',
 								}}
 							/>
-							<CardContent className="p-0 relative z-10 flex flex-col justify-between flex-1">
+							<CardContent className="p-0 relative z-10 flex flex-col justify-end h-full">
 								<div
-									className="py-2 pl-4 pr-8"
+									className="p-3 pt-16"
 									style={{
 										background:
-											'linear-gradient(to right, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.15) 60%, transparent 100%)',
+											'linear-gradient(to top, black 0%, rgba(0,0,0,0.97) 25%, rgba(0,0,0,0.85) 50%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.2) 85%, transparent 100%)',
 									}}
 								>
 									<h3
-										className="font-bold text-white leading-tight"
+										className="font-bold text-white leading-tight mb-1"
 										style={{
-											fontSize: 'clamp(0.875rem, 1.25rem, 1.25rem)',
+											fontSize: 'clamp(0.875rem, 1.1rem, 1.25rem)',
 											display: '-webkit-box',
 											WebkitLineClamp: 2,
 											WebkitBoxOrient: 'vertical',
@@ -587,54 +697,36 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 									>
 										{character.name}
 									</h3>
-								</div>
-								<div className="flex items-end justify-between mt-auto pb-1.5">
-									<div className="text-left pl-4 pr-2 space-y-0.5">
-										<p
-											className="text-sm text-muted-foreground flex items-center gap-1.5"
-											style={{ textShadow: '0 0 4px rgba(0,0,0,0.7)' }}
-										>
+									<div className="flex items-center gap-3 text-sm text-gray-300">
+										<span className="flex items-center gap-1">
 											<GameController className="w-3.5 h-3.5" />{' '}
 											{comboCountByChar[character.id] || 0} combos
-										</p>
-										<p
-											className="text-sm text-muted-foreground flex items-center gap-1.5"
-											style={{ textShadow: '0 0 4px rgba(0,0,0,0.7)' }}
-										>
-											<Timer className="w-3.5 h-3.5" />{' '}
-											{new Date(
-												lastModifiedByChar[character.id] || character.updatedAt,
-											).toLocaleDateString(undefined, {
-												month: 'short',
-												day: 'numeric',
-												year: 'numeric',
-											})}
-										</p>
+										</span>
 									</div>
-									<div className="flex gap-1 pr-2 pb-0.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600"
-											onClick={(e) => {
-												e.stopPropagation();
-												openEditDialog(character);
-											}}
-										>
-											<PencilSimple className="w-4 h-4" weight="bold" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
-											onClick={(e) => {
-												e.stopPropagation();
-												setDeleteTarget(character);
-											}}
-										>
-											<Trash className="w-4 h-4" weight="bold" />
-										</Button>
-									</div>
+								</div>
+								<div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 cursor-pointer"
+										onClick={(e) => {
+											e.stopPropagation();
+											openEditDialog(character);
+										}}
+									>
+										<PencilSimple className="w-4 h-4" weight="bold" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
+										onClick={(e) => {
+											e.stopPropagation();
+											setDeleteTarget(character);
+										}}
+									>
+										<Trash className="w-4 h-4" weight="bold" />
+									</Button>
 								</div>
 							</CardContent>
 						</Card>
@@ -735,6 +827,80 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<Dialog open={colorDialogOpen} onOpenChange={setColorDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Button Colors — {game.name}</DialogTitle>
+
+					</DialogHeader>
+					<div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2">
+						{tempButtonLayout.map((btn, i) => {
+							const hexColor = colorToHex(tempGameColors[btn] || DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length]);
+							const editHex = colorHexEdits[btn] ?? hexColor;
+							return (
+								<div key={btn} className="flex items-center gap-2">
+									<span className="text-sm w-8 shrink-0 truncate">{btn}</span>
+									<label className="relative w-10 h-7 rounded border border-border cursor-pointer overflow-hidden shrink-0">
+										<div className="absolute inset-0" style={{ backgroundColor: hexColor }} />
+										<input
+											type="color"
+											value={hexColor}
+											onChange={(e) => {
+												setTempGameColors((prev) => ({ ...prev, [btn]: e.target.value }));
+												setColorHexEdits((prev) => ({ ...prev, [btn]: e.target.value }));
+											}}
+											className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+										/>
+									</label>
+									<input
+										type="text"
+										value={editHex}
+										onChange={(e) => setColorHexEdits((prev) => ({ ...prev, [btn]: e.target.value }))}
+										onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+										onBlur={(e) => {
+											let val = e.target.value.trim();
+											if (!val.startsWith('#')) val = `#${val}`;
+											if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+												setTempGameColors((prev) => ({ ...prev, [btn]: val }));
+												setColorHexEdits((prev) => ({ ...prev, [btn]: val }));
+											} else {
+												setColorHexEdits((prev) => ({ ...prev, [btn]: hexColor }));
+											}
+										}}
+										className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+									/>
+									<button
+										type="button"
+										onClick={() => setTempButtonLayout((prev) => prev.filter((b) => b !== btn))}
+										className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+										title={`Remove ${btn}`}
+									>
+										<X className="w-3.5 h-3.5" />
+									</button>
+								</div>
+							);
+						})}
+					</div>
+					<div className="flex gap-2 mt-3 pt-3 border-t border-border">
+						<Input
+							placeholder="Button name (e.g. LP)"
+							value={newButtonName}
+							onChange={(e) => setNewButtonName(e.target.value)}
+							onKeyDown={(e) => { if (e.key === 'Enter') addButton(); }}
+							className="h-8 text-sm"
+						/>
+						<Button type="button" variant="outline" size="sm" className="shrink-0" onClick={addButton}>
+							<Plus className="w-4 h-4 mr-1" weight="bold" />
+							Add
+						</Button>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setColorDialogOpen(false)}>Cancel</Button>
+						<Button onClick={handleSaveGameColors}>Apply</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

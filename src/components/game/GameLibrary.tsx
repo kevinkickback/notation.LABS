@@ -50,6 +50,20 @@ import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/hooks/useSettings';
 import { toast } from 'sonner';
+import { colorToHex } from '@/lib/utils';
+
+const DEFAULT_BUTTON_PALETTE = [
+	'#e53e3e',
+	'#dd6b20',
+	'#d69e2e',
+	'#38a169',
+	'#319795',
+	'#3182ce',
+	'#5a67d8',
+	'#805ad5',
+	'#d53f8c',
+	'#718096',
+];
 
 type GameSort = 'name-asc' | 'name-desc' | 'characters' | 'combos' | 'modified';
 
@@ -67,6 +81,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	const [coverZoom, setCoverZoom] = useState(100);
 	const [coverPanX, setCoverPanX] = useState(50);
 	const [coverPanY, setCoverPanY] = useState(50);
+	const [dialogButtonColors, setDialogButtonColors] = useState<Record<string, string>>({});
+	const [dialogHexEdits, setDialogHexEdits] = useState<Record<string, string>>({});
 	const { setSelectedGame } = useAppStore();
 
 	const [showFilters, setShowFilters] = useState(false);
@@ -82,6 +98,24 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	}, [settings.gameCardSize]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 	const [coverSearchOpen, setCoverSearchOpen] = useState(false);
+
+	const parsedButtons = useMemo(
+		() => buttonLayout.split(',').map((b) => b.trim()).filter(Boolean),
+		[buttonLayout],
+	);
+
+	/* eslint-disable react-hooks/set-state-in-effect */
+	useEffect(() => {
+		setDialogButtonColors((prev) => {
+			const updated: Record<string, string> = {};
+			parsedButtons.forEach((btn, i) => {
+				updated[btn] = prev[btn] || DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length];
+			});
+			return updated;
+		});
+	}, [parsedButtons]);
+	/* eslint-enable react-hooks/set-state-in-effect */
+
 	const formId = useId();
 	const nameInputId = `${formId}-name`;
 	const buttonsInputId = `${formId}-buttons`;
@@ -167,6 +201,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	]);
 
 	const hasActiveFilters = filterSearch !== '' || sortBy !== 'name-asc';
+	const activeFilterCount = (filterSearch !== '' ? 1 : 0) + (sortBy !== 'name-asc' ? 1 : 0);
 
 	const handleAdd = async () => {
 		if (!name.trim()) {
@@ -179,26 +214,10 @@ export function GameLibrary({ games }: GameLibraryProps) {
 				.split(',')
 				.map((b) => b.trim())
 				.filter(Boolean);
-			const defaultPalette = [
-				'#e53e3e',
-				'#dd6b20',
-				'#d69e2e',
-				'#38a169',
-				'#319795',
-				'#3182ce',
-				'#5a67d8',
-				'#805ad5',
-				'#d53f8c',
-				'#718096',
-			];
-			const buttonColors: Record<string, string> = {};
-			buttons.forEach((btn, i) => {
-				buttonColors[btn] = defaultPalette[i % defaultPalette.length];
-			});
 			await indexedDbStorage.games.add({
 				name: name.trim(),
 				buttonLayout: buttons,
-				buttonColors,
+				buttonColors: { ...dialogButtonColors },
 				notes: notes.trim(),
 				logoImage: logoImage || undefined,
 				coverZoom: coverZoom !== 100 ? coverZoom : undefined,
@@ -221,6 +240,13 @@ export function GameLibrary({ games }: GameLibraryProps) {
 		setCoverZoom(game.coverZoom || 100);
 		setCoverPanX(game.coverPanX ?? 50);
 		setCoverPanY(game.coverPanY ?? 50);
+		const existingColors = game.buttonColors || {};
+		const initialColors: Record<string, string> = {};
+		game.buttonLayout.forEach((btn, i) => {
+			initialColors[btn] = colorToHex(existingColors[btn] || DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length]);
+		});
+		setDialogButtonColors(initialColors);
+		setDialogHexEdits({});
 		setDialogOpen(true);
 	};
 
@@ -235,28 +261,10 @@ export function GameLibrary({ games }: GameLibraryProps) {
 				.split(',')
 				.map((b) => b.trim())
 				.filter(Boolean);
-			const existingColors = editTarget.buttonColors || {};
-			const defaultPalette = [
-				'#e53e3e',
-				'#dd6b20',
-				'#d69e2e',
-				'#38a169',
-				'#319795',
-				'#3182ce',
-				'#5a67d8',
-				'#805ad5',
-				'#d53f8c',
-				'#718096',
-			];
-			const buttonColors: Record<string, string> = {};
-			buttons.forEach((btn, i) => {
-				buttonColors[btn] =
-					existingColors[btn] || defaultPalette[i % defaultPalette.length];
-			});
 			await indexedDbStorage.games.update(editTarget.id, {
 				name: name.trim(),
 				buttonLayout: buttons,
-				buttonColors,
+				buttonColors: { ...dialogButtonColors },
 				notes: notes.trim(),
 				logoImage: logoImage || undefined,
 				coverZoom: coverZoom !== 100 ? coverZoom : undefined,
@@ -280,6 +288,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
 		setCoverZoom(100);
 		setCoverPanX(50);
 		setCoverPanY(50);
+		setDialogButtonColors({});
+		setDialogHexEdits({});
 		setCoverSearchOpen(false);
 	};
 
@@ -362,66 +372,62 @@ export function GameLibrary({ games }: GameLibraryProps) {
 									<MagnifyingGlass className="w-4 h-4 mr-2 shrink-0" />
 									Search Covers
 								</Button>
-								{logoImage && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										className="h-8 text-sm px-4 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
-										onClick={() => setLogoImage('')}
-									>
-										<X className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-										Remove
-									</Button>
-								)}
-								{logoImage && (
-									<div className="flex items-center gap-2 mt-1">
-										<span className="text-xs text-muted-foreground shrink-0">
-											Zoom
-										</span>
-										<Slider
-											min={100}
-											max={200}
-											step={5}
-											value={[coverZoom]}
-											onValueChange={([v]) => setCoverZoom(v)}
-											className="flex-1"
-										/>
-										<span className="text-xs text-muted-foreground w-8 text-right">
-											{coverZoom}%
-										</span>
-									</div>
-								)}
-								{logoImage && coverZoom > 100 && (
-									<>
-										<div className="flex items-center gap-2">
-											<span className="text-xs text-muted-foreground shrink-0">
-												Pan X
-											</span>
-											<Slider
-												min={0}
-												max={100}
-												step={1}
-												value={[coverPanX]}
-												onValueChange={([v]) => setCoverPanX(v)}
-												className="flex-1"
-											/>
-										</div>
-										<div className="flex items-center gap-2">
-											<span className="text-xs text-muted-foreground shrink-0">
-												Pan Y
-											</span>
-											<Slider
-												min={0}
-												max={100}
-												step={1}
-												value={[coverPanY]}
-												onValueChange={([v]) => setCoverPanY(v)}
-												className="flex-1"
-											/>
-										</div>
-									</>
-								)}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									disabled={!logoImage}
+									className="h-8 text-sm px-4 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 disabled:opacity-40 disabled:pointer-events-none"
+									onClick={() => setLogoImage('')}
+								>
+									<X className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+									Remove
+								</Button>
+								<div className={`flex items-center gap-2 mt-1 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}>
+									<span className="text-xs text-muted-foreground shrink-0">
+										Zoom
+									</span>
+									<Slider
+										min={100}
+										max={200}
+										step={5}
+										value={[coverZoom]}
+										onValueChange={([v]) => setCoverZoom(v)}
+										className="flex-1"
+										disabled={!logoImage}
+									/>
+									<span className="text-xs text-muted-foreground w-8 text-right">
+										{coverZoom}%
+									</span>
+								</div>
+								<div className={`flex items-center gap-2 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}>
+									<span className="text-xs text-muted-foreground shrink-0">
+										Pan X
+									</span>
+									<Slider
+										min={0}
+										max={100}
+										step={1}
+										value={[coverPanX]}
+										onValueChange={([v]) => setCoverPanX(v)}
+										className="flex-1"
+										disabled={!logoImage}
+									/>
+								</div>
+								<div className={`flex items-center gap-2 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}>
+									<span className="text-xs text-muted-foreground shrink-0">
+										Pan Y
+									</span>
+									<Slider
+										min={0}
+										max={100}
+										step={1}
+										value={[coverPanY]}
+										onValueChange={([v]) => setCoverPanY(v)}
+										className="flex-1"
+										disabled={!logoImage}
+									/>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -447,6 +453,52 @@ export function GameLibrary({ games }: GameLibraryProps) {
 							placeholder="L, M, H, S"
 						/>
 					</div>
+
+					{parsedButtons.length > 0 && (
+						<div>
+							<Label className="text-sm font-medium mb-2 block">Button Colors</Label>
+							<div className="grid grid-cols-2 gap-x-4 gap-y-2">
+								{parsedButtons.map((btn, i) => {
+									const hexColor = colorToHex(dialogButtonColors[btn] || DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length]);
+									const editHex = dialogHexEdits[btn] ?? hexColor;
+									return (
+										<div key={btn} className="flex items-center gap-2">
+											<span className="text-sm w-8 shrink-0 truncate">{btn}</span>
+											<label className="relative w-10 h-7 rounded border border-border cursor-pointer overflow-hidden shrink-0">
+												<div className="absolute inset-0" style={{ backgroundColor: hexColor }} />
+												<input
+													type="color"
+													value={hexColor}
+													onChange={(e) => {
+														setDialogButtonColors((prev) => ({ ...prev, [btn]: e.target.value }));
+														setDialogHexEdits((prev) => ({ ...prev, [btn]: e.target.value }));
+													}}
+													className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+												/>
+											</label>
+											<input
+												type="text"
+												value={editHex}
+												onChange={(e) => setDialogHexEdits((prev) => ({ ...prev, [btn]: e.target.value }))}
+												onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+												onBlur={(e) => {
+													let val = e.target.value.trim();
+													if (!val.startsWith('#')) val = `#${val}`;
+													if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+														setDialogButtonColors((prev) => ({ ...prev, [btn]: val }));
+														setDialogHexEdits((prev) => ({ ...prev, [btn]: val }));
+													} else {
+														setDialogHexEdits((prev) => ({ ...prev, [btn]: hexColor }));
+													}
+												}}
+												className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+											/>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+					)}
 
 					<div>
 						<Label htmlFor={notesInputId}>Notes (optional)</Label>
@@ -521,24 +573,27 @@ export function GameLibrary({ games }: GameLibraryProps) {
 						Select a game to manage characters and combos
 					</p>
 				</div>
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-2">
 					{viewMode === 'grid' && (
-						<Slider
-							min={120}
-							max={300}
-							step={10}
-							value={[cardSize]}
-							onValueChange={([v]) => {
-								setCardSize(v);
-								indexedDbStorage.settings
-									.update({ gameCardSize: v })
-									.then(() => useAppStore.getState().notifySettingsChanged());
-							}}
-							className="w-28"
-							title="Card size"
-						/>
+						<div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9">
+							<span className="text-xs text-muted-foreground select-none">Size</span>
+							<Slider
+								min={120}
+								max={300}
+								step={10}
+								value={[cardSize]}
+								onValueChange={([v]) => {
+									setCardSize(v);
+									indexedDbStorage.settings
+										.update({ gameCardSize: v })
+										.then(() => useAppStore.getState().notifySettingsChanged());
+								}}
+								className="w-24"
+								title="Card size"
+							/>
+						</div>
 					)}
-					<div className="flex items-center border border-border rounded-md">
+					<div className="flex items-center bg-muted rounded-md">
 						<Button
 							variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
 							size="icon"
@@ -558,18 +613,22 @@ export function GameLibrary({ games }: GameLibraryProps) {
 							<List className="w-5 h-5" />
 						</Button>
 					</div>
-					<Button
-						variant={showFilters ? 'secondary' : 'ghost'}
-						size="icon"
-						onClick={() => setShowFilters(!showFilters)}
-						title="Sort & Filter"
-						className="relative"
-					>
-						<Funnel className="w-5 h-5" />
-						{hasActiveFilters && (
-							<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full" />
-						)}
-					</Button>
+					<div className="bg-muted rounded-md">
+						<Button
+							variant={showFilters ? 'secondary' : 'ghost'}
+							size="icon"
+							onClick={() => setShowFilters(!showFilters)}
+							title="Sort & Filter"
+							className="relative"
+						>
+							<Funnel className="w-5 h-5" />
+							{activeFilterCount > 0 && (
+								<span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center leading-none px-0.5">
+									{activeFilterCount}
+								</span>
+							)}
+						</Button>
+					</div>
 					<Button onClick={() => setDialogOpen(true)} className="gap-2">
 						<Plus weight="bold" />
 						Add Game

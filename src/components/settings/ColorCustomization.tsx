@@ -20,6 +20,12 @@ import {
 import { toast } from 'sonner';
 import { ArrowClockwise } from '@phosphor-icons/react';
 import { useAppStore } from '@/lib/store';
+import { oklchToHex, hexToOklch, colorToHex } from '@/lib/utils';
+
+const DEFAULT_BUTTON_PALETTE = [
+	'#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#319795',
+	'#3182ce', '#5a67d8', '#805ad5', '#d53f8c', '#718096',
+];
 const DEFAULT_COLORS: NotationColors = {
 	direction: 'oklch(0.85 0.05 265)',
 	separator: 'oklch(0.55 0.02 265)',
@@ -34,17 +40,19 @@ export function ColorCustomization() {
 	const [tempButtonColors, setTempButtonColors] = useState<
 		Record<string, string>
 	>({});
+	const [hexEdits, setHexEdits] = useState<Record<string, string>>({});
 	const [loading, setLoading] = useState(true);
 
 	const loadData = useCallback(async () => {
 		setLoading(true);
 		const settings = await indexedDbStorage.settings.get();
 		const allGames = await indexedDbStorage.games.getAll();
+		const sorted = allGames.slice().sort((a, b) => a.name.localeCompare(b.name));
 		setColors(settings.notationColors);
 		setTempColors(settings.notationColors);
-		setGames(allGames);
-		if (allGames.length > 0) {
-			setSelectedGameId(allGames[0].id);
+		setGames(sorted);
+		if (sorted.length > 0) {
+			setSelectedGameId(sorted[0].id);
 		}
 		setLoading(false);
 	}, []);
@@ -60,6 +68,7 @@ export function ColorCustomization() {
 		const game = games.find((g) => g.id === selectedGameId);
 		setSelectedGame(game);
 		setTempButtonColors(game?.buttonColors || {});
+		setHexEdits({});
 	}, [selectedGameId, games]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 
@@ -100,14 +109,7 @@ export function ColorCustomization() {
 		if (selectedGameId && selectedGame) {
 			const defaultButtonColors = selectedGame.buttonLayout.reduce(
 				(acc, btn, idx) => {
-					const colorIndex = idx % 3;
-					const defaultColor =
-						colorIndex === 0
-							? 'oklch(0.70 0.18 210)'
-							: colorIndex === 1
-								? 'oklch(0.75 0.19 145)'
-								: 'oklch(0.68 0.22 25)';
-					acc[btn] = defaultColor;
+					acc[btn] = DEFAULT_BUTTON_PALETTE[idx % DEFAULT_BUTTON_PALETTE.length];
 					return acc;
 				},
 				{} as Record<string, string>,
@@ -117,68 +119,12 @@ export function ColorCustomization() {
 			await indexedDbStorage.games.update(selectedGameId, {
 				buttonColors: defaultButtonColors,
 			});
+			setHexEdits({});
 			await loadData();
 		}
 
 		toast.success('Colors reset to defaults');
 		useAppStore.getState().notifySettingsChanged();
-	};
-
-	const oklchToHex = (oklchString: string): string => {
-		const match = oklchString.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
-		if (!match) return '#3b82f6';
-
-		const l = parseFloat(match[1]);
-		const c = parseFloat(match[2]);
-		const h = parseFloat(match[3]);
-
-		const hRad = (h * Math.PI) / 180;
-		const a = c * Math.cos(hRad);
-		const b = c * Math.sin(hRad);
-
-		let x = 0.96422 * l + 0.39529 * a + 0.19852 * b;
-		let y = 1.0 * l;
-		let z = 1.0885 * l - 0.10527 * b;
-
-		x = x > 0.0031308 ? 1.055 * x ** (1 / 2.4) - 0.055 : 12.92 * x;
-		y = y > 0.0031308 ? 1.055 * y ** (1 / 2.4) - 0.055 : 12.92 * y;
-		z = z > 0.0031308 ? 1.055 * z ** (1 / 2.4) - 0.055 : 12.92 * z;
-
-		const r = Math.round(
-			Math.max(0, Math.min(255, x * 3.2406 + y * -1.5372 + z * -0.4986)),
-		);
-		const g = Math.round(
-			Math.max(0, Math.min(255, x * -0.9689 + y * 1.8758 + z * 0.0415)),
-		);
-		const bVal = Math.round(
-			Math.max(0, Math.min(255, x * 0.0557 + y * -0.204 + z * 1.057)),
-		);
-
-		return `#${[r, g, bVal].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
-	};
-
-	const hexToOklch = (hex: string): string => {
-		const r = parseInt(hex.slice(1, 3), 16) / 255;
-		const g = parseInt(hex.slice(3, 5), 16) / 255;
-		const b = parseInt(hex.slice(5, 7), 16) / 255;
-
-		let x = r * 0.4124 + g * 0.3576 + b * 0.1805;
-		let y = r * 0.2126 + g * 0.7152 + b * 0.0722;
-		let z = r * 0.0193 + g * 0.1192 + b * 0.9505;
-
-		x = x > 0.008856 ? x ** (1 / 3) : 7.787 * x + 16 / 116;
-		y = y > 0.008856 ? y ** (1 / 3) : 7.787 * y + 16 / 116;
-		z = z > 0.008856 ? z ** (1 / 3) : 7.787 * z + 16 / 116;
-
-		const l = Math.max(0, 116 * y - 16) / 100;
-		const a = (500 * (x - y)) / 100;
-		const bVal = (200 * (y - z)) / 100;
-
-		const c = Math.sqrt(a * a + bVal * bVal);
-		let h = (Math.atan2(bVal, a) * 180) / Math.PI;
-		if (h < 0) h += 360;
-
-		return `oklch(${l.toFixed(2)} ${c.toFixed(2)} ${h.toFixed(0)})`;
 	};
 
 	if (loading) {
@@ -209,15 +155,34 @@ export function ColorCustomization() {
 									type="color"
 									value={oklchToHex(tempColors.separator)}
 									onChange={(e) => {
-										const newColor = hexToOklch(e.target.value);
-										handleColorChange('separator', newColor);
+										handleColorChange('separator', hexToOklch(e.target.value));
+										setHexEdits((prev) => ({ ...prev, separator: e.target.value }));
 									}}
 									className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
 								/>
 							</label>
-							<span className="text-xs text-muted-foreground font-mono">
-								{oklchToHex(tempColors.separator)}
-							</span>
+							{(() => {
+								const currentHex = oklchToHex(tempColors.separator);
+								return (
+									<input
+										type="text"
+										value={hexEdits.separator ?? currentHex}
+										onChange={(e) => setHexEdits((prev) => ({ ...prev, separator: e.target.value }))}
+										onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+										onBlur={(e) => {
+											let val = e.target.value.trim();
+											if (!val.startsWith('#')) val = `#${val}`;
+											if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+												handleColorChange('separator', hexToOklch(val));
+												setHexEdits((prev) => ({ ...prev, separator: val }));
+											} else {
+												setHexEdits((prev) => ({ ...prev, separator: currentHex }));
+											}
+										}}
+										className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+									/>
+								);
+							})()}
 						</div>
 					</div>
 				</CardContent>
@@ -251,59 +216,69 @@ export function ColorCustomization() {
 					</div>
 					{selectedGame && (
 						<div className="grid gap-4 pt-2">
-							{selectedGame.buttonLayout.map((button) => (
-								<div key={button} className="flex items-center gap-4">
-									<div className="flex-1">
-										<Label className="text-sm font-medium">
-											{button} Button
-										</Label>
-									</div>
-
-									<div className="flex items-center gap-3">
-										<label className="relative w-20 h-10 rounded-md border border-border shadow-sm cursor-pointer overflow-hidden">
-											<div
-												className="absolute inset-0"
-												style={{
-													backgroundColor:
-														tempButtonColors[button] || 'oklch(0.70 0.18 210)',
-												}}
-											/>
+							{selectedGame.buttonLayout.map((button) => {
+								const currentHex = colorToHex(tempButtonColors[button] || '#3b82f6');
+								const editHex = hexEdits[button] ?? currentHex;
+								return (
+									<div key={button} className="flex items-center gap-4">
+										<div className="flex-1">
+											<Label className="text-sm font-medium">
+												{button} Button
+											</Label>
+										</div>
+										<div className="flex items-center gap-3">
+											<label className="relative w-20 h-10 rounded-md border border-border shadow-sm cursor-pointer overflow-hidden">
+												<div
+													className="absolute inset-0"
+													style={{ backgroundColor: currentHex }}
+												/>
+												<input
+													type="color"
+													value={currentHex}
+													onChange={(e) => {
+														handleButtonColorChange(button, e.target.value);
+														setHexEdits((prev) => ({ ...prev, [button]: e.target.value }));
+													}}
+													className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+												/>
+											</label>
 											<input
-												type="color"
-												value={oklchToHex(
-													tempButtonColors[button] || 'oklch(0.70 0.18 210)',
-												)}
-												onChange={(e) => {
-													const newColor = hexToOklch(e.target.value);
-													handleButtonColorChange(button, newColor);
+												type="text"
+												value={editHex}
+												onChange={(e) => setHexEdits((prev) => ({ ...prev, [button]: e.target.value }))}
+												onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+												onBlur={(e) => {
+													let val = e.target.value.trim();
+													if (!val.startsWith('#')) val = `#${val}`;
+													if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+														handleButtonColorChange(button, val);
+														setHexEdits((prev) => ({ ...prev, [button]: val }));
+													} else {
+														setHexEdits((prev) => ({ ...prev, [button]: currentHex }));
+													}
 												}}
-												className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+												className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
 											/>
-										</label>
-										<span className="text-xs text-muted-foreground font-mono">
-											{oklchToHex(
-												tempButtonColors[button] || 'oklch(0.70 0.18 210)',
-											)}
-										</span>
+										</div>
 									</div>
-								</div>
-							))}
+								);
+							})}
+
+							<div className="flex gap-2 pt-4">
+								<Button onClick={handleApply} className="flex-1">
+									Apply Changes
+								</Button>
+								<Button
+									onClick={handleReset}
+									variant="outline"
+									className="flex items-center gap-2"
+								>
+									<ArrowClockwise className="w-4 h-4" />
+									Reset to Defaults
+								</Button>
+							</div>
 						</div>
 					)}
-
-					<div className="flex gap-2 pt-4">
-						<Button onClick={handleApply} className="flex-1">
-							Apply Changes
-						</Button>
-						<Button
-							onClick={handleReset}
-							variant="outline"
-							className="flex items-center gap-2"
-						>
-							<ArrowClockwise className="w-4 h-4" />
-							Reset to Defaults
-						</Button>
-					</div>
 				</CardContent>
 			</Card>
 		</div>

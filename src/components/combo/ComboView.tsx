@@ -7,8 +7,13 @@ import {
 	CheckSquare,
 	Trash,
 	Warning,
+	Note,
+	CaretDown,
+	Palette,
+	X,
 } from '@phosphor-icons/react';
-import { useState, useMemo, useCallback } from 'react';
+import { Input } from '@/components/ui/input';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSettings } from '@/hooks/useSettings';
 import { useAppStore } from '@/lib/store';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
@@ -27,7 +32,15 @@ import {
 	AlertDialogCancel,
 	AlertDialogAction,
 } from '@/components/ui/alert-dialog';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogFooter,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { colorToHex } from '@/lib/utils';
 import {
 	DndContext,
 	closestCenter,
@@ -65,8 +78,33 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	);
 
 	// Filter state
+	const [showNotes, setShowNotes] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
 	const [filterTags, setFilterTags] = useState<string[]>([]);
+
+	// Initialise notes panel from default setting + per-entity localStorage override
+	const defaultNotesOpen = settings.notesDefaultOpen ?? false;
+	useEffect(() => {
+		const overrides: string[] = JSON.parse(
+			localStorage.getItem('notes_overrides') ?? '[]',
+		);
+		const isOverridden = overrides.includes(character.id);
+		setShowNotes(isOverridden ? !defaultNotesOpen : defaultNotesOpen);
+	}, [character.id, defaultNotesOpen]);
+
+	const handleToggleNotes = () => {
+		const next = !showNotes;
+		setShowNotes(next);
+		const overrides: string[] = JSON.parse(
+			localStorage.getItem('notes_overrides') ?? '[]',
+		);
+		const updated =
+			next !== defaultNotesOpen
+				? [...new Set([...overrides, character.id])]
+				: overrides.filter((id) => id !== character.id);
+		localStorage.setItem('notes_overrides', JSON.stringify(updated));
+	};
+
 	const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
 	const [filterOutdated, setFilterOutdated] = useState<'all' | 'outdated' | 'current'>('all');
 	const [filterSearch, setFilterSearch] = useState('');
@@ -78,6 +116,13 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	// Delete confirmation state
 	const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+
+	// Button color editor state
+	const [colorDialogOpen, setColorDialogOpen] = useState(false);
+	const [tempGameColors, setTempGameColors] = useState<Record<string, string>>({});
+	const [colorHexEdits, setColorHexEdits] = useState<Record<string, string>>({});
+	const [tempButtonLayout, setTempButtonLayout] = useState<string[]>([]);
+	const [newButtonName, setNewButtonName] = useState('');
 
 	// Sync video size from settings
 	const effectiveVideoSize = settings.videoPlayerSize;
@@ -130,6 +175,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	const hasActiveFilters =
 		filterTags.length > 0 || filterDifficulty !== 'all' || filterOutdated !== 'all' || filterSearch !== '';
 	const isFiltering = hasActiveFilters;
+	const activeFilterCount = [filterTags.length > 0, filterDifficulty !== 'all', filterOutdated !== 'all', filterSearch !== ''].filter(Boolean).length;
 
 	const handleDisplayModeChange = async (mode: DisplayMode) => {
 		await indexedDbStorage.settings.update({ displayMode: mode });
@@ -299,6 +345,36 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 		setVideoPlayerTitle('');
 	}, [videoPlayerUrl]);
 
+	const DEFAULT_BTN_PALETTE = ['#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#319795', '#3182ce', '#5a67d8', '#805ad5', '#d53f8c', '#718096'];
+
+	const openColorDialog = () => {
+		const layout = [...game.buttonLayout];
+		const initial: Record<string, string> = {};
+		layout.forEach((btn, i) => {
+			initial[btn] = colorToHex(game.buttonColors?.[btn] || DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length]);
+		});
+		setTempButtonLayout(layout);
+		setTempGameColors(initial);
+		setColorHexEdits({});
+		setNewButtonName('');
+		setColorDialogOpen(true);
+	};
+
+	const handleSaveGameColors = async () => {
+		try {
+			const colorsToSave: Record<string, string> = {};
+			tempButtonLayout.forEach((btn) => {
+				colorsToSave[btn] = tempGameColors[btn] || DEFAULT_BTN_PALETTE[tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length];
+			});
+			await indexedDbStorage.games.update(game.id, { buttonLayout: tempButtonLayout, buttonColors: colorsToSave });
+			useAppStore.getState().notifySettingsChanged();
+			toast.success('Button colors updated');
+			setColorDialogOpen(false);
+		} catch {
+			toast.error('Failed to update colors');
+		}
+	};
+
 	const comboFormDialog = (
 		<ComboFormDialog
 			open={dialogOpen}
@@ -352,40 +428,79 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 						{game.name} • {combos.length} combos
 					</p>
 				</div>
-				<div className="flex items-center gap-3">
-					<Button
-						variant={isSelecting ? 'secondary' : 'ghost'}
-						size="icon"
-						onClick={() => {
-							setIsSelecting(!isSelecting);
-							if (isSelecting) setSelectedIds(new Set());
-						}}
-						title="Select Combos"
-					>
-						<CheckSquare className="w-5 h-5" />
-					</Button>
-					<Button
-						variant={showFilters ? 'secondary' : 'ghost'}
-						size="icon"
-						onClick={() => setShowFilters(!showFilters)}
-						title="Filter Combos"
-						className="relative"
-					>
-						<Funnel className="w-5 h-5" />
-						{hasActiveFilters && (
-							<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full" />
-						)}
-					</Button>
-					<DisplayModeToggle
-						mode={displayMode}
-						onChange={handleDisplayModeChange}
-					/>
+				<div className="flex items-center gap-2">
+					<div className="bg-muted rounded-md">
+						<DisplayModeToggle
+							mode={displayMode}
+							onChange={handleDisplayModeChange}
+						/>
+					</div>
+					<div className="bg-muted rounded-md">
+						<Button
+							variant={showFilters ? 'secondary' : 'ghost'}
+							size="icon"
+							onClick={() => setShowFilters(!showFilters)}
+							title="Filter Combos"
+							className="relative"
+						>
+							<Funnel className="w-5 h-5" />
+							{activeFilterCount > 0 && (
+								<span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center leading-none px-0.5">
+									{activeFilterCount}
+								</span>
+							)}
+						</Button>
+					</div>
+					<div className="bg-muted rounded-md">
+						<Button
+							variant={isSelecting ? 'secondary' : 'ghost'}
+							size="icon"
+							onClick={() => {
+								setIsSelecting(!isSelecting);
+								if (isSelecting) setSelectedIds(new Set());
+							}}
+							title="Multi-select combos"
+						>
+							<CheckSquare className="w-5 h-5" />
+						</Button>
+					</div>
+					<div className="bg-muted rounded-md">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={openColorDialog}
+							title="Edit button colors"
+						>
+							<Palette className="w-5 h-5" />
+						</Button>
+					</div>
 					<Button onClick={() => setDialogOpen(true)} className="gap-2">
 						<Plus weight="bold" />
 						Add Combo
 					</Button>
 				</div>
 			</div>
+
+			{character.notes?.trim() && (
+				<div className="mb-6 border border-border rounded-lg overflow-hidden">
+					<button
+						type="button"
+						onClick={handleToggleNotes}
+						className="w-full flex items-center justify-between px-4 py-2.5 bg-card hover:bg-muted/50 transition-colors"
+					>
+						<span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+							<Note className="w-4 h-4" />
+							Notes
+						</span>
+						<CaretDown className={`w-4 h-4 text-muted-foreground transition-transform duration-150 ${showNotes ? 'rotate-180' : ''}`} />
+					</button>
+					{showNotes && (
+						<div className="px-4 py-3 bg-card border-t border-border">
+							<p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{character.notes}</p>
+						</div>
+					)}
+				</div>
+			)}
 
 			{showFilters && (
 				<ComboFilters
@@ -483,6 +598,104 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 			)}
 
 			{comboFormDialog}
+
+			<Dialog open={colorDialogOpen} onOpenChange={setColorDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Button Colors — {game.name}</DialogTitle>
+
+					</DialogHeader>
+					<div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2">
+						{tempButtonLayout.map((btn, i) => {
+							const hexColor = colorToHex(tempGameColors[btn] || DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length]);
+							const editHex = colorHexEdits[btn] ?? hexColor;
+							return (
+								<div key={btn} className="flex items-center gap-2">
+									<span className="text-sm w-8 shrink-0 truncate">{btn}</span>
+									<label className="relative w-10 h-7 rounded border border-border cursor-pointer overflow-hidden shrink-0">
+										<div className="absolute inset-0" style={{ backgroundColor: hexColor }} />
+										<input
+											type="color"
+											value={hexColor}
+											onChange={(e) => {
+												setTempGameColors((prev) => ({ ...prev, [btn]: e.target.value }));
+												setColorHexEdits((prev) => ({ ...prev, [btn]: e.target.value }));
+											}}
+											className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+										/>
+									</label>
+									<input
+										type="text"
+										value={editHex}
+										onChange={(e) => setColorHexEdits((prev) => ({ ...prev, [btn]: e.target.value }))}
+										onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+										onBlur={(e) => {
+											let val = e.target.value.trim();
+											if (!val.startsWith('#')) val = `#${val}`;
+											if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+												setTempGameColors((prev) => ({ ...prev, [btn]: val }));
+												setColorHexEdits((prev) => ({ ...prev, [btn]: val }));
+											} else {
+												setColorHexEdits((prev) => ({ ...prev, [btn]: hexColor }));
+											}
+										}}
+										className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+									/>
+									<button
+										type="button"
+										onClick={() => setTempButtonLayout((prev) => prev.filter((b) => b !== btn))}
+										className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+										title={`Remove ${btn}`}
+									>
+										<X className="w-3.5 h-3.5" />
+									</button>
+								</div>
+							);
+						})}
+					</div>
+					<div className="flex gap-2 mt-3 pt-3 border-t border-border">
+						<Input
+							placeholder="Button name (e.g. LP)"
+							value={newButtonName}
+							onChange={(e) => setNewButtonName(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter') {
+									const name = newButtonName.trim();
+									if (name && !tempButtonLayout.includes(name)) {
+										const i = tempButtonLayout.length;
+										setTempButtonLayout((prev) => [...prev, name]);
+										setTempGameColors((prev) => ({ ...prev, [name]: DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length] }));
+										setNewButtonName('');
+									}
+								}
+							}}
+							className="h-8 text-sm"
+						/>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="shrink-0"
+							onClick={() => {
+								const name = newButtonName.trim();
+								if (name && !tempButtonLayout.includes(name)) {
+									const i = tempButtonLayout.length;
+									setTempButtonLayout((prev) => [...prev, name]);
+									setTempGameColors((prev) => ({ ...prev, [name]: DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length] }));
+									setNewButtonName('');
+								}
+							}}
+						>
+							<Plus className="w-4 h-4 mr-1" weight="bold" />
+							Add
+						</Button>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setColorDialogOpen(false)}>Cancel</Button>
+						<Button onClick={handleSaveGameColors}>Apply</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<VideoPlayerDialog
 				open={videoPlayerOpen}

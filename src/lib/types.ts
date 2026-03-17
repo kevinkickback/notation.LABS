@@ -82,6 +82,7 @@ export interface UserSettings {
 	videoPlayerSize: 'sm' | 'md' | 'lg' | 'xl';
 	gameCardSize: number;
 	characterCardSize: number;
+	notesDefaultOpen: boolean;
 	lastUpdateCheck?: number;
 	lastSeenVersion?: string;
 	showChangelogBeforeUpdate: boolean;
