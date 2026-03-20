@@ -14,6 +14,8 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 </div>
 
+---
+
 ## ✨ Features
 
 - **Various Notation Styles** — Fully supports numpad (`236H`, `623K`), traditional (`qcf`, `dp`), and full (`standing Light Punch`, `quarter circle forward`) notations
@@ -69,12 +71,17 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ## 🚀 Getting Started
 
-### Option 1: Download Release (Recommended)
+### Option 1: Online Demo (No Install)
+
+1. Visit <a href="https://kevinkickback.com" target="_blank"><b>kevinkickback.com</b></a> to try notation.LABS instantly in your browser. Not all features available.
+
+
+### Option 2: Download Release (Recommended)
 
 1. Download the latest installer or portable `.exe` from the [Releases](https://github.com/kevinkickback/notation.LABS/releases/latest) page
 2. Run the installer or open the app
 
-### Option 2: Build from Source
+### Option 3: Build from Source
 
 **Prerequisites:** [Node.js](https://nodejs.org/) (v18 or later)
 

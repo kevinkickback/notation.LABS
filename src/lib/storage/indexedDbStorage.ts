@@ -317,7 +317,11 @@ export const indexedDbStorage = {
 					}
 				}
 				if (parsed.settings) {
-					await db.settings.put({ id: 1, ...parsed.settings });
+					await db.settings.put({
+						id: 1,
+						notesDefaultOpen: false,
+						...parsed.settings,
+					});
 				}
 				if (includeVideos && parsed.demoVideos) {
 					for (const v of parsed.demoVideos) {
