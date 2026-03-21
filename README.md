@@ -73,7 +73,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ### Option 1: Online Demo (No Install)
 
-1. Visit <a href="https://kevinkickback.com" target="_blank"><b>kevinkickback.com</b></a> to try notation.LABS instantly in your browser. Not all features available.
+1. Visit <a href="https://labs.kevinkickback.com/" target="_blank"><b>labs.kevinkickback.com</b></a> to try notation.LABS instantly in your browser. Not all features available.
 
 
 ### Option 2: Download Release (Recommended)
