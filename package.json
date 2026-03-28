@@ -9,7 +9,7 @@
 		"dev:web": "cross-env ELECTRON=false vite --open",
 		"dev:app": "cross-env ELECTRON=true vite --no-open && electron .",
 		"build:web": "tsc -b && cross-env ELECTRON=false vite build",
-		"build:app": "tsc -b && cross-env ELECTRON=true npm run build && electron-builder",
+		"build:app": "tsc -b && cross-env ELECTRON=true vite build && electron-builder",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
 		"test": "vitest run",
