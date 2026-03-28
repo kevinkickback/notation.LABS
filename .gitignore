@@ -1,20 +1,37 @@
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 
-node_modules
-dist
-dist-electron
-*.local
-release
+# Dependency directories
+node_modules/
 
-# Editor directories and files
-.vscode/*
+# Build outputs
+dist/
+dist-electron/
+build/
+release/
+
+# System/Editor files
+.vscode/
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.sw?
 
-.env
-.env.fresh
+# Environment files
+.env*
+
+# Test outputs
+coverage/
+
+# Copilot instructions
+.github/copilot-instructions.md
+
+# Misc
+*.local
+package-lock.json
+tmp/
+.tmp/
+.vite/
+.vite-temp/

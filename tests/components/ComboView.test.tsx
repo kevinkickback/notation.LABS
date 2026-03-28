@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComboView } from '@/components/combo/ComboView';
@@ -104,7 +104,20 @@ const mockCombos: Combo[] = [
     },
 ];
 
+
 describe('ComboView', () => {
+    beforeAll(() => {
+        // Simple in-memory localStorage mock
+        const store: Record<string, string> = {};
+        global.localStorage = {
+            getItem: (key: string) => (key in store ? store[key] : null),
+            setItem: (key: string, value: string) => { store[key] = value; },
+            removeItem: (key: string) => { delete store[key]; },
+            clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
+            key: (i: number) => Object.keys(store)[i] || null,
+            get length() { return Object.keys(store).length; },
+        } as unknown as Storage;
+    });
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -113,13 +126,13 @@ describe('ComboView', () => {
         render(
             <ComboView game={mockGame} character={mockCharacter} combos={[]} />,
         );
-        expect(screen.getByText('Ryu')).toBeInTheDocument();
+        expect(screen.getByText('Ryu')).not.toBeNull();
         expect(
             screen.getByText(/no combos yet/i),
-        ).toBeInTheDocument();
+        ).not.toBeNull();
         expect(
             screen.getByRole('button', { name: /add combo/i }),
-        ).toBeInTheDocument();
+        ).not.toBeNull();
     });
 
     it('renders character name and game info', () => {
@@ -130,8 +143,8 @@ describe('ComboView', () => {
                 combos={mockCombos}
             />,
         );
-        expect(screen.getByText('Ryu')).toBeInTheDocument();
-        expect(screen.getByText(/Street Fighter 6 • 2 combos/)).toBeInTheDocument();
+        expect(screen.getByText('Ryu')).not.toBeNull();
+        expect(screen.getByText(/Street Fighter 6 • 2 combos/)).not.toBeNull();
     });
 
     it('renders all combo cards', () => {
@@ -142,8 +155,8 @@ describe('ComboView', () => {
                 combos={mockCombos}
             />,
         );
-        expect(screen.getByText('BnB Corner')).toBeInTheDocument();
-        expect(screen.getByText('Easy Punish')).toBeInTheDocument();
+        expect(screen.getByText('BnB Corner')).not.toBeNull();
+        expect(screen.getByText('Easy Punish')).not.toBeNull();
     });
 
     it('opens filter panel when filter button is clicked', async () => {
@@ -160,7 +173,7 @@ describe('ComboView', () => {
         // Filter panel should show the search input
         expect(
             screen.getByPlaceholderText(/search combos/i),
-        ).toBeInTheDocument();
+        ).not.toBeNull();
     });
 
     it('toggles multi-select mode', async () => {
@@ -173,9 +186,9 @@ describe('ComboView', () => {
             />,
         );
 
-        await user.click(screen.getByTitle('Select Combos'));
-        expect(screen.getByText('0 selected')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /select all/i })).toBeInTheDocument();
+        await user.click(screen.getByTitle('Multi-select combos'));
+        expect(screen.getByText('0 selected')).not.toBeNull();
+        expect(screen.getByRole('button', { name: /select all/i })).not.toBeNull();
     });
 
     it('opens add combo dialog', async () => {
@@ -189,7 +202,7 @@ describe('ComboView', () => {
         );
 
         await user.click(screen.getByRole('button', { name: /add combo/i }));
-        expect(screen.getByText('Add Combo for Ryu')).toBeInTheDocument();
+        expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
     });
 
     it('shows empty filter result message', async () => {
@@ -208,6 +221,6 @@ describe('ComboView', () => {
 
         expect(
             screen.getByText(/no combos match the current filters/i),
-        ).toBeInTheDocument();
+        ).not.toBeNull();
     });
 });

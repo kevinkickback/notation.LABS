@@ -10,10 +10,11 @@ import { Input } from '@/components/ui/input';
 import {
 	MagnifyingGlass,
 	SpinnerGap,
-	ImageSquare,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import type { IGDBSearchResult } from '@/lib/types';
+import { searchIGDB } from '@/lib/igdb';
+import { fetchImageAsBase64 } from '@/lib/utils';
 
 interface CoverSearchDialogProps {
 	open: boolean;
@@ -49,29 +50,40 @@ export function CoverSearchDialog({
 		setHasSearched(true);
 
 		try {
-			const searchRes = await window.electronAPI.searchGameCovers(q);
-			if (!searchRes.success || !searchRes.data) {
-				setError(searchRes.error || 'Search failed');
-				setLoading(false);
-				return;
-			}
-
-			setResults(searchRes.data);
-
-			// Batch download thumbnails for results that have covers
-			const imageIds = searchRes.data
-				.map((r) => r.coverImageId)
-				.filter((id): id is string => id !== null);
-
-			if (imageIds.length > 0) {
-				const thumbRes =
-					await window.electronAPI.getGameCoverThumbnails(imageIds);
-				if (thumbRes.success && thumbRes.data) {
-					setThumbnails(thumbRes.data);
+			// searchIGDB returns RawIGDBApiResult[]; map to IGDBSearchResult[]
+			type RawIGDBApiResult = {
+				id: number;
+				name: string;
+				cover?: { image_id?: string | null };
+				coverImageId?: string | null;
+				first_release_date?: number | null;
+				firstReleaseDate?: number | null;
+			};
+			const rawData: RawIGDBApiResult[] = await searchIGDB(q);
+			const data: IGDBSearchResult[] = (rawData || []).map((g: RawIGDBApiResult) => {
+				const coverId = g.coverImageId ?? g.cover?.image_id ?? null;
+				const release = g.firstReleaseDate ?? g.first_release_date ?? null;
+				return {
+					igdbId: g.id,
+					name: g.name,
+					coverImageId: coverId,
+					firstReleaseDate: release,
+				};
+			});
+			setResults(data);
+			// Preload thumbnails (URL)
+			const thumbs: Record<string, string> = {};
+			for (const g of data) {
+				if (g.coverImageId) {
+					thumbs[g.coverImageId] =
+						`https://images.igdb.com/igdb/image/upload/t_cover_big/${g.coverImageId}.jpg`;
 				}
 			}
-		} catch {
-			setError('Failed to connect to IGDB. Check your internet connection.');
+			setThumbnails(thumbs);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Search failed';
+			setError(msg);
+			setResults([]);
 		} finally {
 			setLoading(false);
 		}
@@ -97,18 +109,30 @@ export function CoverSearchDialog({
 
 	const handleCoverSelect = async (result: IGDBSearchResult) => {
 		if (!result.coverImageId || downloading) return;
-
 		setDownloading(result.coverImageId);
 		try {
-			const res = await window.electronAPI.downloadGameCover(
-				result.coverImageId,
-			);
-			if (!res.success || !res.data) {
-				toast.error(res.error || 'Failed to download cover');
-				return;
+			// Try IGDB cover sizes in order of quality
+			const sizes = [
+				't_cover_big_2x',
+				't_cover_big',
+				't_cover_small_2x',
+				't_cover_small',
+				't_thumb',
+			];
+			let found = false;
+			for (const size of sizes) {
+				const url = `https://images.igdb.com/igdb/image/upload/${size}/${result.coverImageId}.jpg`;
+				console.debug('[IGDB Cover Download] Trying size:', size, url);
+				const dataUrl = await fetchImageAsBase64('https://igdb.capitol-k.workers.dev/download', url);
+				if (dataUrl) {
+					onCoverSelect(dataUrl);
+					found = true;
+					break;
+				}
 			}
-			onCoverSelect(res.data);
-			toast.success('Cover applied');
+			if (!found) {
+				toast.error('Failed to download cover (no available sizes)');
+			}
 		} catch {
 			toast.error('Failed to download cover');
 		} finally {
@@ -187,7 +211,7 @@ export function CoverSearchDialog({
 
 								return (
 									<button
-										key={result.igdbId}
+										key={result.igdbId || result.coverImageId || result.name}
 										type="button"
 										className="relative rounded-lg border-2 border-border bg-muted overflow-hidden text-left transition-colors hover:border-primary focus-visible:border-primary focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 										onClick={() => handleCoverSelect(result)}
@@ -202,7 +226,9 @@ export function CoverSearchDialog({
 													className="w-full h-full object-cover"
 												/>
 											) : (
-												<ImageSquare className="w-8 h-8 text-muted-foreground" />
+												<div className="w-8 h-8 flex items-center justify-center text-muted-foreground bg-gray-200 rounded">
+													?
+												</div>
 											)}
 											{isDownloading && (
 												<div className="absolute inset-0 bg-black/50 flex items-center justify-center">

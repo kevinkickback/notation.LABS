@@ -88,7 +88,7 @@ describe('ComboFormDialog', () => {
                 allTags={['corner', 'bnb']}
             />,
         );
-        expect(screen.getByText('Add Combo for Ryu')).toBeInTheDocument();
+        expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
     });
 
     it('renders Edit Combo title when editingCombo is provided', () => {
@@ -102,7 +102,7 @@ describe('ComboFormDialog', () => {
                 allTags={['corner', 'bnb']}
             />,
         );
-        expect(screen.getByText('Edit Combo for Ryu')).toBeInTheDocument();
+        expect(screen.getByText('Edit Combo for Ryu')).not.toBeNull();
     });
 
     it('populates form fields when editing an existing combo', () => {
@@ -116,10 +116,10 @@ describe('ComboFormDialog', () => {
                 allTags={['corner', 'bnb']}
             />,
         );
-        expect(screen.getByDisplayValue('BnB Corner')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('5L > 5M > 236H')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('4200')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('1 bar')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('BnB Corner')).not.toBeNull();
+        expect(screen.getByDisplayValue('5L > 5M > 236H')).not.toBeNull();
+        expect(screen.getByDisplayValue('4200')).not.toBeNull();
+        expect(screen.getByDisplayValue('1 bar')).not.toBeNull();
     });
 
     it('shows available button layout from the game', () => {
@@ -133,10 +133,10 @@ describe('ComboFormDialog', () => {
                 allTags={[]}
             />,
         );
-        expect(screen.getByText('L')).toBeInTheDocument();
-        expect(screen.getByText('M')).toBeInTheDocument();
-        expect(screen.getByText('H')).toBeInTheDocument();
-        expect(screen.getByText('S')).toBeInTheDocument();
+        expect(screen.getByText('L')).not.toBeNull();
+        expect(screen.getByText('M')).not.toBeNull();
+        expect(screen.getByText('H')).not.toBeNull();
+        expect(screen.getByText('S')).not.toBeNull();
     });
 
     it('shows validation error when submitting without name and notation', async () => {
@@ -221,6 +221,6 @@ describe('ComboFormDialog', () => {
                 allTags={[]}
             />,
         );
-        expect(screen.queryByText('Add Combo for Ryu')).not.toBeInTheDocument();
+        expect(screen.queryByText('Add Combo for Ryu')).toBeNull();
     });
 });

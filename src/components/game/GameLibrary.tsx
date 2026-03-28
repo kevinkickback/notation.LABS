@@ -756,7 +756,11 @@ export function GameLibrary({ games }: GameLibraryProps) {
 										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
 										onClick={(e) => {
 											e.stopPropagation();
-											setDeleteTarget(game);
+											if (settings.confirmBeforeDelete) {
+												setDeleteTarget(game);
+											} else {
+												handleDeleteGame(game);
+											}
 										}}
 									>
 										<Trash className="w-4 h-4" weight="bold" />
@@ -812,7 +816,11 @@ export function GameLibrary({ games }: GameLibraryProps) {
 										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
 										onClick={(e) => {
 											e.stopPropagation();
-											setDeleteTarget(game);
+											if (settings.confirmBeforeDelete) {
+												setDeleteTarget(game);
+											} else {
+												handleDeleteGame(game);
+											}
 										}}
 									>
 										<Trash className="w-4 h-4" weight="bold" />
@@ -836,35 +844,37 @@ export function GameLibrary({ games }: GameLibraryProps) {
 				}}
 			/>
 
-			<AlertDialog
-				open={!!deleteTarget}
-				onOpenChange={(open) => !open && setDeleteTarget(null)}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
-						<AlertDialogDescription>
-							{(() => {
-								if (!deleteTarget) return '';
-								const charCount = charCountByGame[deleteTarget.id] || 0;
-								const comboCount = comboCountByGame[deleteTarget.id] || 0;
-								if (charCount === 0)
-									return 'This game has no characters or combos. This action cannot be undone.';
-								return `This will also delete ${charCount} character${charCount !== 1 ? 's' : ''} and ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
-							})()}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() => deleteTarget && handleDeleteGame(deleteTarget)}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			{settings.confirmBeforeDelete && (
+				<AlertDialog
+					open={!!deleteTarget}
+					onOpenChange={(open) => !open && setDeleteTarget(null)}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+							<AlertDialogDescription>
+								{(() => {
+									if (!deleteTarget) return '';
+									const charCount = charCountByGame[deleteTarget.id] || 0;
+									const comboCount = comboCountByGame[deleteTarget.id] || 0;
+									if (charCount === 0)
+										return 'This game has no characters or combos. This action cannot be undone.';
+									return `This will also delete ${charCount} character${charCount !== 1 ? 's' : ''} and ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
+								})()}
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								onClick={() => deleteTarget && handleDeleteGame(deleteTarget)}
+							>
+								Delete
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			)}
 		</div>
 	);
 }

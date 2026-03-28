@@ -19,7 +19,7 @@ import {
 	Palette,
 } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
-import { CharacterImageSearchDialog } from './CharacterImageSearchDialog';
+import { CharacterSearchDialog } from './CharacterSearchDialog';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -487,10 +487,10 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 				</div>
 
 				{characterDialog}
-				<CharacterImageSearchDialog
+				<CharacterSearchDialog
 					open={imageSearchOpen}
 					onOpenChange={setImageSearchOpen}
-					defaultQuery={`${game.name} ${name}`.trim()}
+					searchQuery={`${game.name} ${name}`.trim()}
 					onImageSelect={(base64) => {
 						setPortraitImage(base64);
 						setImageSearchOpen(false);
@@ -722,7 +722,11 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
 										onClick={(e) => {
 											e.stopPropagation();
-											setDeleteTarget(character);
+											if (settings.confirmBeforeDelete) {
+												setDeleteTarget(character);
+											} else {
+												handleDeleteCharacter(character);
+											}
 										}}
 									>
 										<Trash className="w-4 h-4" weight="bold" />
@@ -774,7 +778,11 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
 										onClick={(e) => {
 											e.stopPropagation();
-											setDeleteTarget(character);
+											if (settings.confirmBeforeDelete) {
+												setDeleteTarget(character);
+											} else {
+												handleDeleteCharacter(character);
+											}
 										}}
 									>
 										<Trash className="w-4 h-4" weight="bold" />
@@ -787,46 +795,48 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 			</div>
 
 			{characterDialog}
-			<CharacterImageSearchDialog
+			<CharacterSearchDialog
 				open={imageSearchOpen}
 				onOpenChange={setImageSearchOpen}
-				defaultQuery={`${game.name} ${name}`.trim()}
+				searchQuery={`${game.name} ${name}`.trim()}
 				onImageSelect={(base64) => {
 					setPortraitImage(base64);
 					setImageSearchOpen(false);
 				}}
 			/>
 
-			<AlertDialog
-				open={!!deleteTarget}
-				onOpenChange={(open) => !open && setDeleteTarget(null)}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
-						<AlertDialogDescription>
-							{(() => {
-								if (!deleteTarget) return '';
-								const comboCount = comboCountByChar[deleteTarget.id] || 0;
-								if (comboCount === 0)
-									return 'This character has no combos. This action cannot be undone.';
-								return `This will also delete ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
-							})()}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() =>
-								deleteTarget && handleDeleteCharacter(deleteTarget)
-							}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			{settings.confirmBeforeDelete && (
+				<AlertDialog
+					open={!!deleteTarget}
+					onOpenChange={(open) => !open && setDeleteTarget(null)}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+							<AlertDialogDescription>
+								{(() => {
+									if (!deleteTarget) return '';
+									const comboCount = comboCountByChar[deleteTarget.id] || 0;
+									if (comboCount === 0)
+										return 'This character has no combos. This action cannot be undone.';
+									return `This will also delete ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
+								})()}
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								onClick={() =>
+									deleteTarget && handleDeleteCharacter(deleteTarget)
+								}
+							>
+								Delete
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			)}
 
 			<Dialog open={colorDialogOpen} onOpenChange={setColorDialogOpen}>
 				<DialogContent>

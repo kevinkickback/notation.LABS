@@ -14,28 +14,39 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			react(),
 			tailwindcss(),
-			electron({
-				main: {
-					entry: 'electron/main.ts',
-					vite: {
-						define: {
-							'process.env.TWITCH_CLIENT_ID': JSON.stringify(
-								env.TWITCH_CLIENT_ID || '',
-							),
-							'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(
-								env.TWITCH_CLIENT_SECRET || '',
-							),
-						},
-					},
-				},
-				preload: {
-					input: 'electron/preload.ts',
-				},
-			}),
+			// Only include Electron plugin if ELECTRON env var is set
+			...(process.env.ELECTRON === 'true'
+				? [
+						electron({
+							main: {
+								entry: 'electron/main.ts',
+								vite: {
+									define: {
+										'process.env.TWITCH_CLIENT_ID': JSON.stringify(
+											env.TWITCH_CLIENT_ID || '',
+										),
+										'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(
+											env.TWITCH_CLIENT_SECRET || '',
+										),
+									},
+								},
+							},
+							preload: {
+								input: 'electron/preload.ts',
+							},
+						}),
+					]
+				: []),
 		],
 		resolve: {
 			alias: {
 				'@': resolve(projectRoot, 'src'),
+			},
+		},
+		server: {
+			proxy: {
+				'/api/igdb': 'http://localhost:3002',
+				'/api/image': 'http://localhost:3001',
 			},
 		},
 	};

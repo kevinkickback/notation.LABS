@@ -94,7 +94,7 @@ describe('ExportDialog', () => {
                 onExport={onExport}
             />,
         );
-        expect(screen.getByText('Export Data')).toBeInTheDocument();
+        expect(screen.getByText('Export Data')).toBeTruthy();
     });
 
     it('loads and displays games in the tree', async () => {
@@ -107,8 +107,8 @@ describe('ExportDialog', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText('Street Fighter 6')).toBeInTheDocument();
-            expect(screen.getByText('Guilty Gear Strive')).toBeInTheDocument();
+            expect(screen.getByText('Street Fighter 6')).toBeTruthy();
+            expect(screen.getByText('Guilty Gear Strive')).toBeTruthy();
         });
     });
 
@@ -138,7 +138,7 @@ describe('ExportDialog', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText('Street Fighter 6')).toBeInTheDocument();
+            expect(screen.getByText('Street Fighter 6')).toBeTruthy();
         });
 
         await user.click(screen.getByRole('button', { name: /^export$/i }));
@@ -161,7 +161,7 @@ describe('ExportDialog', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText('Street Fighter 6')).toBeInTheDocument();
+            expect(screen.queryByText('Street Fighter 6')).not.toBeNull();
         });
 
         await user.click(screen.getByRole('button', { name: /^none$/i }));
@@ -169,7 +169,7 @@ describe('ExportDialog', () => {
         const exportButton = screen.getByRole('button', {
             name: /select items to export/i,
         });
-        expect(exportButton).toBeDisabled();
+        expect((exportButton as HTMLButtonElement).disabled).toBe(true);
     });
 
     it('re-selects all when All is clicked after None', async () => {
@@ -183,14 +183,14 @@ describe('ExportDialog', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText('Street Fighter 6')).toBeInTheDocument();
+            expect(screen.queryByText('Street Fighter 6')).not.toBeNull();
         });
 
         await user.click(screen.getByRole('button', { name: /^none$/i }));
         await user.click(screen.getByRole('button', { name: /^all$/i }));
 
         const exportButton = screen.getByRole('button', { name: /^export$/i });
-        expect(exportButton).toBeEnabled();
+        expect((exportButton as HTMLButtonElement).disabled).toBe(false);
     });
 
     it('does not render dialog content when closed', () => {
@@ -201,7 +201,7 @@ describe('ExportDialog', () => {
                 onExport={onExport}
             />,
         );
-        expect(screen.queryByText('Export Data')).not.toBeInTheDocument();
+        expect(screen.queryByText('Export Data')).toBeFalsy();
     });
 
     it('shows no data message when there are no games', async () => {
@@ -218,7 +218,7 @@ describe('ExportDialog', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText('No data to export.')).toBeInTheDocument();
+            expect(screen.getByText('No data to export.')).toBeTruthy();
         });
     });
 });

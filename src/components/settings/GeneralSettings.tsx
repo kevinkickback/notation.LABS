@@ -1,33 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UserSettings, FontFamily } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-
-const FONT_OPTIONS: { value: FontFamily; label: string; style: string }[] = [
-	{
-		value: 'system-ui',
-		label: 'System Default',
-		style: 'system-ui, -apple-system, sans-serif',
-	},
-	{
-		value: 'jetbrains-mono',
-		label: 'JetBrains Mono',
-		style: '"JetBrains Mono", monospace',
-	},
-	{ value: 'verdana', label: 'Verdana', style: 'Verdana, Geneva, sans-serif' },
-	{
-		value: 'space-grotesk',
-		label: 'Space Grotesk',
-		style: '"Space Grotesk", sans-serif',
-	},
-];
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function getFontFamilyCSS(fontFamily: FontFamily): string {
-	return (
-		FONT_OPTIONS.find((f) => f.value === fontFamily)?.style ??
-		FONT_OPTIONS[0].style
-	);
-}
 import {
 	Card,
 	CardContent,
@@ -57,114 +30,56 @@ import { useAppStore } from '@/lib/store';
 import { ChangelogModal } from '@/components/layout/ChangelogModal';
 import { UpdateProgressModal } from '@/components/layout/UpdateProgressModal';
 
+const FONT_OPTIONS: { value: FontFamily; label: string; style: string }[] = [
+	{
+		value: 'system-ui',
+		label: 'System Default',
+		style: 'system-ui, -apple-system, sans-serif',
+	},
+	{
+		value: 'jetbrains-mono',
+		label: 'JetBrains Mono',
+		style: '"JetBrains Mono", monospace',
+	},
+	{ value: 'verdana', label: 'Verdana', style: 'Verdana, Geneva, sans-serif' },
+	{
+		value: 'space-grotesk',
+		label: 'Space Grotesk',
+		style: '"Space Grotesk", sans-serif',
+	},
+];
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getFontFamilyCSS(fontFamily: FontFamily): string {
+	return (
+		FONT_OPTIONS.find((f) => f.value === fontFamily)?.style ??
+		FONT_OPTIONS[0].style
+	);
+}
+
 export function GeneralSettings() {
 	const [settings, setSettings] = useState<UserSettings | null>(null);
 	const [loading, setLoading] = useState(true);
-
-	// Update state
-	const [updateChecking, setUpdateChecking] = useState(false);
 	const [updateStatus, setUpdateStatus] = useState<
 		'idle' | 'up-to-date' | 'available' | 'error'
 	>('idle');
+	const [updateChecking, setUpdateChecking] = useState(false);
 	const [updateVersion, setUpdateVersion] = useState<string | null>(null);
-	const [updateChangelog, setUpdateChangelog] = useState<string | null>(null);
+	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [showChangelog, setShowChangelog] = useState(false);
 	const [showProgress, setShowProgress] = useState(false);
 	const [showCurrentChangelog, setShowCurrentChangelog] = useState(false);
-	const [currentChangelog, setCurrentChangelog] = useState<string | null>(null);
+	const [updateChangelog, setUpdateChangelog] = useState('');
+	const [currentChangelog, setCurrentChangelog] = useState('');
 	const [changelogLoading, setChangelogLoading] = useState(false);
-	const [appVersion, setAppVersion] = useState<string | null>(null);
-
-	const loadSettings = useCallback(async () => {
-		setLoading(true);
-		const s = await indexedDbStorage.settings.get();
-		setSettings(s);
-		setLoading(false);
-	}, []);
 
 	useEffect(() => {
-		loadSettings();
-	}, [loadSettings]);
-
-	useEffect(() => {
+		indexedDbStorage.settings.get().then((s) => {
+			setSettings(s);
+			setLoading(false);
+		});
 		if (window.electronAPI?.getAppVersion) {
 			window.electronAPI.getAppVersion().then(setAppVersion);
-		}
-	}, []);
-
-	const handleCheckForUpdate = useCallback(async () => {
-		if (!window.electronAPI?.checkForUpdate) {
-			toast.error('Updates are not available in dev mode');
-			return;
-		}
-
-		setUpdateChecking(true);
-		setUpdateStatus('idle');
-
-		try {
-			const result = await window.electronAPI.checkForUpdate();
-			if (!result.success) {
-				setUpdateStatus('error');
-				toast.error(result.error ?? 'Failed to check for updates');
-				return;
-			}
-		} catch {
-			setUpdateStatus('error');
-			toast.error('Could not check for updates. Please try again.');
-		} finally {
-			setUpdateChecking(false);
-		}
-	}, []);
-
-	// Listen for update events from main process
-	useEffect(() => {
-		if (!window.electronAPI) return;
-
-		const unsubs: (() => void)[] = [];
-
-		if (window.electronAPI.onUpdateAvailable) {
-			unsubs.push(
-				window.electronAPI.onUpdateAvailable((data) => {
-					setUpdateChecking(false);
-					setUpdateStatus('available');
-					setUpdateVersion(data.version);
-					setUpdateChangelog(data.changelog);
-					setShowChangelog(true);
-				}),
-			);
-		}
-
-		if (window.electronAPI.onUpdateNotAvailable) {
-			unsubs.push(
-				window.electronAPI.onUpdateNotAvailable(() => {
-					setUpdateChecking(false);
-					setUpdateStatus('up-to-date');
-				}),
-			);
-		}
-
-		if (window.electronAPI.onUpdateError) {
-			unsubs.push(
-				window.electronAPI.onUpdateError((data) => {
-					setUpdateChecking(false);
-					setUpdateStatus('error');
-					toast.error(data.message);
-				}),
-			);
-		}
-
-		return () => {
-			unsubs.forEach((unsub) => {
-				unsub();
-			});
-		};
-	}, []);
-
-	const handleInstallUpdate = useCallback(() => {
-		setShowChangelog(false);
-		setShowProgress(true);
-		if (window.electronAPI?.downloadUpdate) {
-			window.electronAPI.downloadUpdate();
 		}
 	}, []);
 
@@ -177,10 +92,48 @@ export function GeneralSettings() {
 		useAppStore.getState().notifySettingsChanged();
 	};
 
+	const handleInstallUpdate = useCallback(() => {
+		setShowChangelog(false);
+		setShowProgress(true);
+		if (window.electronAPI?.downloadUpdate) {
+			window.electronAPI.downloadUpdate();
+		}
+	}, []);
+
+	const isUpdateStatus = (data: unknown): data is { status: string; version?: string; changelog?: string } => {
+		return (
+			typeof data === 'object' &&
+			data !== null &&
+			'status' in data &&
+			typeof (data as { status: unknown }).status === 'string'
+		);
+	};
+
+	const handleCheckForUpdate = async () => {
+		setUpdateChecking(true);
+		try {
+			const result = await window.electronAPI?.checkForUpdate?.();
+			if (result?.success && isUpdateStatus(result.data) && result.data.status === 'available') {
+				setUpdateStatus('available');
+				setUpdateVersion(result.data.version ?? null);
+				setUpdateChangelog(result.data.changelog ?? '');
+				setShowChangelog(true);
+			} else {
+				setUpdateStatus('up-to-date');
+			}
+		} catch {
+			setUpdateStatus('error');
+			toast.error('Could not check for updates. Please try again.');
+		} finally {
+			setUpdateChecking(false);
+		}
+	};
+
 	if (loading || !settings) return null;
 
 	return (
 		<div className="space-y-6">
+			{/* Appearance Card - always shown */}
 			<Card>
 				<CardHeader>
 					<CardTitle>Appearance</CardTitle>
@@ -216,7 +169,6 @@ export function GeneralSettings() {
 							</SelectContent>
 						</Select>
 					</div>
-
 					<div className="flex items-center justify-between">
 						<div>
 							<Label>Font</Label>
@@ -253,7 +205,7 @@ export function GeneralSettings() {
 					</div>
 				</CardContent>
 			</Card>
-
+			{/* Updates Card and modals - always shown */}
 			<Card>
 				<CardHeader>
 					<CardTitle>Updates</CardTitle>
@@ -264,64 +216,67 @@ export function GeneralSettings() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="flex items-center justify-between">
-						<div>
-							<Label>Auto-Update</Label>
-							<p className="text-sm text-muted-foreground">
-								Check for updates automatically on launch
-							</p>
+					{typeof window !== 'undefined' && window.electronAPI && (
+						<div className="flex items-center justify-between">
+							<div>
+								<Label>Auto-Update</Label>
+								<p className="text-sm text-muted-foreground">
+									Check for updates automatically on launch
+								</p>
+							</div>
+							<Switch
+								checked={settings.autoUpdate ?? true}
+								onCheckedChange={(v) => {
+									updateSetting('autoUpdate', v);
+									if (window.electronAPI?.setAutoCheck) {
+										window.electronAPI.setAutoCheck(v);
+									}
+									toast.success(
+										v ? 'Auto-update enabled' : 'Auto-update disabled',
+									);
+								}}
+							/>
 						</div>
-						<Switch
-							checked={settings.autoUpdate ?? true}
-							onCheckedChange={(v) => {
-								updateSetting('autoUpdate', v);
-								if (window.electronAPI?.setAutoCheck) {
-									window.electronAPI.setAutoCheck(v);
-								}
-								toast.success(
-									v ? 'Auto-update enabled' : 'Auto-update disabled',
-								);
-							}}
-						/>
-					</div>
-
-					<div className="flex items-center justify-between">
-						<div>
-							<Label>Check for Updates</Label>
-							<p className="text-sm text-muted-foreground">
-								{updateStatus === 'up-to-date' && (
-									<span className="inline-flex items-center gap-1 text-green-500">
-										<CheckCircle size={14} weight="fill" /> Up to date
-									</span>
+					)}
+					{typeof window !== 'undefined' && window.electronAPI && (
+						<div className="flex items-center justify-between">
+							<div>
+								<Label>Check for Updates</Label>
+								<p className="text-sm text-muted-foreground">
+									{updateStatus === 'up-to-date' && (
+										<span className="inline-flex items-center gap-1 text-green-500">
+											<CheckCircle size={14} weight="fill" /> Up to date
+										</span>
+									)}
+									{updateStatus === 'error' && (
+										<span className="inline-flex items-center gap-1 text-destructive">
+											<WarningCircle size={14} weight="fill" /> Check failed
+										</span>
+									)}
+									{updateStatus === 'available' && updateVersion && (
+										<span className="text-primary">
+											v{updateVersion} available
+										</span>
+									)}
+									{updateStatus === 'idle' &&
+										'Manually check for a new version'}
+								</p>
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={handleCheckForUpdate}
+								disabled={updateChecking}
+							>
+								{updateChecking ? (
+									<SpinnerGap size={16} className="animate-spin mr-1" />
+								) : (
+									<ArrowsClockwise size={16} className="mr-1" />
 								)}
-								{updateStatus === 'error' && (
-									<span className="inline-flex items-center gap-1 text-destructive">
-										<WarningCircle size={14} weight="fill" /> Check failed
-									</span>
-								)}
-								{updateStatus === 'available' && updateVersion && (
-									<span className="text-primary">
-										v{updateVersion} available
-									</span>
-								)}
-								{updateStatus === 'idle' && 'Manually check for a new version'}
-							</p>
+								{updateChecking ? 'Checking...' : 'Check Now'}
+							</Button>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={handleCheckForUpdate}
-							disabled={updateChecking}
-						>
-							{updateChecking ? (
-								<SpinnerGap size={16} className="animate-spin mr-1" />
-							) : (
-								<ArrowsClockwise size={16} className="mr-1" />
-							)}
-							{updateChecking ? 'Checking...' : 'Check Now'}
-						</Button>
-					</div>
-
+					)}
 					<div className="flex items-center justify-between">
 						<div>
 							<Label>Changelog</Label>
@@ -334,33 +289,88 @@ export function GeneralSettings() {
 							size="sm"
 							disabled={changelogLoading}
 							onClick={async () => {
-								if (!window.electronAPI?.getCurrentChangelog) {
-									toast.error('Not available in dev mode');
-									return;
-								}
-								setChangelogLoading(true);
-								try {
-									const result = await window.electronAPI.getCurrentChangelog();
-									setCurrentChangelog(result.changelog);
-									setShowCurrentChangelog(true);
-								} catch {
-									toast.error('Failed to load changelog');
-								} finally {
-									setChangelogLoading(false);
+								if (typeof window !== 'undefined' && window.electronAPI?.getCurrentChangelog) {
+									setChangelogLoading(true);
+									try {
+										const result = await window.electronAPI.getCurrentChangelog();
+										setCurrentChangelog(result.changelog ?? '');
+										setShowCurrentChangelog(true);
+									} catch {
+										toast.error('Failed to load changelog');
+									} finally {
+										setChangelogLoading(false);
+									}
+								} else {
+									// Web mode: fetch version from package.json, then fetch changelog from GitHub Releases API
+									setChangelogLoading(true);
+									try {
+										// Try to get version from package.json (must be exposed as a static asset in public/ or via Vite config)
+										let version = null;
+										try {
+											const pkgRes = await fetch('/package.json');
+											if (pkgRes.ok) {
+												const pkg = await pkgRes.json();
+												version = pkg.version;
+											}
+										} catch (e) {
+											console.warn('Could not fetch package.json for version:', e);
+										}
+										if (!version) {
+											// fallback: try to get version from window or hardcode
+											version = '1.1.0'; // fallback to known version
+										}
+										const tag = `v${version}`;
+										const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
+										const res = await fetch(apiUrl, {
+											headers: {
+												Accept: 'application/vnd.github.v3+json',
+												'User-Agent': 'notation-labs-web',
+											},
+										});
+										if (!res.ok) {
+											console.error('Failed to fetch release from GitHub. Status:', res.status, res.statusText);
+											throw new Error('Failed to fetch changelog');
+										}
+										const data = await res.json();
+										if (typeof data.body === 'string') {
+											setCurrentChangelog(data.body);
+											setAppVersion(version);
+											setShowCurrentChangelog(true);
+										} else {
+											throw new Error('Changelog is not available in release body');
+										}
+									} catch (err) {
+										console.error('Error loading changelog:', err);
+										toast.error('Failed to load changelog. See console for details.');
+									} finally {
+										setChangelogLoading(false);
+									}
 								}
 							}}
 						>
-							{changelogLoading ? (
-								<SpinnerGap size={16} className="animate-spin mr-1" />
-							) : (
-								<Scroll size={16} className="mr-1" />
-							)}
-							Show Changelog
+							<Scroll size={16} className="mr-1" /> View
 						</Button>
 					</div>
 				</CardContent>
 			</Card>
-
+			<ChangelogModal
+				open={showChangelog}
+				changelog={updateChangelog}
+				version={updateVersion ?? ''}
+				onOpenChange={setShowChangelog}
+				onInstall={handleInstallUpdate}
+			/>
+			<UpdateProgressModal
+				open={showProgress}
+				version={updateVersion ?? ''}
+			/>
+			<ChangelogModal
+				open={showCurrentChangelog}
+				changelog={currentChangelog}
+				version={appVersion ?? ''}
+				onOpenChange={setShowCurrentChangelog}
+			/>
+			{/* Behavior Card - always shown */}
 			<Card>
 				<CardHeader>
 					<CardTitle>Behavior</CardTitle>
@@ -388,7 +398,6 @@ export function GeneralSettings() {
 							}}
 						/>
 					</div>
-
 					<div className="flex items-center justify-between">
 						<div>
 							<Label>Notes Open by Default</Label>
@@ -403,24 +412,6 @@ export function GeneralSettings() {
 					</div>
 				</CardContent>
 			</Card>
-
-			{/* Update Modals */}
-			<ChangelogModal
-				open={showChangelog}
-				onOpenChange={setShowChangelog}
-				version={updateVersion ?? ''}
-				changelog={updateChangelog}
-				onInstall={handleInstallUpdate}
-			/>
-
-			<UpdateProgressModal open={showProgress} version={updateVersion ?? ''} />
-
-			<ChangelogModal
-				open={showCurrentChangelog}
-				onOpenChange={setShowCurrentChangelog}
-				version={appVersion ?? ''}
-				changelog={currentChangelog}
-			/>
 		</div>
 	);
 }

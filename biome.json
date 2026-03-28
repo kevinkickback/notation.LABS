@@ -7,13 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": true,
-		"includes": [
-			"**",
-			"!.github",
-			"!src/data",
-			"!test-results",
-			"!src/ui/assets"
-		]
+		"includes": ["**", "!.github", "!src/data", "!test-results"]
 	},
 	"formatter": {
 		"enabled": true,

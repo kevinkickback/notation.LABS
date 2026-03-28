@@ -87,27 +87,27 @@ describe('GameLibrary', () => {
 
     it('renders empty state when there are no games', () => {
         render(<GameLibrary games={[]} />);
-        expect(screen.getByText('No Games Yet')).toBeInTheDocument();
+        expect(screen.getByText('No Games Yet')).not.toBeNull();
         expect(
             screen.getByRole('button', { name: /add your first game/i }),
-        ).toBeInTheDocument();
+        ).not.toBeNull();
     });
 
     it('renders all game cards with their names', () => {
         render(<GameLibrary games={mockGames} />);
-        expect(screen.getByText('Street Fighter 6')).toBeInTheDocument();
-        expect(screen.getByText('Guilty Gear Strive')).toBeInTheDocument();
-        expect(screen.getByText('Tekken 8')).toBeInTheDocument();
+        expect(screen.getByText('Street Fighter 6')).not.toBeNull();
+        expect(screen.getByText('Guilty Gear Strive')).not.toBeNull();
+        expect(screen.getByText('Tekken 8')).not.toBeNull();
     });
 
     it('displays the game count badge', () => {
         render(<GameLibrary games={mockGames} />);
-        expect(screen.getByText('3')).toBeInTheDocument();
+        expect(screen.getByText('3')).not.toBeNull();
     });
 
     it('shows the Game Library heading when games exist', () => {
         render(<GameLibrary games={mockGames} />);
-        expect(screen.getByText('Game Library')).toBeInTheDocument();
+        expect(screen.getByText('Game Library')).not.toBeNull();
     });
 
     it('opens the add game dialog when clicking Add Game', async () => {
@@ -115,7 +115,7 @@ describe('GameLibrary', () => {
         render(<GameLibrary games={mockGames} />);
 
         await user.click(screen.getByRole('button', { name: /add game/i }));
-        expect(screen.getByText('Add New Game')).toBeInTheDocument();
+        expect(screen.getByText('Add New Game')).not.toBeNull();
     });
 
     it('shows validation error when adding a game without a name', async () => {
@@ -140,7 +140,7 @@ describe('GameLibrary', () => {
         const filterButton = screen.getByTitle('Sort & Filter');
         await user.click(filterButton);
 
-        expect(screen.getByPlaceholderText('Search games...')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Search games...')).not.toBeNull();
     });
 
     it('filters games by search text', async () => {
@@ -153,9 +153,9 @@ describe('GameLibrary', () => {
         const searchInput = screen.getByPlaceholderText('Search games...');
         await user.type(searchInput, 'tekken');
 
-        expect(screen.getByText('Tekken 8')).toBeInTheDocument();
-        expect(screen.queryByText('Street Fighter 6')).not.toBeInTheDocument();
-        expect(screen.queryByText('Guilty Gear Strive')).not.toBeInTheDocument();
+        expect(screen.getByText('Tekken 8')).not.toBeNull();
+        expect(screen.queryByText('Street Fighter 6')).toBeNull();
+        expect(screen.queryByText('Guilty Gear Strive')).toBeNull();
     });
 
     it('shows filtered count when searching', async () => {
@@ -167,6 +167,6 @@ describe('GameLibrary', () => {
         const searchInput = screen.getByPlaceholderText('Search games...');
         await user.type(searchInput, 'street');
 
-        expect(screen.getByText(/1 of 3 games/)).toBeInTheDocument();
+        expect(screen.getByText(/1 of 3 games/)).not.toBeNull();
     });
 });

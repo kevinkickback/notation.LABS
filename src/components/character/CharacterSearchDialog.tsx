@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -10,103 +10,87 @@ import { Input } from '@/components/ui/input';
 import {
     MagnifyingGlass,
     SpinnerGap,
-    ImageSquare,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+
+import { fetchImageAsBase64 } from '@/lib/utils';
 import type { ImageSearchResult } from '@/lib/types';
 
-interface CharacterImageSearchDialogProps {
+interface CharacterSearchDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    defaultQuery: string;
+    searchQuery: string;
     onImageSelect: (base64: string) => void;
 }
 
-export function CharacterImageSearchDialog({
+export function CharacterSearchDialog({
     open,
     onOpenChange,
-    defaultQuery,
+    searchQuery,
     onImageSelect,
-}: CharacterImageSearchDialogProps) {
-    const [searchQuery, setSearchQuery] = useState(defaultQuery);
-    const searchQueryRef = useRef(searchQuery);
+}: CharacterSearchDialogProps) {
+    const [inputValue, setInputValue] = useState(searchQuery);
+    // All state now declared below for DuckDuckGo logic only
     const [results, setResults] = useState<ImageSearchResult[]>([]);
-    const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [downloading, setDownloading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
-    const didAutoSearch = useRef(false);
 
     const handleSearch = useCallback(async (query?: string) => {
-        const q = (query ?? searchQueryRef.current).trim();
+        const q = (typeof query === 'string' ? query : inputValue).trim();
         if (!q) return;
-
         setLoading(true);
         setError(null);
         setResults([]);
-        setThumbnails({});
         setHasSearched(true);
-
         try {
-            const searchRes = await window.electronAPI.searchCharacterImages(q);
-            if (!searchRes.success || !searchRes.data) {
-                setError(searchRes.error || 'Search failed');
+            // Use DDG worker endpoint directly
+            const res = await fetch('https://ddg.capitol-k.workers.dev/image-search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q }),
+            });
+            if (!res.ok) {
+                setError('Search failed');
                 setLoading(false);
                 return;
             }
-
-            setResults(searchRes.data);
-
-            const thumbUrls = searchRes.data
-                .map((r) => r.thumbnailUrl)
-                .filter(Boolean);
-
-            if (thumbUrls.length > 0) {
-                const thumbRes =
-                    await window.electronAPI.getCharacterThumbnails(thumbUrls);
-                if (thumbRes.success && thumbRes.data) {
-                    setThumbnails(thumbRes.data);
-                }
-            }
+            const data: ImageSearchResult[] = await res.json();
+            setResults(data);
         } catch {
             setError('Image search failed. Check your internet connection.');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [inputValue]);
 
+    // Only reset inputValue from searchQuery when dialog is opened (not on every prop change)
+    const prevOpenRef = useRef(false);
     useEffect(() => {
-        if (open) {
-            setSearchQuery(defaultQuery);
-            searchQueryRef.current = defaultQuery;
+        if (open && !prevOpenRef.current) {
+            setInputValue(searchQuery);
             setResults([]);
-            setThumbnails({});
             setError(null);
             setHasSearched(false);
-            didAutoSearch.current = false;
-
-            if (defaultQuery.trim()) {
-                didAutoSearch.current = true;
-                handleSearch(defaultQuery);
+            if (searchQuery.trim()) {
+                handleSearch(searchQuery);
             }
         }
-    }, [open, defaultQuery, handleSearch]);
+        prevOpenRef.current = open;
+    }, [open, searchQuery, handleSearch]);
 
     const handleImageSelect = async (result: ImageSearchResult) => {
         if (!result.imageUrl || downloading) return;
-
         setDownloading(result.imageUrl);
         try {
-            const res = await window.electronAPI.downloadCharacterImage(
-                result.imageUrl,
-            );
-            if (!res.success || !res.data) {
-                toast.error(res.error || 'Failed to download image');
-                return;
+            const dataUrl = await fetchImageAsBase64('https://ddg.capitol-k.workers.dev/download', result.imageUrl);
+            if (dataUrl) {
+                onImageSelect(dataUrl);
+                toast.success('Image applied');
+            } else {
+                toast.error('Failed to download image');
             }
-            onImageSelect(res.data);
-            toast.success('Image applied');
         } catch {
             toast.error('Failed to download image');
         } finally {
@@ -124,17 +108,16 @@ export function CharacterImageSearchDialog({
                 <div className="flex gap-2">
                     <Input
                         placeholder="Search for a character..."
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            searchQueryRef.current = e.target.value;
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSearch();
                         }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                         aria-label="Character image search query"
                     />
                     <Button
                         onClick={() => handleSearch()}
-                        disabled={loading || !searchQuery.trim()}
+                        disabled={loading || !inputValue.trim()}
                     >
                         <MagnifyingGlass className="w-4 h-4" />
                     </Button>
@@ -172,9 +155,7 @@ export function CharacterImageSearchDialog({
                     {!loading && results.length > 0 && (
                         <div className="grid grid-cols-3 gap-3 pt-1">
                             {results.map((result) => {
-                                const thumb = thumbnails[result.thumbnailUrl];
                                 const isDownloading = downloading === result.imageUrl;
-
                                 return (
                                     <button
                                         key={result.imageUrl}
@@ -185,15 +166,11 @@ export function CharacterImageSearchDialog({
                                         aria-label={`Select image: ${result.title}`}
                                     >
                                         <div className="aspect-square w-full flex items-center justify-center bg-muted">
-                                            {thumb ? (
-                                                <img
-                                                    src={thumb}
-                                                    alt={result.title}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <ImageSquare className="w-8 h-8 text-muted-foreground" />
-                                            )}
+                                            <img
+                                                src={result.thumbnailUrl || result.imageUrl}
+                                                alt={result.title}
+                                                className="w-full h-full object-cover"
+                                            />
                                             {isDownloading && (
                                                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                                                     <SpinnerGap className="w-6 h-6 animate-spin text-white" />

@@ -11,10 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	},
 	// IGDB cover search
 	searchGameCovers: (query: string) => ipcRenderer.invoke('igdb:search', query),
-	getGameCoverThumbnails: (imageIds: string[]) =>
-		ipcRenderer.invoke('igdb:get-thumbnails', imageIds),
-	downloadGameCover: (imageId: string) =>
-		ipcRenderer.invoke('igdb:download-cover', imageId),
 
 	// Character image search (DuckDuckGo)
 	searchCharacterImages: (query: string) =>

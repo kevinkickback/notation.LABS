@@ -1,12 +1,9 @@
 import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { downloadCover, downloadThumbnails, searchGames } from './igdb';
-import {
-	downloadFullImage,
-	downloadImageThumbnails,
-	searchImages,
-} from './imageSearch';
+
+import { searchIGDB } from '../src/lib/igdb';
+
 import {
 	cancelDownload,
 	checkForUpdate,
@@ -137,11 +134,11 @@ app.on('ready', async () => {
 						isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
 						"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 						"font-src 'self' https://fonts.gstatic.com",
-						"img-src 'self' data: blob:",
+						"img-src 'self' data: blob: https://images.igdb.com/ https://tse1.mm.bing.net/ https://tse2.mm.bing.net/ https://tse3.mm.bing.net/ https://tse4.mm.bing.net/",
 						"media-src 'self' blob:",
 						isDev
-							? "connect-src 'self' ws://localhost:* https://noembed.com"
-							: "connect-src 'self' https://noembed.com",
+							? "connect-src 'self' ws://localhost:* https://noembed.com https://images.igdb.com/ https://ddg.capitol-k.workers.dev/ https://igdb.capitol-k.workers.dev/"
+							: "connect-src 'self' https://noembed.com https://images.igdb.com/ https://ddg.capitol-k.workers.dev/ https://igdb.capitol-k.workers.dev/",
 						"worker-src 'self' blob:",
 						"object-src 'none'",
 						"base-uri 'self'",
@@ -166,85 +163,7 @@ app.on('ready', async () => {
 	await createSplashWindow();
 	createWindow();
 
-	// --- IGDB IPC Handlers ---
-	ipcMain.handle('igdb:search', async (_event, query: unknown) => {
-		if (typeof query !== 'string' || !query.trim()) {
-			return { success: false, data: null, error: 'Invalid query' };
-		}
-		try {
-			const results = await searchGames(query);
-			return { success: true, data: results, error: null };
-		} catch (err) {
-			return { success: false, data: null, error: (err as Error).message };
-		}
-	});
-
-	ipcMain.handle('igdb:get-thumbnails', async (_event, imageIds: unknown) => {
-		if (
-			!Array.isArray(imageIds) ||
-			!imageIds.every((id) => typeof id === 'string')
-		) {
-			return { success: false, data: null, error: 'Invalid image IDs' };
-		}
-		try {
-			const thumbnails = await downloadThumbnails(imageIds);
-			return { success: true, data: thumbnails, error: null };
-		} catch (err) {
-			return { success: false, data: null, error: (err as Error).message };
-		}
-	});
-
-	ipcMain.handle('igdb:download-cover', async (_event, imageId: unknown) => {
-		if (typeof imageId !== 'string' || !imageId.trim()) {
-			return { success: false, data: null, error: 'Invalid image ID' };
-		}
-		try {
-			const base64 = await downloadCover(imageId);
-			return { success: true, data: base64, error: null };
-		} catch (err) {
-			return { success: false, data: null, error: (err as Error).message };
-		}
-	});
-
-	// --- Character Image Search IPC Handlers ---
-	ipcMain.handle('image-search:search', async (_event, query: unknown) => {
-		if (typeof query !== 'string' || !query.trim()) {
-			return { success: false, data: null, error: 'Invalid query' };
-		}
-		try {
-			const results = await searchImages(query);
-			return { success: true, data: results, error: null };
-		} catch (err) {
-			return { success: false, data: null, error: (err as Error).message };
-		}
-	});
-
-	ipcMain.handle(
-		'image-search:get-thumbnails',
-		async (_event, urls: unknown) => {
-			if (!Array.isArray(urls) || !urls.every((u) => typeof u === 'string')) {
-				return { success: false, data: null, error: 'Invalid URLs' };
-			}
-			try {
-				const thumbnails = await downloadImageThumbnails(urls);
-				return { success: true, data: thumbnails, error: null };
-			} catch (err) {
-				return { success: false, data: null, error: (err as Error).message };
-			}
-		},
-	);
-
-	ipcMain.handle('image-search:download', async (_event, url: unknown) => {
-		if (typeof url !== 'string' || !url.trim()) {
-			return { success: false, data: null, error: 'Invalid URL' };
-		}
-		try {
-			const base64 = await downloadFullImage(url);
-			return { success: true, data: base64, error: null };
-		} catch (err) {
-			return { success: false, data: null, error: (err as Error).message };
-		}
-	});
+	// ...existing code...
 
 	// --- Auto-Update ---
 	initAutoUpdater();
@@ -302,6 +221,23 @@ app.on('ready', async () => {
 		const version = app.getVersion();
 		const changelog = await fetchChangelog(version);
 		return { version, changelog };
+	});
+
+	// IGDB search proxy handler
+	ipcMain.handle('igdb:search', async (_event, query: string) => {
+		if (typeof query !== 'string' || !query.trim()) {
+			return { success: false, data: null, error: 'Invalid query' };
+		}
+		try {
+			const data = await searchIGDB(query);
+			return { success: true, data, error: null };
+		} catch (err) {
+			return {
+				success: false,
+				data: null,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
 	});
 
 	// --- Dev-only: Simulate update for UI testing ---

@@ -32,7 +32,7 @@ let devSimInterval: ReturnType<typeof setInterval> | null = null;
 let isPortableMode = false;
 
 const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-const STARTUP_CHECK_DELAY = 5000; // 5 seconds after launch
+const STARTUP_CHECK_DELAY = 3000; // 3 seconds after launch
 
 function detectPortableMode(): boolean {
 	// electron-builder sets this env var only for portable builds

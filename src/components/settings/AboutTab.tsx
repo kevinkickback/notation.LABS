@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowSquareOut } from '@phosphor-icons/react';
+import { ArrowSquareOut, GithubLogo, Globe } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 
 const FGC_RESOURCES = [
@@ -33,10 +33,18 @@ const FGC_RESOURCES = [
 
 export function AboutTab() {
 	const [appVersion, setAppVersion] = useState<string>('');
+	const [electronVersion, setElectronVersion] = useState<string>('');
+	const [chromeVersion, setChromeVersion] = useState<string>('');
 	const currentYear = new Date().getFullYear();
 
 	useEffect(() => {
-		window.electronAPI?.getAppVersion().then(setAppVersion);
+		if (window.electronAPI) {
+			window.electronAPI.getAppVersion?.().then(setAppVersion);
+			setElectronVersion(window.electronAPI.versions?.electron ?? '');
+			setChromeVersion(window.electronAPI.versions?.chrome ?? '');
+		} else {
+			setAppVersion('1.1.0');
+		}
 	}, []);
 
 	return (
@@ -51,17 +59,39 @@ export function AboutTab() {
 							<span className="text-muted-foreground">Version:</span>{' '}
 							<span className="font-medium">{appVersion}</span>
 						</div>
-						<div>
-							<span className="text-muted-foreground">Electron:</span>{' '}
-							<span className="font-medium">
-								{window.electronAPI?.versions?.electron ?? 'N/A'}
-							</span>
-						</div>
-						<div>
-							<span className="text-muted-foreground">Chrome:</span>{' '}
-							<span className="font-medium">
-								{window.electronAPI?.versions?.chrome ?? 'N/A'}
-							</span>
+						{electronVersion && (
+							<div>
+								<span className="text-muted-foreground">Electron:</span>{' '}
+								<span className="font-medium">{electronVersion}</span>
+							</div>
+						)}
+						{chromeVersion && (
+							<div>
+								<span className="text-muted-foreground">Chrome:</span>{' '}
+								<span className="font-medium">{chromeVersion}</span>
+							</div>
+						)}
+						<div className="flex flex-wrap gap-4">
+							<a
+								href="https://github.com/kevinkickback/notation.LABS"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-1.5 text-primary hover:underline"
+								aria-label="Open repository on GitHub"
+							>
+								<GithubLogo className="w-5 h-5" />
+								<span className="font-medium">GitHub</span>
+							</a>
+							<a
+								href="https://KevinKickback.com"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-1.5 text-primary hover:underline"
+								aria-label="Open KevinKickback.com homepage"
+							>
+								<Globe className="w-5 h-5" />
+								<span className="font-medium">KevinKickback</span>
+							</a>
 						</div>
 					</div>
 					<p className="text-sm text-muted-foreground">
@@ -70,7 +100,7 @@ export function AboutTab() {
 						characters.
 					</p>
 					<p className="text-xs text-muted-foreground">
-						&copy; {currentYear} Notation Labs. All rights reserved.
+						&copy; {currentYear} Kevin Kickback. All rights reserved.
 					</p>
 				</CardContent>
 			</Card>
