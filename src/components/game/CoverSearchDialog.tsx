@@ -7,10 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-	MagnifyingGlass,
-	SpinnerGap,
-} from '@phosphor-icons/react';
+import { MagnifyingGlass, SpinnerGap } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import type { IGDBSearchResult } from '@/lib/types';
 import { searchIGDB } from '@/lib/igdb';
@@ -60,16 +57,18 @@ export function CoverSearchDialog({
 				firstReleaseDate?: number | null;
 			};
 			const rawData: RawIGDBApiResult[] = await searchIGDB(q);
-			const data: IGDBSearchResult[] = (rawData || []).map((g: RawIGDBApiResult) => {
-				const coverId = g.coverImageId ?? g.cover?.image_id ?? null;
-				const release = g.firstReleaseDate ?? g.first_release_date ?? null;
-				return {
-					igdbId: g.id,
-					name: g.name,
-					coverImageId: coverId,
-					firstReleaseDate: release,
-				};
-			});
+			const data: IGDBSearchResult[] = (rawData || []).map(
+				(g: RawIGDBApiResult) => {
+					const coverId = g.coverImageId ?? g.cover?.image_id ?? null;
+					const release = g.firstReleaseDate ?? g.first_release_date ?? null;
+					return {
+						igdbId: g.id,
+						name: g.name,
+						coverImageId: coverId,
+						firstReleaseDate: release,
+					};
+				},
+			);
 			setResults(data);
 			// Preload thumbnails (URL)
 			const thumbs: Record<string, string> = {};
@@ -123,7 +122,10 @@ export function CoverSearchDialog({
 			for (const size of sizes) {
 				const url = `https://images.igdb.com/igdb/image/upload/${size}/${result.coverImageId}.jpg`;
 				console.debug('[IGDB Cover Download] Trying size:', size, url);
-				const dataUrl = await fetchImageAsBase64('https://igdb.capitol-k.workers.dev/download', url);
+				const dataUrl = await fetchImageAsBase64(
+					'https://igdb.capitol-k.workers.dev/download',
+					url,
+				);
 				if (dataUrl) {
 					onCoverSelect(dataUrl);
 					found = true;

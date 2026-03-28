@@ -1,7 +1,14 @@
 import type { Combo, Game, DisplayMode } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash, Pencil, Copy, DotsSixVertical, Play, Warning } from '@phosphor-icons/react';
+import {
+	Trash,
+	Pencil,
+	Copy,
+	DotsSixVertical,
+	Play,
+	Warning,
+} from '@phosphor-icons/react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
@@ -96,7 +103,10 @@ export function SortableComboCard({
 									{combo.name}
 								</h3>
 								{combo.outdated && (
-									<Badge variant="secondary" className="text-sm py-0 bg-amber-500/15 text-amber-500 border-amber-500/30 gap-1">
+									<Badge
+										variant="secondary"
+										className="text-sm py-0 bg-amber-500/15 text-amber-500 border-amber-500/30 gap-1"
+									>
 										<Warning className="w-3 h-3" weight="fill" />
 										Outdated
 									</Badge>

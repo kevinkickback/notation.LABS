@@ -1,4 +1,3 @@
-// src/lib/igdb.ts
 import { getApiBase } from './utils';
 
 export interface RawIGDBApiResult {

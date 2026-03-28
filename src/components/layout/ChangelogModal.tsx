@@ -32,7 +32,9 @@ export function ChangelogModal({
 			<DialogContent className="w-full max-w-xs sm:max-w-md p-3 sm:p-6">
 				<DialogHeader>
 					<DialogTitle>
-						{onInstall ? `Update Available — v${version}` : `Changelog — v${version}`}
+						{onInstall
+							? `Update Available — v${version}`
+							: `Changelog — v${version}`}
 					</DialogTitle>
 					<DialogDescription>
 						{onInstall

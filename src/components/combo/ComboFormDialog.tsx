@@ -490,7 +490,9 @@ export function ComboFormDialog({
 
 					<div className="flex items-center justify-between rounded-lg border border-border p-3">
 						<div className="space-y-0.5">
-							<Label htmlFor="outdated-toggle" className="text-sm font-medium">Mark as outdated</Label>
+							<Label htmlFor="outdated-toggle" className="text-sm font-medium">
+								Mark as outdated
+							</Label>
 							<p className="text-xs text-muted-foreground">
 								Flag this combo as potentially outdated due to a game patch
 							</p>

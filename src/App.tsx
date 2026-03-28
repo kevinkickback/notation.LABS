@@ -19,7 +19,6 @@ function App() {
 	const [initialized, setInitialized] = useState(false);
 	const settings = useSettings();
 
-	// Global auto-update state
 	const [autoUpdateVersion, setAutoUpdateVersion] = useState<string | null>(
 		null,
 	);
@@ -42,7 +41,10 @@ function App() {
 
 	useEffect(() => {
 		if (settings.accentColor) {
-			document.documentElement.style.setProperty('--accent-color', settings.accentColor);
+			document.documentElement.style.setProperty(
+				'--accent-color',
+				settings.accentColor,
+			);
 		} else {
 			document.documentElement.style.setProperty('--accent-color', '#3b82f6');
 		}
@@ -56,7 +58,6 @@ function App() {
 		}
 	}, [settings.colorTheme]);
 
-	// Global auto-update listener for background update checks
 	useEffect(() => {
 		if (!window.electronAPI?.onUpdateAvailable) return;
 
@@ -72,7 +73,6 @@ function App() {
 			});
 		});
 
-		// Start auto-check schedule if enabled
 		if (settings.autoUpdate && window.electronAPI.setAutoCheck) {
 			window.electronAPI.setAutoCheck(true);
 		}
@@ -100,9 +100,9 @@ function App() {
 		() =>
 			selectedCharacterId
 				? db.combos
-					.where('characterId')
-					.equals(selectedCharacterId)
-					.sortBy('sortOrder')
+						.where('characterId')
+						.equals(selectedCharacterId)
+						.sortBy('sortOrder')
 				: [],
 		[selectedCharacterId],
 	);
@@ -146,7 +146,6 @@ function App() {
 
 			<Toaster />
 
-			{/* Global auto-update modals */}
 			<ChangelogModal
 				open={showAutoChangelog}
 				onOpenChange={setShowAutoChangelog}

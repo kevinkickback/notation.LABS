@@ -81,8 +81,12 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	const [coverZoom, setCoverZoom] = useState(100);
 	const [coverPanX, setCoverPanX] = useState(50);
 	const [coverPanY, setCoverPanY] = useState(50);
-	const [dialogButtonColors, setDialogButtonColors] = useState<Record<string, string>>({});
-	const [dialogHexEdits, setDialogHexEdits] = useState<Record<string, string>>({});
+	const [dialogButtonColors, setDialogButtonColors] = useState<
+		Record<string, string>
+	>({});
+	const [dialogHexEdits, setDialogHexEdits] = useState<Record<string, string>>(
+		{},
+	);
 	const { setSelectedGame } = useAppStore();
 
 	const [showFilters, setShowFilters] = useState(false);
@@ -100,7 +104,11 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	const [coverSearchOpen, setCoverSearchOpen] = useState(false);
 
 	const parsedButtons = useMemo(
-		() => buttonLayout.split(',').map((b) => b.trim()).filter(Boolean),
+		() =>
+			buttonLayout
+				.split(',')
+				.map((b) => b.trim())
+				.filter(Boolean),
 		[buttonLayout],
 	);
 
@@ -109,7 +117,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 		setDialogButtonColors((prev) => {
 			const updated: Record<string, string> = {};
 			parsedButtons.forEach((btn, i) => {
-				updated[btn] = prev[btn] || DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length];
+				updated[btn] =
+					prev[btn] ||
+					DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length];
 			});
 			return updated;
 		});
@@ -201,7 +211,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	]);
 
 	const hasActiveFilters = filterSearch !== '' || sortBy !== 'name-asc';
-	const activeFilterCount = (filterSearch !== '' ? 1 : 0) + (sortBy !== 'name-asc' ? 1 : 0);
+	const activeFilterCount =
+		(filterSearch !== '' ? 1 : 0) + (sortBy !== 'name-asc' ? 1 : 0);
 
 	const handleAdd = async () => {
 		if (!name.trim()) {
@@ -243,7 +254,10 @@ export function GameLibrary({ games }: GameLibraryProps) {
 		const existingColors = game.buttonColors || {};
 		const initialColors: Record<string, string> = {};
 		game.buttonLayout.forEach((btn, i) => {
-			initialColors[btn] = colorToHex(existingColors[btn] || DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length]);
+			initialColors[btn] = colorToHex(
+				existingColors[btn] ||
+					DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length],
+			);
 		});
 		setDialogButtonColors(initialColors);
 		setDialogHexEdits({});
@@ -383,7 +397,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 									<X className="w-3.5 h-3.5 mr-1.5 shrink-0" />
 									Remove
 								</Button>
-								<div className={`flex items-center gap-2 mt-1 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}>
+								<div
+									className={`flex items-center gap-2 mt-1 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}
+								>
 									<span className="text-xs text-muted-foreground shrink-0">
 										Zoom
 									</span>
@@ -400,7 +416,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 										{coverZoom}%
 									</span>
 								</div>
-								<div className={`flex items-center gap-2 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}>
+								<div
+									className={`flex items-center gap-2 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}
+								>
 									<span className="text-xs text-muted-foreground shrink-0">
 										Pan X
 									</span>
@@ -414,7 +432,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 										disabled={!logoImage}
 									/>
 								</div>
-								<div className={`flex items-center gap-2 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}>
+								<div
+									className={`flex items-center gap-2 ${!logoImage ? 'opacity-40 pointer-events-none' : ''}`}
+								>
 									<span className="text-xs text-muted-foreground shrink-0">
 										Pan Y
 									</span>
@@ -456,22 +476,38 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
 					{parsedButtons.length > 0 && (
 						<div>
-							<Label className="text-sm font-medium mb-2 block">Button Colors</Label>
+							<Label className="text-sm font-medium mb-2 block">
+								Button Colors
+							</Label>
 							<div className="grid grid-cols-2 gap-x-4 gap-y-2">
 								{parsedButtons.map((btn, i) => {
-									const hexColor = colorToHex(dialogButtonColors[btn] || DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length]);
+									const hexColor = colorToHex(
+										dialogButtonColors[btn] ||
+											DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length],
+									);
 									const editHex = dialogHexEdits[btn] ?? hexColor;
 									return (
 										<div key={btn} className="flex items-center gap-2">
-											<span className="text-sm w-8 shrink-0 truncate">{btn}</span>
+											<span className="text-sm w-8 shrink-0 truncate">
+												{btn}
+											</span>
 											<label className="relative w-10 h-7 rounded border border-border cursor-pointer overflow-hidden shrink-0">
-												<div className="absolute inset-0" style={{ backgroundColor: hexColor }} />
+												<div
+													className="absolute inset-0"
+													style={{ backgroundColor: hexColor }}
+												/>
 												<input
 													type="color"
 													value={hexColor}
 													onChange={(e) => {
-														setDialogButtonColors((prev) => ({ ...prev, [btn]: e.target.value }));
-														setDialogHexEdits((prev) => ({ ...prev, [btn]: e.target.value }));
+														setDialogButtonColors((prev) => ({
+															...prev,
+															[btn]: e.target.value,
+														}));
+														setDialogHexEdits((prev) => ({
+															...prev,
+															[btn]: e.target.value,
+														}));
 													}}
 													className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
 												/>
@@ -479,16 +515,32 @@ export function GameLibrary({ games }: GameLibraryProps) {
 											<input
 												type="text"
 												value={editHex}
-												onChange={(e) => setDialogHexEdits((prev) => ({ ...prev, [btn]: e.target.value }))}
-												onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+												onChange={(e) =>
+													setDialogHexEdits((prev) => ({
+														...prev,
+														[btn]: e.target.value,
+													}))
+												}
+												onKeyDown={(e) => {
+													if (e.key === 'Enter') e.currentTarget.blur();
+												}}
 												onBlur={(e) => {
 													let val = e.target.value.trim();
 													if (!val.startsWith('#')) val = `#${val}`;
 													if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-														setDialogButtonColors((prev) => ({ ...prev, [btn]: val }));
-														setDialogHexEdits((prev) => ({ ...prev, [btn]: val }));
+														setDialogButtonColors((prev) => ({
+															...prev,
+															[btn]: val,
+														}));
+														setDialogHexEdits((prev) => ({
+															...prev,
+															[btn]: val,
+														}));
 													} else {
-														setDialogHexEdits((prev) => ({ ...prev, [btn]: hexColor }));
+														setDialogHexEdits((prev) => ({
+															...prev,
+															[btn]: hexColor,
+														}));
 													}
 												}}
 												className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
@@ -576,7 +628,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 				<div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
 					{viewMode === 'grid' && (
 						<div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9">
-							<span className="text-xs text-muted-foreground select-none">Size</span>
+							<span className="text-xs text-muted-foreground select-none">
+								Size
+							</span>
 							<Slider
 								min={120}
 								max={300}
@@ -686,8 +740,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
 				style={
 					viewMode === 'grid'
 						? {
-							gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize}px, 1fr))`,
-						}
+								gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize}px, 1fr))`,
+							}
 						: undefined
 				}
 			>

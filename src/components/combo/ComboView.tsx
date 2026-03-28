@@ -106,7 +106,9 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	};
 
 	const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
-	const [filterOutdated, setFilterOutdated] = useState<'all' | 'outdated' | 'current'>('all');
+	const [filterOutdated, setFilterOutdated] = useState<
+		'all' | 'outdated' | 'current'
+	>('all');
 	const [filterSearch, setFilterSearch] = useState('');
 
 	// Multi-select state
@@ -119,8 +121,12 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 
 	// Button color editor state
 	const [colorDialogOpen, setColorDialogOpen] = useState(false);
-	const [tempGameColors, setTempGameColors] = useState<Record<string, string>>({});
-	const [colorHexEdits, setColorHexEdits] = useState<Record<string, string>>({});
+	const [tempGameColors, setTempGameColors] = useState<Record<string, string>>(
+		{},
+	);
+	const [colorHexEdits, setColorHexEdits] = useState<Record<string, string>>(
+		{},
+	);
 	const [tempButtonLayout, setTempButtonLayout] = useState<string[]>([]);
 	const [newButtonName, setNewButtonName] = useState('');
 
@@ -173,9 +179,17 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	}, [combos, filterTags, filterDifficulty, filterOutdated, filterSearch]);
 
 	const hasActiveFilters =
-		filterTags.length > 0 || filterDifficulty !== 'all' || filterOutdated !== 'all' || filterSearch !== '';
+		filterTags.length > 0 ||
+		filterDifficulty !== 'all' ||
+		filterOutdated !== 'all' ||
+		filterSearch !== '';
 	const isFiltering = hasActiveFilters;
-	const activeFilterCount = [filterTags.length > 0, filterDifficulty !== 'all', filterOutdated !== 'all', filterSearch !== ''].filter(Boolean).length;
+	const activeFilterCount = [
+		filterTags.length > 0,
+		filterDifficulty !== 'all',
+		filterOutdated !== 'all',
+		filterSearch !== '',
+	].filter(Boolean).length;
 
 	const handleDisplayModeChange = async (mode: DisplayMode) => {
 		await indexedDbStorage.settings.update({ displayMode: mode });
@@ -225,7 +239,9 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 			await indexedDbStorage.combos.add({
 				...rest,
 				name: `${combo.name} (copy)`,
-				demoUrl: combo.demoUrl?.startsWith('local:') ? '' : (combo.demoUrl ?? ''),
+				demoUrl: combo.demoUrl?.startsWith('local:')
+					? ''
+					: (combo.demoUrl ?? ''),
 			});
 			toast.success('Combo duplicated');
 		} catch {
@@ -278,7 +294,9 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 		if (selectedIds.size === 0) return;
 		try {
 			for (const id of selectedIds) {
-				await indexedDbStorage.combos.update(id, { outdated: outdated || undefined });
+				await indexedDbStorage.combos.update(id, {
+					outdated: outdated || undefined,
+				});
 			}
 			toast.success(
 				`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
@@ -345,13 +363,27 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 		setVideoPlayerTitle('');
 	}, [videoPlayerUrl]);
 
-	const DEFAULT_BTN_PALETTE = ['#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#319795', '#3182ce', '#5a67d8', '#805ad5', '#d53f8c', '#718096'];
+	const DEFAULT_BTN_PALETTE = [
+		'#e53e3e',
+		'#dd6b20',
+		'#d69e2e',
+		'#38a169',
+		'#319795',
+		'#3182ce',
+		'#5a67d8',
+		'#805ad5',
+		'#d53f8c',
+		'#718096',
+	];
 
 	const openColorDialog = () => {
 		const layout = [...game.buttonLayout];
 		const initial: Record<string, string> = {};
 		layout.forEach((btn, i) => {
-			initial[btn] = colorToHex(game.buttonColors?.[btn] || DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length]);
+			initial[btn] = colorToHex(
+				game.buttonColors?.[btn] ||
+					DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+			);
 		});
 		setTempButtonLayout(layout);
 		setTempGameColors(initial);
@@ -364,9 +396,16 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 		try {
 			const colorsToSave: Record<string, string> = {};
 			tempButtonLayout.forEach((btn) => {
-				colorsToSave[btn] = tempGameColors[btn] || DEFAULT_BTN_PALETTE[tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length];
+				colorsToSave[btn] =
+					tempGameColors[btn] ||
+					DEFAULT_BTN_PALETTE[
+						tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length
+					];
 			});
-			await indexedDbStorage.games.update(game.id, { buttonLayout: tempButtonLayout, buttonColors: colorsToSave });
+			await indexedDbStorage.games.update(game.id, {
+				buttonLayout: tempButtonLayout,
+				buttonColors: colorsToSave,
+			});
 			useAppStore.getState().notifySettingsChanged();
 			toast.success('Button colors updated');
 			setColorDialogOpen(false);
@@ -424,7 +463,9 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 			<div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
 				<div className="min-w-0 flex-1">
 					<h2 className="text-3xl font-bold mb-1 truncate">{character.name}</h2>
-					<p className="text-muted-foreground">{game.name}  {combos.length} combos</p>
+					<p className="text-muted-foreground">
+						{game.name}  {combos.length} combos
+					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2 min-w-0">
 					<div className="bg-muted rounded-md">
@@ -490,11 +531,15 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 							<Note className="w-4 h-4" />
 							Notes
 						</span>
-						<CaretDown className={`w-4 h-4 text-muted-foreground transition-transform duration-150 ${showNotes ? 'rotate-180' : ''}`} />
+						<CaretDown
+							className={`w-4 h-4 text-muted-foreground transition-transform duration-150 ${showNotes ? 'rotate-180' : ''}`}
+						/>
 					</button>
 					{showNotes && (
 						<div className="px-4 py-3 bg-card border-t border-border">
-							<p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{character.notes}</p>
+							<p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+								{character.notes}
+							</p>
 						</div>
 					)}
 				</div>
@@ -601,23 +646,34 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Button Colors — {game.name}</DialogTitle>
-
 					</DialogHeader>
 					<div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2">
 						{tempButtonLayout.map((btn, i) => {
-							const hexColor = colorToHex(tempGameColors[btn] || DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length]);
+							const hexColor = colorToHex(
+								tempGameColors[btn] ||
+									DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+							);
 							const editHex = colorHexEdits[btn] ?? hexColor;
 							return (
 								<div key={btn} className="flex items-center gap-2">
 									<span className="text-sm w-8 shrink-0 truncate">{btn}</span>
 									<label className="relative w-10 h-7 rounded border border-border cursor-pointer overflow-hidden shrink-0">
-										<div className="absolute inset-0" style={{ backgroundColor: hexColor }} />
+										<div
+											className="absolute inset-0"
+											style={{ backgroundColor: hexColor }}
+										/>
 										<input
 											type="color"
 											value={hexColor}
 											onChange={(e) => {
-												setTempGameColors((prev) => ({ ...prev, [btn]: e.target.value }));
-												setColorHexEdits((prev) => ({ ...prev, [btn]: e.target.value }));
+												setTempGameColors((prev) => ({
+													...prev,
+													[btn]: e.target.value,
+												}));
+												setColorHexEdits((prev) => ({
+													...prev,
+													[btn]: e.target.value,
+												}));
 											}}
 											className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
 										/>
@@ -625,8 +681,15 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 									<input
 										type="text"
 										value={editHex}
-										onChange={(e) => setColorHexEdits((prev) => ({ ...prev, [btn]: e.target.value }))}
-										onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+										onChange={(e) =>
+											setColorHexEdits((prev) => ({
+												...prev,
+												[btn]: e.target.value,
+											}))
+										}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') e.currentTarget.blur();
+										}}
 										onBlur={(e) => {
 											let val = e.target.value.trim();
 											if (!val.startsWith('#')) val = `#${val}`;
@@ -634,14 +697,21 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 												setTempGameColors((prev) => ({ ...prev, [btn]: val }));
 												setColorHexEdits((prev) => ({ ...prev, [btn]: val }));
 											} else {
-												setColorHexEdits((prev) => ({ ...prev, [btn]: hexColor }));
+												setColorHexEdits((prev) => ({
+													...prev,
+													[btn]: hexColor,
+												}));
 											}
 										}}
 										className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
 									/>
 									<button
 										type="button"
-										onClick={() => setTempButtonLayout((prev) => prev.filter((b) => b !== btn))}
+										onClick={() =>
+											setTempButtonLayout((prev) =>
+												prev.filter((b) => b !== btn),
+											)
+										}
 										className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
 										title={`Remove ${btn}`}
 									>
@@ -662,7 +732,11 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 									if (name && !tempButtonLayout.includes(name)) {
 										const i = tempButtonLayout.length;
 										setTempButtonLayout((prev) => [...prev, name]);
-										setTempGameColors((prev) => ({ ...prev, [name]: DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length] }));
+										setTempGameColors((prev) => ({
+											...prev,
+											[name]:
+												DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+										}));
 										setNewButtonName('');
 									}
 								}
@@ -679,7 +753,10 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 								if (name && !tempButtonLayout.includes(name)) {
 									const i = tempButtonLayout.length;
 									setTempButtonLayout((prev) => [...prev, name]);
-									setTempGameColors((prev) => ({ ...prev, [name]: DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length] }));
+									setTempGameColors((prev) => ({
+										...prev,
+										[name]: DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+									}));
 									setNewButtonName('');
 								}
 							}}
@@ -689,7 +766,9 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 						</Button>
 					</div>
 					<DialogFooter>
-						<Button variant="outline" onClick={() => setColorDialogOpen(false)}>Cancel</Button>
+						<Button variant="outline" onClick={() => setColorDialogOpen(false)}>
+							Cancel
+						</Button>
 						<Button onClick={handleSaveGameColors}>Apply</Button>
 					</DialogFooter>
 				</DialogContent>

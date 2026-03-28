@@ -1,5 +1,11 @@
 import { Button } from '@/components/ui/button';
-import { GearSix, Download, Upload, Notebook, List as ListIcon } from '@phosphor-icons/react';
+import {
+	GearSix,
+	Download,
+	Upload,
+	Notebook,
+	List as ListIcon,
+} from '@phosphor-icons/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect, useState } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
@@ -58,12 +64,15 @@ export function Header() {
 		input.click();
 	};
 
-
 	return (
 		<header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50 w-full">
 			<div className="container mx-auto px-2 py-3 flex flex-wrap items-center justify-between min-w-0 w-full gap-y-2">
 				<div className="flex items-center gap-2 min-w-0 flex-shrink-1">
-					<Notebook className="size-7 sm:size-8 flex-shrink-0" weight="duotone" style={{ color: 'var(--accent-color, #3b82f6)' }} />
+					<Notebook
+						className="size-7 sm:size-8 flex-shrink-0"
+						weight="duotone"
+						style={{ color: 'var(--accent-color, #3b82f6)' }}
+					/>
 					<h1
 						className="text-lg sm:text-2xl font-bold tracking-tight truncate"
 						style={{ fontFamily: '"JetBrains Mono", "Courier New", monospace' }}
@@ -115,7 +124,11 @@ export function Header() {
 								<ListIcon className="size-6" />
 							</Button>
 						</DropdownMenu.Trigger>
-						<DropdownMenu.Content align="end" sideOffset={8} className="z-50 min-w-[10rem] rounded-md border bg-popover p-2 shadow-md">
+						<DropdownMenu.Content
+							align="end"
+							sideOffset={8}
+							className="z-50 min-w-[10rem] rounded-md border bg-popover p-2 shadow-md"
+						>
 							<DropdownMenu.Item asChild>
 								<Button
 									variant="ghost"
@@ -124,7 +137,9 @@ export function Header() {
 									// NotationGuide is a button, so we trigger its click
 									onClick={() => {
 										// Find the NotationGuide button in the DOM and click it
-										const guideBtn = document.querySelector('[data-slot="notation-guide-button"]');
+										const guideBtn = document.querySelector(
+											'[data-slot="notation-guide-button"]',
+										);
 										if (guideBtn) (guideBtn as HTMLElement).click();
 									}}
 								>

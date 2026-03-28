@@ -77,7 +77,12 @@ export function ComboFilters({
 					<SelectItem value="5">5 / 5</SelectItem>
 				</SelectContent>
 			</Select>
-			<Select value={filterOutdated} onValueChange={(v) => onFilterOutdatedChange(v as 'all' | 'outdated' | 'current')}>
+			<Select
+				value={filterOutdated}
+				onValueChange={(v) =>
+					onFilterOutdatedChange(v as 'all' | 'outdated' | 'current')
+				}
+			>
 				<SelectTrigger className="w-36">
 					<SelectValue placeholder="Status" />
 				</SelectTrigger>

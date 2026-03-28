@@ -43,7 +43,7 @@ export function AboutTab() {
 			setElectronVersion(window.electronAPI.versions?.electron ?? '');
 			setChromeVersion(window.electronAPI.versions?.chrome ?? '');
 		} else {
-			setAppVersion('1.1.0');
+			setAppVersion('1.2.0');
 		}
 	}, []);
 

@@ -105,7 +105,9 @@ export function GeneralSettings() {
 		}
 	}, []);
 
-	const isUpdateStatus = (data: unknown): data is { status: string; version?: string; changelog?: string } => {
+	const isUpdateStatus = (
+		data: unknown,
+	): data is { status: string; version?: string; changelog?: string } => {
 		return (
 			typeof data === 'object' &&
 			data !== null &&
@@ -118,7 +120,11 @@ export function GeneralSettings() {
 		setUpdateChecking(true);
 		try {
 			const result = await window.electronAPI?.checkForUpdate?.();
-			if (result?.success && isUpdateStatus(result.data) && result.data.status === 'available') {
+			if (
+				result?.success &&
+				isUpdateStatus(result.data) &&
+				result.data.status === 'available'
+			) {
 				setUpdateStatus('available');
 				setUpdateVersion(result.data.version ?? null);
 				setUpdateChangelog(result.data.changelog ?? '');
@@ -158,10 +164,13 @@ export function GeneralSettings() {
 							<input
 								type="color"
 								value={accent}
-								onChange={e => {
+								onChange={(e) => {
 									setAccent(e.target.value);
 									updateSetting('accentColor', e.target.value);
-									document.documentElement.style.setProperty('--accent-color', e.target.value);
+									document.documentElement.style.setProperty(
+										'--accent-color',
+										e.target.value,
+									);
 								}}
 								className="w-10 h-10 rounded border border-border shadow-sm cursor-pointer"
 								aria-label="Accent color picker"
@@ -169,10 +178,13 @@ export function GeneralSettings() {
 							<input
 								type="text"
 								value={accent}
-								onChange={e => {
+								onChange={(e) => {
 									setAccent(e.target.value);
 									updateSetting('accentColor', e.target.value);
-									document.documentElement.style.setProperty('--accent-color', e.target.value);
+									document.documentElement.style.setProperty(
+										'--accent-color',
+										e.target.value,
+									);
 								}}
 								className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
 								aria-label="Accent color hex"
@@ -326,10 +338,14 @@ export function GeneralSettings() {
 							size="sm"
 							disabled={changelogLoading}
 							onClick={async () => {
-								if (typeof window !== 'undefined' && window.electronAPI?.getCurrentChangelog) {
+								if (
+									typeof window !== 'undefined' &&
+									window.electronAPI?.getCurrentChangelog
+								) {
 									setChangelogLoading(true);
 									try {
-										const result = await window.electronAPI.getCurrentChangelog();
+										const result =
+											await window.electronAPI.getCurrentChangelog();
 										setCurrentChangelog(result.changelog ?? '');
 										setShowCurrentChangelog(true);
 									} catch {
@@ -350,11 +366,14 @@ export function GeneralSettings() {
 												version = pkg.version;
 											}
 										} catch (e) {
-											console.warn('Could not fetch package.json for version:', e);
+											console.warn(
+												'Could not fetch package.json for version:',
+												e,
+											);
 										}
 										if (!version) {
 											// fallback: try to get version from window or hardcode
-											version = '1.1.0'; // fallback to known version
+											version = '1.2.0'; // fallback to known version
 										}
 										const tag = `v${version}`;
 										const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
@@ -365,7 +384,11 @@ export function GeneralSettings() {
 											},
 										});
 										if (!res.ok) {
-											console.error('Failed to fetch release from GitHub. Status:', res.status, res.statusText);
+											console.error(
+												'Failed to fetch release from GitHub. Status:',
+												res.status,
+												res.statusText,
+											);
 											throw new Error('Failed to fetch changelog');
 										}
 										const data = await res.json();
@@ -374,11 +397,15 @@ export function GeneralSettings() {
 											setAppVersion(version);
 											setShowCurrentChangelog(true);
 										} else {
-											throw new Error('Changelog is not available in release body');
+											throw new Error(
+												'Changelog is not available in release body',
+											);
 										}
 									} catch (err) {
 										console.error('Error loading changelog:', err);
-										toast.error('Failed to load changelog. See console for details.');
+										toast.error(
+											'Failed to load changelog. See console for details.',
+										);
 									} finally {
 										setChangelogLoading(false);
 									}
@@ -397,10 +424,7 @@ export function GeneralSettings() {
 				onOpenChange={setShowChangelog}
 				onInstall={handleInstallUpdate}
 			/>
-			<UpdateProgressModal
-				open={showProgress}
-				version={updateVersion ?? ''}
-			/>
+			<UpdateProgressModal open={showProgress} version={updateVersion ?? ''} />
 			<ChangelogModal
 				open={showCurrentChangelog}
 				changelog={currentChangelog}
@@ -439,7 +463,8 @@ export function GeneralSettings() {
 						<div>
 							<Label>Notes Open by Default</Label>
 							<p className="text-sm text-muted-foreground">
-								Show notes panels expanded when navigating to a game or character
+								Show notes panels expanded when navigating to a game or
+								character
 							</p>
 						</div>
 						<Switch

@@ -6,7 +6,6 @@ import {
 	CancellationToken,
 } from 'electron-updater';
 
-// Read owner/repo from electron-builder publish config
 const GITHUB_OWNER = 'kevinkickback';
 const GITHUB_REPO = 'notation.LABS';
 
@@ -35,7 +34,6 @@ const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 const STARTUP_CHECK_DELAY = 3000; // 3 seconds after launch
 
 function detectPortableMode(): boolean {
-	// electron-builder sets this env var only for portable builds
 	return !!process.env.PORTABLE_EXECUTABLE_DIR;
 }
 
@@ -56,7 +54,6 @@ function setStatus(status: UpdateStatus) {
 }
 
 export async function fetchChangelog(version: string): Promise<string | null> {
-	// Fetch release body from GitHub Releases API (public, no auth needed)
 	const tag = `v${version}`;
 	const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tags/${tag}`;
 
@@ -92,9 +89,7 @@ export function initAutoUpdater() {
 
 	try {
 		isPortableMode = detectPortableMode();
-	} catch {
-		// Portable detection may fail in dev
-	}
+	} catch {}
 
 	// --- Event handlers ---
 	autoUpdater.on('checking-for-update', () => {

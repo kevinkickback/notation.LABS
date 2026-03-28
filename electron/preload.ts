@@ -9,16 +9,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		chrome: process.versions.chrome,
 		node: process.versions.node,
 	},
-	// IGDB cover search
-	searchGameCovers: (query: string) => ipcRenderer.invoke('igdb:search', query),
-
-	// Character image search (DuckDuckGo)
-	searchCharacterImages: (query: string) =>
-		ipcRenderer.invoke('image-search:search', query),
-	getCharacterThumbnails: (urls: string[]) =>
-		ipcRenderer.invoke('image-search:get-thumbnails', urls),
-	downloadCharacterImage: (url: string) =>
-		ipcRenderer.invoke('image-search:download', url),
 
 	// Auto-update
 	checkForUpdate: () => ipcRenderer.invoke('update:check'),
@@ -132,32 +122,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 			ipcRenderer.removeListener('update-cancelled', listener);
 		};
 	},
-
-	// Dev-only: simulate update for UI testing
-	simulateUpdate: (scenario?: string) =>
-		ipcRenderer.invoke('update:simulate', scenario ?? 'changelog'),
 });
-
-interface IGDBIPCResponse<T> {
-	success: boolean;
-	data: T | null;
-	error: string | null;
-}
-
-interface IGDBSearchResult {
-	igdbId: number;
-	name: string;
-	coverImageId: string | null;
-	firstReleaseDate: number | null;
-}
-
-interface ImageSearchResult {
-	title: string;
-	thumbnailUrl: string;
-	imageUrl: string;
-	width: number;
-	height: number;
-}
 
 interface UpdateIPCResponse<T> {
 	success: boolean;
@@ -182,22 +147,6 @@ declare global {
 				chrome: string;
 				node: string;
 			};
-			searchGameCovers: (
-				query: string,
-			) => Promise<IGDBIPCResponse<IGDBSearchResult[]>>;
-			getGameCoverThumbnails: (
-				imageIds: string[],
-			) => Promise<IGDBIPCResponse<Record<string, string>>>;
-			downloadGameCover: (imageId: string) => Promise<IGDBIPCResponse<string>>;
-
-			// Character image search
-			searchCharacterImages: (
-				query: string,
-			) => Promise<IGDBIPCResponse<ImageSearchResult[]>>;
-			getCharacterThumbnails: (
-				urls: string[],
-			) => Promise<IGDBIPCResponse<Record<string, string>>>;
-			downloadCharacterImage: (url: string) => Promise<IGDBIPCResponse<string>>;
 
 			// Auto-update
 			checkForUpdate: () => Promise<UpdateIPCResponse<unknown>>;
@@ -236,9 +185,6 @@ declare global {
 				callback: (data: { version: string }) => void,
 			) => () => void;
 			onUpdateCancelled: (callback: () => void) => () => void;
-
-			// Dev-only
-			simulateUpdate: (scenario?: string) => Promise<void>;
 		};
 	}
 }

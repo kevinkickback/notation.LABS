@@ -18,5 +18,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
 	characterCardSize: 180,
 	notesDefaultOpen: false,
 	showChangelogBeforeUpdate: true,
-	accentColor: '#3b82f6', // Tailwind blue-500 as default
+	accentColor: '#3b82f6',
 };

@@ -23,8 +23,16 @@ import { useAppStore } from '@/lib/store';
 import { oklchToHex, hexToOklch, colorToHex } from '@/lib/utils';
 
 const DEFAULT_BUTTON_PALETTE = [
-	'#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#319795',
-	'#3182ce', '#5a67d8', '#805ad5', '#d53f8c', '#718096',
+	'#e53e3e',
+	'#dd6b20',
+	'#d69e2e',
+	'#38a169',
+	'#319795',
+	'#3182ce',
+	'#5a67d8',
+	'#805ad5',
+	'#d53f8c',
+	'#718096',
 ];
 const DEFAULT_COLORS: NotationColors = {
 	direction: 'oklch(0.85 0.05 265)',
@@ -47,7 +55,9 @@ export function ColorCustomization() {
 		setLoading(true);
 		const settings = await indexedDbStorage.settings.get();
 		const allGames = await indexedDbStorage.games.getAll();
-		const sorted = allGames.slice().sort((a, b) => a.name.localeCompare(b.name));
+		const sorted = allGames
+			.slice()
+			.sort((a, b) => a.name.localeCompare(b.name));
 		setColors(settings.notationColors);
 		setTempColors(settings.notationColors);
 		setGames(sorted);
@@ -109,7 +119,8 @@ export function ColorCustomization() {
 		if (selectedGameId && selectedGame) {
 			const defaultButtonColors = selectedGame.buttonLayout.reduce(
 				(acc, btn, idx) => {
-					acc[btn] = DEFAULT_BUTTON_PALETTE[idx % DEFAULT_BUTTON_PALETTE.length];
+					acc[btn] =
+						DEFAULT_BUTTON_PALETTE[idx % DEFAULT_BUTTON_PALETTE.length];
 					return acc;
 				},
 				{} as Record<string, string>,
@@ -156,7 +167,10 @@ export function ColorCustomization() {
 									value={oklchToHex(tempColors.separator)}
 									onChange={(e) => {
 										handleColorChange('separator', hexToOklch(e.target.value));
-										setHexEdits((prev) => ({ ...prev, separator: e.target.value }));
+										setHexEdits((prev) => ({
+											...prev,
+											separator: e.target.value,
+										}));
 									}}
 									className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
 								/>
@@ -167,8 +181,15 @@ export function ColorCustomization() {
 									<input
 										type="text"
 										value={hexEdits.separator ?? currentHex}
-										onChange={(e) => setHexEdits((prev) => ({ ...prev, separator: e.target.value }))}
-										onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+										onChange={(e) =>
+											setHexEdits((prev) => ({
+												...prev,
+												separator: e.target.value,
+											}))
+										}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') e.currentTarget.blur();
+										}}
 										onBlur={(e) => {
 											let val = e.target.value.trim();
 											if (!val.startsWith('#')) val = `#${val}`;
@@ -176,7 +197,10 @@ export function ColorCustomization() {
 												handleColorChange('separator', hexToOklch(val));
 												setHexEdits((prev) => ({ ...prev, separator: val }));
 											} else {
-												setHexEdits((prev) => ({ ...prev, separator: currentHex }));
+												setHexEdits((prev) => ({
+													...prev,
+													separator: currentHex,
+												}));
 											}
 										}}
 										className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
@@ -217,7 +241,9 @@ export function ColorCustomization() {
 					{selectedGame && (
 						<div className="grid gap-4 pt-2">
 							{selectedGame.buttonLayout.map((button) => {
-								const currentHex = colorToHex(tempButtonColors[button] || '#3b82f6');
+								const currentHex = colorToHex(
+									tempButtonColors[button] || '#3b82f6',
+								);
 								const editHex = hexEdits[button] ?? currentHex;
 								return (
 									<div key={button} className="flex items-center gap-4">
@@ -237,7 +263,10 @@ export function ColorCustomization() {
 													value={currentHex}
 													onChange={(e) => {
 														handleButtonColorChange(button, e.target.value);
-														setHexEdits((prev) => ({ ...prev, [button]: e.target.value }));
+														setHexEdits((prev) => ({
+															...prev,
+															[button]: e.target.value,
+														}));
 													}}
 													className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
 												/>
@@ -245,8 +274,15 @@ export function ColorCustomization() {
 											<input
 												type="text"
 												value={editHex}
-												onChange={(e) => setHexEdits((prev) => ({ ...prev, [button]: e.target.value }))}
-												onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+												onChange={(e) =>
+													setHexEdits((prev) => ({
+														...prev,
+														[button]: e.target.value,
+													}))
+												}
+												onKeyDown={(e) => {
+													if (e.key === 'Enter') e.currentTarget.blur();
+												}}
 												onBlur={(e) => {
 													let val = e.target.value.trim();
 													if (!val.startsWith('#')) val = `#${val}`;
@@ -254,7 +290,10 @@ export function ColorCustomization() {
 														handleButtonColorChange(button, val);
 														setHexEdits((prev) => ({ ...prev, [button]: val }));
 													} else {
-														setHexEdits((prev) => ({ ...prev, [button]: currentHex }));
+														setHexEdits((prev) => ({
+															...prev,
+															[button]: currentHex,
+														}));
 													}
 												}}
 												className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"

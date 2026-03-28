@@ -2,8 +2,6 @@ import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { searchIGDB } from '../src/lib/igdb';
-
 import {
 	cancelDownload,
 	checkForUpdate,
@@ -66,7 +64,7 @@ function createWindow(): void {
 		minHeight: 600,
 		webPreferences: {
 			preload: join(__dirname, 'preload.mjs'),
-			// Security best practices
+			// Security: disable Node.js integration and enable context isolation
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
@@ -79,7 +77,7 @@ function createWindow(): void {
 		autoHideMenuBar: true,
 	});
 
-	// Show main window and close splash when ready
+	// Show main window and close splash
 	mainWindow.once('ready-to-show', () => {
 		if (splashWindow && !splashWindow.isDestroyed()) {
 			splashWindow.close();
@@ -88,8 +86,7 @@ function createWindow(): void {
 		mainWindow?.show();
 	});
 
-	// --- Security: Restrict navigation ---
-	// Only allow navigation to the app's own URLs
+	// Restrict navigation to app's own URLs
 	mainWindow.webContents.on('will-navigate', (event, url) => {
 		const allowedOrigins = ['http://localhost:', `file://${__dirname}`];
 		const isAllowed = allowedOrigins.some((origin) => url.startsWith(origin));
@@ -98,8 +95,7 @@ function createWindow(): void {
 		}
 	});
 
-	// --- Security: Restrict new window creation ---
-	// Open external links in the default browser, block everything else
+	// Restrict new window creation: open external links in default browser, block others
 	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
 		// Allow safe protocols to open in the system browser
 		if (url.startsWith('https://') || url.startsWith('http://')) {
@@ -122,7 +118,7 @@ function createWindow(): void {
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
-// --- Security: Content Security Policy ---
+// Set Content Security Policy
 app.on('ready', async () => {
 	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
 		callback({
@@ -150,25 +146,23 @@ app.on('ready', async () => {
 		});
 	});
 
-	// --- Security: Deny all permission requests ---
+	// Deny all permission requests
 	session.defaultSession.setPermissionRequestHandler(
 		(_webContents, _permission, callback) => {
 			callback(false);
 		},
 	);
 
-	// --- Security: Deny all permission checks ---
+	// Deny all permission checks
 	session.defaultSession.setPermissionCheckHandler(() => false);
 
 	await createSplashWindow();
 	createWindow();
 
-	// ...existing code...
-
-	// --- Auto-Update ---
+	// Initialize auto-update
 	initAutoUpdater();
 
-	// --- Update IPC Handlers ---
+	// Register update-related IPC handlers
 	ipcMain.handle('update:check', async () => {
 		try {
 			const status = await checkForUpdate();
@@ -222,66 +216,29 @@ app.on('ready', async () => {
 		const changelog = await fetchChangelog(version);
 		return { version, changelog };
 	});
-
-	// IGDB search proxy handler
-	ipcMain.handle('igdb:search', async (_event, query: string) => {
-		if (typeof query !== 'string' || !query.trim()) {
-			return { success: false, data: null, error: 'Invalid query' };
-		}
-		try {
-			const data = await searchIGDB(query);
-			return { success: true, data, error: null };
-		} catch (err) {
-			return {
-				success: false,
-				data: null,
-				error: err instanceof Error ? err.message : String(err),
-			};
-		}
-	});
-
-	// --- Dev-only: Simulate update for UI testing ---
-	if (!app.isPackaged) {
-		ipcMain.handle('update:simulate', () => {
-			const win = BrowserWindow.getAllWindows()[0];
-			if (!win) return;
-
-			const mockVersion = '99.0.0';
-			const mockChangelog =
-				'## New Features\n- ✨ Simulated feature one\n- ✨ Simulated feature two\n\n## Fixes\n- 🐛 Fixed a simulated bug\n\n## Changes\n- 📝 Updated simulated UI';
-
-			// Send update-available event — clicking "Install Now" will trigger
-			// downloadUpdate() which auto-simulates progress in dev mode
-			win.webContents.send('update-available', {
-				version: mockVersion,
-				changelog: mockChangelog,
-				isPortable: false,
-			});
-		});
-	}
 });
 
-// macOS: Re-create window when dock icon clicked
+// macOS: re-create window when dock icon clicked
 app.on('activate', () => {
 	if (BrowserWindow.getAllWindows().length === 0) {
 		createWindow();
 	}
 });
 
-// Quit when all windows are closed (except macOS)
+// Quit app when all windows are closed (except macOS)
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') {
 		app.quit();
 	}
 });
 
-// --- Security: Prevent creation of additional WebContents ---
+// Prevent creation of additional WebContents
 app.on('web-contents-created', (_event, contents) => {
-	// Prevent navigation in any new webContents
+	// Prevent navigation in new webContents
 	contents.on('will-navigate', (event) => {
 		event.preventDefault();
 	});
 
-	// Deny all new window/tab creation from child contents
+	// Deny new window/tab creation from child contents
 	contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 });
