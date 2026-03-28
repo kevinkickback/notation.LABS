@@ -125,9 +125,9 @@ export function UpdateProgressModal({
 	}, []);
 
 	return (
-		<Dialog open={open} onOpenChange={() => {}}>
+		<Dialog open={open} onOpenChange={() => { }}>
 			<DialogContent
-				className="sm:max-w-sm"
+				className="w-full max-w-xs sm:max-w-sm p-3 sm:p-6"
 				onPointerDownOutside={(e) => e.preventDefault()}
 				onEscapeKeyDown={(e) => e.preventDefault()}
 			>

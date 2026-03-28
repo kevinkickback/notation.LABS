@@ -29,7 +29,7 @@ export function ChangelogModal({
 }: ChangelogModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
+			<DialogContent className="w-full max-w-xs sm:max-w-md p-3 sm:p-6">
 				<DialogHeader>
 					<DialogTitle>
 						{onInstall ? `Update Available — v${version}` : `Changelog — v${version}`}

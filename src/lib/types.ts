@@ -86,6 +86,10 @@ export interface UserSettings {
 	lastUpdateCheck?: number;
 	lastSeenVersion?: string;
 	showChangelogBeforeUpdate: boolean;
+	/**
+	 * User-selected accent color (CSS color string, e.g. #3b82f6 or oklch(...))
+	 */
+	accentColor?: string;
 }
 
 export interface NotationColors {

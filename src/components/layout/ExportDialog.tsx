@@ -259,7 +259,7 @@ export function ExportDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-md">
+			<DialogContent className="w-full max-w-xs sm:max-w-md p-3 sm:p-6">
 				<DialogHeader>
 					<DialogTitle>Export Data</DialogTitle>
 				</DialogHeader>

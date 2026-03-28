@@ -60,6 +60,7 @@ export function getFontFamilyCSS(fontFamily: FontFamily): string {
 export function GeneralSettings() {
 	const [settings, setSettings] = useState<UserSettings | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [accent, setAccent] = useState<string>('#3b82f6');
 	const [updateStatus, setUpdateStatus] = useState<
 		'idle' | 'up-to-date' | 'available' | 'error'
 	>('idle');
@@ -77,6 +78,7 @@ export function GeneralSettings() {
 		indexedDbStorage.settings.get().then((s) => {
 			setSettings(s);
 			setLoading(false);
+			setAccent(s.accentColor || '#3b82f6');
 		});
 		if (window.electronAPI?.getAppVersion) {
 			window.electronAPI.getAppVersion().then(setAppVersion);
@@ -89,6 +91,9 @@ export function GeneralSettings() {
 	) => {
 		await indexedDbStorage.settings.update({ [key]: value });
 		setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
+		if (key === 'accentColor') {
+			setAccent(value as string);
+		}
 		useAppStore.getState().notifySettingsChanged();
 	};
 
@@ -142,6 +147,38 @@ export function GeneralSettings() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<Label>Accent Color</Label>
+							<p className="text-sm text-muted-foreground">
+								Accent for buttons, logo, highlights
+							</p>
+						</div>
+						<div className="flex items-center gap-3">
+							<input
+								type="color"
+								value={accent}
+								onChange={e => {
+									setAccent(e.target.value);
+									updateSetting('accentColor', e.target.value);
+									document.documentElement.style.setProperty('--accent-color', e.target.value);
+								}}
+								className="w-10 h-10 rounded border border-border shadow-sm cursor-pointer"
+								aria-label="Accent color picker"
+							/>
+							<input
+								type="text"
+								value={accent}
+								onChange={e => {
+									setAccent(e.target.value);
+									updateSetting('accentColor', e.target.value);
+									document.documentElement.style.setProperty('--accent-color', e.target.value);
+								}}
+								className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+								aria-label="Accent color hex"
+							/>
+						</div>
+					</div>
 					<div className="flex items-center justify-between">
 						<div>
 							<Label>Theme</Label>

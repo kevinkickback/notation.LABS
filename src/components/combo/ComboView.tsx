@@ -421,14 +421,12 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 
 	return (
 		<div>
-			<div className="flex items-center justify-between mb-8">
-				<div>
-					<h2 className="text-3xl font-bold mb-1">{character.name}</h2>
-					<p className="text-muted-foreground">
-						{game.name} • {combos.length} combos
-					</p>
+			<div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
+				<div className="min-w-0 flex-1">
+					<h2 className="text-3xl font-bold mb-1 truncate">{character.name}</h2>
+					<p className="text-muted-foreground">{game.name}  {combos.length} combos</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2 min-w-0">
 					<div className="bg-muted rounded-md">
 						<DisplayModeToggle
 							mode={displayMode}

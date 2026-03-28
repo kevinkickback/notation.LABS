@@ -561,19 +561,19 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
 	return (
 		<div>
-			<div className="flex items-center justify-between mb-8">
-				<div>
-					<h2 className="text-3xl font-bold mb-2 flex items-center gap-3">
+			<div className="flex flex-wrap items-center justify-between gap-2 mb-8 min-w-0 w-full">
+				<div className="min-w-0">
+					<h2 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3 truncate">
 						Game Library
 						<span className="inline-flex items-center justify-center rounded-full bg-primary/15 text-primary text-sm font-semibold px-2.5 py-0.5 tabular-nums">
 							{games.length}
 						</span>
 					</h2>
-					<p className="text-muted-foreground">
+					<p className="text-muted-foreground truncate">
 						Select a game to manage characters and combos
 					</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
 					{viewMode === 'grid' && (
 						<div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9">
 							<span className="text-xs text-muted-foreground select-none">Size</span>

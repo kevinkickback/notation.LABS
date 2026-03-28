@@ -502,14 +502,12 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 
 	return (
 		<div>
-			<div className="flex items-center justify-between mb-8">
-				<div>
-					<h2 className="text-3xl font-bold mb-2">{game.name}</h2>
-					<p className="text-muted-foreground">
-						Select a character to manage combos
-					</p>
+			<div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
+				<div className="min-w-0 flex-1">
+					<h2 className="text-3xl font-bold mb-2 truncate">{game.name}</h2>
+					<p className="text-muted-foreground">Select a character to manage combos</p>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2 min-w-0">
 					{viewMode === 'grid' && (
 						<div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9">
 							<span className="text-xs text-muted-foreground select-none">Size</span>

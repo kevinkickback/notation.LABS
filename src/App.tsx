@@ -41,6 +41,14 @@ function App() {
 	}, [settings.fontFamily]);
 
 	useEffect(() => {
+		if (settings.accentColor) {
+			document.documentElement.style.setProperty('--accent-color', settings.accentColor);
+		} else {
+			document.documentElement.style.setProperty('--accent-color', '#3b82f6');
+		}
+	}, [settings.accentColor]);
+
+	useEffect(() => {
 		if (settings.colorTheme === 'dark') {
 			document.documentElement.classList.add('dark');
 		} else {
@@ -92,9 +100,9 @@ function App() {
 		() =>
 			selectedCharacterId
 				? db.combos
-						.where('characterId')
-						.equals(selectedCharacterId)
-						.sortBy('sortOrder')
+					.where('characterId')
+					.equals(selectedCharacterId)
+					.sortBy('sortOrder')
 				: [],
 		[selectedCharacterId],
 	);
