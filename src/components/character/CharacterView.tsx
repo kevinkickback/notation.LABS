@@ -5,7 +5,6 @@ import {
 	Plus,
 	User,
 	Funnel,
-	X,
 	ImageSquare,
 	Trash,
 	PencilSimple,
@@ -17,7 +16,9 @@ import {
 	Note,
 	CaretDown,
 	Palette,
+	X,
 } from '@phosphor-icons/react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
 import {
@@ -66,6 +67,7 @@ interface CharacterViewProps {
 }
 
 export function CharacterView({ game, characters }: CharacterViewProps) {
+	const isMobile = useIsMobile();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editTarget, setEditTarget] = useState<Character | null>(null);
 	const [name, setName] = useState('');
@@ -105,7 +107,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 		layout.forEach((btn, i) => {
 			initial[btn] = colorToHex(
 				game.buttonColors?.[btn] ||
-					DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+				DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
 			);
 		});
 		setTempButtonLayout(layout);
@@ -122,7 +124,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 				colorsToSave[btn] =
 					tempGameColors[btn] ||
 					DEFAULT_BTN_PALETTE[
-						tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length
+					tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length
 					];
 			});
 			await indexedDbStorage.games.update(game.id, {
@@ -545,56 +547,55 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2 min-w-0">
-					{viewMode === 'grid' && (
-						<div className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9">
-							<span className="text-xs text-muted-foreground select-none">
-								Size
-							</span>
-							<Slider
-								min={120}
-								max={300}
-								step={10}
-								value={[cardSize]}
-								onValueChange={([v]) => {
-									setCardSize(v);
-									indexedDbStorage.settings
-										.update({ characterCardSize: v })
-										.then(() => useAppStore.getState().notifySettingsChanged());
-								}}
-								className="w-24"
-								title="Card size"
-							/>
-						</div>
-					)}
+					<div
+						className={`flex items-center gap-1.5 bg-muted rounded-md px-2.5 h-9 ${viewMode === 'list' ? 'opacity-60 pointer-events-none' : ''}`}
+						title={viewMode === 'list' ? 'Only available in grid view' : 'Card size'}
+					>
+						<span className="text-xs text-muted-foreground select-none">Size</span>
+						<Slider
+							min={120}
+							max={300}
+							step={10}
+							value={[cardSize]}
+							onValueChange={([v]) => {
+								setCardSize(v);
+								indexedDbStorage.settings
+									.update({ characterCardSize: v })
+									.then(() => useAppStore.getState().notifySettingsChanged());
+							}}
+							className="w-24"
+							disabled={viewMode === 'list'}
+						/>
+					</div>
 					<div className="flex items-center bg-muted rounded-md">
 						<Button
 							variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-							size="icon"
-							className="h-9 w-9 rounded-r-none"
+							className="h-9 px-2 rounded-r-none flex items-center gap-1.5"
 							onClick={() => setViewMode('grid')}
 							title="Grid view"
 						>
 							<SquaresFour className="w-5 h-5" />
+							<span className="text-xs leading-tight">Grid</span>
 						</Button>
 						<Button
 							variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-							size="icon"
-							className="h-9 w-9 rounded-l-none"
+							className="h-9 px-2 rounded-l-none flex items-center gap-1.5"
 							onClick={() => setViewMode('list')}
 							title="List view"
 						>
 							<List className="w-5 h-5" />
+							<span className="text-xs leading-tight">List</span>
 						</Button>
 					</div>
 					<div className="bg-muted rounded-md">
 						<Button
 							variant={showFilters ? 'secondary' : 'ghost'}
-							size="icon"
 							onClick={() => setShowFilters(!showFilters)}
 							title="Sort & Filter"
-							className="relative"
+							className="relative flex items-center gap-1.5"
 						>
 							<Funnel className="w-5 h-5" />
+							<span className="text-xs leading-tight">Filter</span>
 							{activeFilterCount > 0 && (
 								<span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center leading-none px-0.5">
 									{activeFilterCount}
@@ -605,11 +606,12 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					<div className="bg-muted rounded-md">
 						<Button
 							variant="ghost"
-							size="icon"
 							onClick={openColorDialog}
 							title="Edit button colors"
+							className="flex items-center gap-1.5"
 						>
 							<Palette className="w-5 h-5" />
+							<span className="text-xs leading-tight">Colors</span>
 						</Button>
 					</div>
 					<Button onClick={() => setDialogOpen(true)} className="gap-2">
@@ -693,8 +695,8 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 				style={
 					viewMode === 'grid'
 						? {
-								gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round((cardSize * 4) / 3)}px, 1fr))`,
-							}
+							gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round((cardSize * 4) / 3)}px, 1fr))`,
+						}
 						: undefined
 				}
 			>
@@ -745,7 +747,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 										</span>
 									</div>
 								</div>
-								<div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+								<div className={`absolute top-1.5 right-1.5 flex gap-1 transition-opacity z-20 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
 									<Button
 										variant="ghost"
 										size="icon"
@@ -781,27 +783,60 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 							className="group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden h-[72px] !py-0 !gap-0"
 							onClick={() => setSelectedCharacter(character.id)}
 						>
-							<CardContent className="p-0 flex items-center h-full">
-								<div className="flex items-center gap-6 flex-1 pl-4 pr-2">
-									<h3 className="font-bold text-white text-base min-w-[180px] truncate">
+							<CardContent className={`p-0 flex items-center h-full${isMobile && viewMode === 'list' ? ' relative' : ''}`}>
+								<div
+									className={`flex items-center flex-1 pl-4 ${isMobile && viewMode === 'list' ? 'gap-2 pr-16' : 'gap-6 pr-2'}`}
+									style={isMobile && viewMode === 'list' ? { minWidth: 0 } : undefined}
+								>
+									<h3 className="font-bold text-white text-base min-w-[120px] truncate max-w-[40vw]">
 										{character.name}
 									</h3>
-									<p className="text-sm text-muted-foreground flex items-center gap-1.5 shrink-0">
-										<GameController className="w-3.5 h-3.5" />{' '}
-										{comboCountByChar[character.id] || 0} combos
-									</p>
-									<p className="text-sm text-muted-foreground flex items-center gap-1.5 shrink-0">
-										<Timer className="w-3.5 h-3.5" />{' '}
-										{new Date(
-											lastModifiedByChar[character.id] || character.updatedAt,
-										).toLocaleDateString(undefined, {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric',
-										})}
-									</p>
+									{/* Responsive details: hide if not enough space */}
+									{!isMobile || viewMode !== 'list' ? (
+										<>
+											<p className="text-sm text-muted-foreground flex items-center gap-1.5 shrink-0">
+												<GameController className="w-3.5 h-3.5" />{' '}
+												{comboCountByChar[character.id] || 0} combos
+											</p>
+											<p className="text-sm text-muted-foreground flex items-center gap-1.5 shrink-0">
+												<Timer className="w-3.5 h-3.5" />{' '}
+												{new Date(
+													lastModifiedByChar[character.id] || character.updatedAt,
+												).toLocaleDateString(undefined, {
+													month: 'short',
+													day: 'numeric',
+													year: 'numeric',
+												})}
+											</p>
+										</>
+									) : (
+										<>
+											{/* On mobile list view, only show details if enough space (hide if name is long) */}
+											{character.name.length < 16 && (
+												<p className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0 max-w-[22vw] truncate">
+													<GameController className="w-3.5 h-3.5" />{' '}
+													{comboCountByChar[character.id] || 0}
+												</p>
+											)}
+											{character.name.length < 10 && (
+												<p className="text-xs text-muted-foreground flex items-center gap-1.5 shrink-0 max-w-[22vw] truncate">
+													<Timer className="w-3.5 h-3.5" />{' '}
+													{new Date(
+														lastModifiedByChar[character.id] || character.updatedAt,
+													).toLocaleDateString(undefined, {
+														month: 'short',
+														day: 'numeric',
+														year: 'numeric',
+													})}
+												</p>
+											)}
+										</>
+									)}
 								</div>
-								<div className="flex gap-1 pr-3 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div
+									className={`flex gap-1 pr-3 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'} ${isMobile && viewMode === 'list' ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
+									style={isMobile && viewMode === 'list' ? { height: 'auto', background: 'none' } : undefined}
+								>
 									<Button
 										variant="ghost"
 										size="icon"
@@ -888,7 +923,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 						{tempButtonLayout.map((btn, i) => {
 							const hexColor = colorToHex(
 								tempGameColors[btn] ||
-									DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+								DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
 							);
 							const editHex = colorHexEdits[btn] ?? hexColor;
 							return (
@@ -952,7 +987,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 										className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
 										title={`Remove ${btn}`}
 									>
-										<X className="w-3.5 h-3.5" />
+										<Trash className="w-3.5 h-3.5" weight="bold" />
 									</button>
 								</div>
 							);

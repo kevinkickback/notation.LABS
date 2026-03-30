@@ -10,7 +10,6 @@ import {
 	Note,
 	CaretDown,
 	Palette,
-	X,
 } from '@phosphor-icons/react';
 import { Input } from '@/components/ui/input';
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -382,7 +381,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 		layout.forEach((btn, i) => {
 			initial[btn] = colorToHex(
 				game.buttonColors?.[btn] ||
-					DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+				DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
 			);
 		});
 		setTempButtonLayout(layout);
@@ -399,7 +398,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 				colorsToSave[btn] =
 					tempGameColors[btn] ||
 					DEFAULT_BTN_PALETTE[
-						tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length
+					tempButtonLayout.indexOf(btn) % DEFAULT_BTN_PALETTE.length
 					];
 			});
 			await indexedDbStorage.games.update(game.id, {
@@ -468,6 +467,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2 min-w-0">
+					{/* Size slider removed: combo cards do not have a size toolbar. Text/icon toggle only affects display mode. */}
 					<div className="bg-muted rounded-md">
 						<DisplayModeToggle
 							mode={displayMode}
@@ -477,12 +477,12 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 					<div className="bg-muted rounded-md">
 						<Button
 							variant={showFilters ? 'secondary' : 'ghost'}
-							size="icon"
 							onClick={() => setShowFilters(!showFilters)}
 							title="Filter Combos"
-							className="relative"
+							className="relative flex items-center gap-1.5"
 						>
 							<Funnel className="w-5 h-5" />
+							<span className="text-xs leading-tight">Filter</span>
 							{activeFilterCount > 0 && (
 								<span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center leading-none px-0.5">
 									{activeFilterCount}
@@ -493,24 +493,26 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 					<div className="bg-muted rounded-md">
 						<Button
 							variant={isSelecting ? 'secondary' : 'ghost'}
-							size="icon"
 							onClick={() => {
 								setIsSelecting(!isSelecting);
 								if (isSelecting) setSelectedIds(new Set());
 							}}
 							title="Multi-select combos"
+							className="flex items-center gap-1.5"
 						>
 							<CheckSquare className="w-5 h-5" />
+							<span className="text-xs leading-tight">Select</span>
 						</Button>
 					</div>
 					<div className="bg-muted rounded-md">
 						<Button
 							variant="ghost"
-							size="icon"
 							onClick={openColorDialog}
 							title="Edit button colors"
+							className="flex items-center gap-1.5"
 						>
 							<Palette className="w-5 h-5" />
+							<span className="text-xs leading-tight">Colors</span>
 						</Button>
 					</div>
 					<Button onClick={() => setDialogOpen(true)} className="gap-2">
@@ -651,7 +653,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 						{tempButtonLayout.map((btn, i) => {
 							const hexColor = colorToHex(
 								tempGameColors[btn] ||
-									DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
+								DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length],
 							);
 							const editHex = colorHexEdits[btn] ?? hexColor;
 							return (
@@ -715,7 +717,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 										className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
 										title={`Remove ${btn}`}
 									>
-										<X className="w-3.5 h-3.5" />
+										<Trash className="w-3.5 h-3.5" weight="bold" />
 									</button>
 								</div>
 							);

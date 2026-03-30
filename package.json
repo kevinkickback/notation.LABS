@@ -104,17 +104,6 @@
 				"portable"
 			]
 		},
-		"nsis": {
-			"oneClick": false,
-			"perMachine": false,
-			"allowToChangeInstallationDirectory": true,
-			"installerIcon": "build/icon.ico",
-			"uninstallerIcon": "build/icon.ico",
-			"installerHeader": "build/installerHeader.png",
-			"installerSidebar": "build/installerSidebar.png",
-			"uninstallerSidebar": "build/uninstallerSidebar.png",
-			"include": "build/uninstaller.nsh"
-		},
 		"extraResources": [
 			{
 				"from": "build/splash.html",
@@ -131,6 +120,18 @@
 		],
 		"portable": {
 			"artifactName": "${productName}-${version}-portable.${ext}"
+		},
+		"nsis": {
+			"artifactName": "${productName}-${version}-Setup.${ext}",
+			"oneClick": false,
+			"perMachine": false,
+			"allowToChangeInstallationDirectory": true,
+			"installerIcon": "build/icon.ico",
+			"uninstallerIcon": "build/icon.ico",
+			"installerHeader": "build/installerHeader.png",
+			"installerSidebar": "build/installerSidebar.png",
+			"uninstallerSidebar": "build/uninstallerSidebar.png",
+			"include": "build/uninstaller.nsh"
 		},
 		"mac": {
 			"icon": "build/icon.png",
