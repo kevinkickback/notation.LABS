@@ -143,7 +143,7 @@ app.on('ready', async () => {
 						"font-src 'self' https://fonts.gstatic.com",
 						"img-src 'self' data: blob: https://images.igdb.com/ https://i.ytimg.com/ https://tse1.mm.bing.net/ https://tse2.mm.bing.net/ https://tse3.mm.bing.net/ https://tse4.mm.bing.net/",
 						"media-src 'self' blob:",
-						"frame-src https://www.youtube-nocookie.com",
+						'frame-src https://www.youtube-nocookie.com',
 						isDev
 							? "connect-src 'self' ws://localhost:* https://noembed.com https://images.igdb.com/ https://ddg.capitol-k.workers.dev/ https://igdb.capitol-k.workers.dev/"
 							: "connect-src 'self' https://noembed.com https://images.igdb.com/ https://ddg.capitol-k.workers.dev/ https://igdb.capitol-k.workers.dev/",
