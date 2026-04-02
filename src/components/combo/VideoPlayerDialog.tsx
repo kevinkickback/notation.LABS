@@ -17,7 +17,7 @@ function getYouTubeEmbedUrl(url: string): string | null {
 		let videoId: string | null = null;
 		if (u.hostname.includes('youtube.com')) videoId = u.searchParams.get('v');
 		else if (u.hostname.includes('youtu.be')) videoId = u.pathname.slice(1).split('/')[0];
-		if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+		if (videoId) return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
 	} catch { /* not a valid URL */ }
 	return null;
 }
@@ -83,6 +83,7 @@ export function VideoPlayerDialog({
 			}}
 		>
 			<DialogContent
+				aria-describedby={undefined}
 				className={cn(
 					'transition-[max-width] duration-200',
 					videoSize === 'sm' && 'sm:max-w-xl',
@@ -127,7 +128,7 @@ export function VideoPlayerDialog({
 							<iframe
 								src={youtubeEmbedUrl}
 								className="absolute inset-0 w-full h-full rounded-lg"
-								allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+								allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
 								allowFullScreen
 								title={`${title} — Demo`}
 							/>

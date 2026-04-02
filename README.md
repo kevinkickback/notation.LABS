@@ -47,10 +47,18 @@ Build, visualize, organize, and share combos using standard fighting game notati
 </details>
 
 <details>
-<summary>📝 Combo View — Text Mode</summary>
+<summary>🎮 Combo View — Icon Mode</summary>
 
-![Combo View](docs/images/text.png)
-*View combos with colored notation text and tags*
+![Combo View](docs/images/icons.png)
+*View combos with graphical input icons and tags*
+
+</details>
+
+<details>
+<summary>🎮 Demo Video</summary>
+
+![Combo View](docs/images/demo.png)
+*View youtube or embeded videos*
 
 </details>
 
@@ -96,7 +104,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 git clone https://github.com/kevinkickback/notation.LABS.git
 cd notation-labs
 npm install
-npm run dev
+npm run dev:web
 ```
 
 ## 🕹️ Notation Reference

@@ -436,15 +436,15 @@ describe('indexedDbStorage.settings', () => {
 	});
 
 	it('auto-initializes settings in DB on first get', async () => {
-		await indexedDbStorage.settings.get();
+		await indexedDbStorage.settings.init();
 		const raw = await db.settings.get(1);
 		assertDefined(raw);
 		expect(raw.id).toBe(1);
 	});
 
 	it('does not include id property in returned settings', async () => {
-		await indexedDbStorage.settings.get();
-		// Call again to hit the existing-settings branch
+		await indexedDbStorage.settings.init();
+		// get() reads the existing row after init
 		const settings = await indexedDbStorage.settings.get();
 		expect(settings).not.toHaveProperty('id');
 	});

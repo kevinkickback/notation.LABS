@@ -1,0 +1,10 @@
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.setViewportSize({ width: 1280, height: 800 });
+await page.goto('http://localhost:5173/');
+await page.waitForLoadState('networkidle');
+await page.waitForTimeout(500);
+const titles = await page.locator('h3').allTextContents();
+console.log(titles.join('\n'));
+await browser.close();

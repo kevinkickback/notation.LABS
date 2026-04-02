@@ -230,23 +230,35 @@ export const indexedDbStorage = {
 	},
 
 	settings: {
-		get: async () => {
+		/**
+		 * Read-only query — safe to call inside useLiveQuery.
+		 * Returns stored settings, or the defaults if none exist yet.
+		 */
+		get: async (): Promise<UserSettings> => {
+			const settings = await db.settings.get(1);
+			if (!settings) return DEFAULT_SETTINGS;
+			const { id: _id, ...rest } = settings;
+			return rest;
+		},
+		/**
+		 * Runs once at app startup (outside any liveQuery context).
+		 * Initialises the settings row on first launch and applies
+		 * any pending data migrations (e.g. oklch → hex colour values).
+		 */
+		init: async (): Promise<void> => {
 			const settings = await db.settings.get(1);
 			if (!settings) {
 				await db.settings.add({ id: 1, ...DEFAULT_SETTINGS });
-				return DEFAULT_SETTINGS;
+				return;
 			}
-			const { id: _id, ...rest } = settings;
 			const { colors: migratedColors, changed } = migrateNotationColors(
-				rest.notationColors,
+				settings.notationColors,
 			);
 			if (changed) {
 				await db.settings.update(1, {
 					notationColors: migratedColors as NotationColors,
 				});
-				return { ...rest, notationColors: migratedColors as NotationColors };
 			}
-			return rest;
 		},
 		update: async (updates: Partial<UserSettings>) => {
 			const current = await db.settings.get(1);

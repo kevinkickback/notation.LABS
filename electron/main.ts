@@ -121,6 +121,17 @@ const isDev = !!process.env.VITE_DEV_SERVER_URL;
 // Set Content Security Policy
 app.on('ready', async () => {
 	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		// Only apply our CSP to the app's own pages, not to external resources
+		// (applying frame-ancestors 'none' to YouTube's response would block the embed)
+		const isAppContent =
+			details.url.startsWith('file://') ||
+			details.url.startsWith('http://localhost:');
+
+		if (!isAppContent) {
+			callback({ responseHeaders: details.responseHeaders });
+			return;
+		}
+
 		callback({
 			responseHeaders: {
 				...details.responseHeaders,
@@ -130,8 +141,9 @@ app.on('ready', async () => {
 						isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
 						"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 						"font-src 'self' https://fonts.gstatic.com",
-						"img-src 'self' data: blob: https://images.igdb.com/ https://tse1.mm.bing.net/ https://tse2.mm.bing.net/ https://tse3.mm.bing.net/ https://tse4.mm.bing.net/",
+						"img-src 'self' data: blob: https://images.igdb.com/ https://i.ytimg.com/ https://tse1.mm.bing.net/ https://tse2.mm.bing.net/ https://tse3.mm.bing.net/ https://tse4.mm.bing.net/",
 						"media-src 'self' blob:",
+						"frame-src https://www.youtube-nocookie.com",
 						isDev
 							? "connect-src 'self' ws://localhost:* https://noembed.com https://images.igdb.com/ https://ddg.capitol-k.workers.dev/ https://igdb.capitol-k.workers.dev/"
 							: "connect-src 'self' https://noembed.com https://images.igdb.com/ https://ddg.capitol-k.workers.dev/ https://igdb.capitol-k.workers.dev/",
