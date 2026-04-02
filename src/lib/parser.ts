@@ -219,6 +219,15 @@ const SEPARATORS = [
 	'/',
 ];
 
+const SORTED_ALL_MODIFIERS = Object.keys({
+	...STANCE_MODIFIERS,
+	...SPECIAL_MODIFIERS,
+}).sort((a, b) => b.length - a.length);
+const SORTED_ALIASES = Object.keys(MOTION_ALIASES).sort(
+	(a, b) => b.length - a.length,
+);
+const SORTED_MOTIONS = [...MOTIONS].sort((a, b) => b.length - a.length);
+
 export function parseComboNotation(
 	notation: string,
 	customButtons: string[] = [],
@@ -324,11 +333,7 @@ export function parseComboNotation(
 		}
 		if (matched) continue;
 
-		const allStanceModifiers = Object.keys({
-			...STANCE_MODIFIERS,
-			...SPECIAL_MODIFIERS,
-		}).sort((a, b) => b.length - a.length);
-		for (const modKey of allStanceModifiers) {
+		for (const modKey of SORTED_ALL_MODIFIERS) {
 			const normalizedInput = input
 				.substring(i, i + modKey.length)
 				.toLowerCase()
@@ -350,10 +355,7 @@ export function parseComboNotation(
 		}
 		if (matched) continue;
 
-		const sortedAliases = Object.keys(MOTION_ALIASES).sort(
-			(a, b) => b.length - a.length,
-		);
-		for (const alias of sortedAliases) {
+		for (const alias of SORTED_ALIASES) {
 			const normalizedInput = input
 				.substring(i, i + alias.length)
 				.toLowerCase()
@@ -379,8 +381,7 @@ export function parseComboNotation(
 		}
 		if (matched) continue;
 
-		const sortedMotions = [...MOTIONS].sort((a, b) => b.length - a.length);
-		for (const motion of sortedMotions) {
+		for (const motion of SORTED_MOTIONS) {
 			if (input.substring(i, i + motion.length) === motion) {
 				tokens.push({
 					type: 'motion',
@@ -477,23 +478,23 @@ export function getTokenColor(
 ): string {
 	switch (token.type) {
 		case 'direction':
-			return colors.direction || 'oklch(0.85 0.05 265)';
+			return colors.direction || '#bdceef';
 		case 'motion':
-			return colors.direction || 'oklch(0.85 0.05 265)';
+			return colors.direction || '#bdceef';
 		case 'button':
 			if (buttonColors?.[token.value]) {
 				return buttonColors[token.value];
 			}
-			return colors.direction || 'oklch(0.85 0.05 265)';
+			return colors.direction || '#bdceef';
 		case 'modifier':
 			if (token.value === 'CH') {
-				return colors.separator || 'oklch(0.55 0.02 265)';
+				return colors.separator || '#6c727e';
 			}
-			return colors.direction || 'oklch(0.85 0.05 265)';
+			return colors.direction || '#bdceef';
 		case 'separator':
-			return colors.separator || 'oklch(0.55 0.02 265)';
+			return colors.separator || '#6c727e';
 		default:
-			return colors.direction || 'oklch(0.85 0.05 265)';
+			return colors.direction || '#bdceef';
 	}
 }
 

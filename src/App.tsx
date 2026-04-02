@@ -3,20 +3,19 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/hooks/useSettings';
-import { getFontFamilyCSS } from '@/components/settings/GeneralSettings';
+import { getFontFamilyCSS } from '@/lib/defaults';
 import { GameLibrary } from '@/components/game/GameLibrary';
 import { CharacterView } from '@/components/character/CharacterView';
 import { ComboView } from '@/components/combo/ComboView';
-import { Header } from '@/components/layout/Header';
-import { BreadcrumbBar } from '@/components/layout/BreadcrumbBar';
-import { ChangelogModal } from '@/components/layout/ChangelogModal';
-import { UpdateProgressModal } from '@/components/layout/UpdateProgressModal';
+import { Header } from '@/components/header/Header';
+import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
+import { ChangelogModal } from '@/components/updates/ChangelogModal';
+import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
 function App() {
 	const { selectedGameId, selectedCharacterId } = useAppStore();
-	const [initialized, setInitialized] = useState(false);
 	const settings = useSettings();
 
 	const [autoUpdateVersion, setAutoUpdateVersion] = useState<string | null>(
@@ -27,10 +26,6 @@ function App() {
 	);
 	const [showAutoChangelog, setShowAutoChangelog] = useState(false);
 	const [showAutoProgress, setShowAutoProgress] = useState(false);
-
-	useEffect(() => {
-		setInitialized(true);
-	}, []);
 
 	useEffect(() => {
 		document.documentElement.style.setProperty(
@@ -100,9 +95,9 @@ function App() {
 		() =>
 			selectedCharacterId
 				? db.combos
-						.where('characterId')
-						.equals(selectedCharacterId)
-						.sortBy('sortOrder')
+					.where('characterId')
+					.equals(selectedCharacterId)
+					.sortBy('sortOrder')
 				: [],
 		[selectedCharacterId],
 	);
@@ -111,14 +106,6 @@ function App() {
 	const selectedCharacter = characters?.find(
 		(c) => c.id === selectedCharacterId,
 	);
-
-	if (!initialized) {
-		return (
-			<div className="min-h-screen bg-background flex items-center justify-center">
-				<p className="text-muted-foreground">Loading...</p>
-			</div>
-		);
-	}
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">

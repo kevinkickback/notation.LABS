@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UserSettings, FontFamily } from '@/lib/types';
+import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSettings } from '@/hooks/useSettings';
 import {
 	Card,
 	CardContent,
@@ -26,41 +28,13 @@ import {
 	Scroll,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { useAppStore } from '@/lib/store';
-import { ChangelogModal } from '@/components/layout/ChangelogModal';
-import { UpdateProgressModal } from '@/components/layout/UpdateProgressModal';
 
-const FONT_OPTIONS: { value: FontFamily; label: string; style: string }[] = [
-	{
-		value: 'system-ui',
-		label: 'System Default',
-		style: 'system-ui, -apple-system, sans-serif',
-	},
-	{
-		value: 'jetbrains-mono',
-		label: 'JetBrains Mono',
-		style: '"JetBrains Mono", monospace',
-	},
-	{ value: 'verdana', label: 'Verdana', style: 'Verdana, Geneva, sans-serif' },
-	{
-		value: 'space-grotesk',
-		label: 'Space Grotesk',
-		style: '"Space Grotesk", sans-serif',
-	},
-];
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function getFontFamilyCSS(fontFamily: FontFamily): string {
-	return (
-		FONT_OPTIONS.find((f) => f.value === fontFamily)?.style ??
-		FONT_OPTIONS[0].style
-	);
-}
+import { ChangelogModal } from '@/components/updates/ChangelogModal';
+import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 
 export function GeneralSettings() {
-	const [settings, setSettings] = useState<UserSettings | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [accent, setAccent] = useState<string>('#3b82f6');
+	const settings = useSettings();
+	const [accent, setAccent] = useState<string>(settings.accentColor || '#3b82f6');
 	const [updateStatus, setUpdateStatus] = useState<
 		'idle' | 'up-to-date' | 'available' | 'error'
 	>('idle');
@@ -75,26 +49,23 @@ export function GeneralSettings() {
 	const [changelogLoading, setChangelogLoading] = useState(false);
 
 	useEffect(() => {
-		indexedDbStorage.settings.get().then((s) => {
-			setSettings(s);
-			setLoading(false);
-			setAccent(s.accentColor || '#3b82f6');
-		});
 		if (window.electronAPI?.getAppVersion) {
 			window.electronAPI.getAppVersion().then(setAppVersion);
 		}
 	}, []);
+
+	useEffect(() => {
+		setAccent(settings.accentColor || '#3b82f6');
+	}, [settings.accentColor]);
 
 	const updateSetting = async <K extends keyof UserSettings>(
 		key: K,
 		value: UserSettings[K],
 	) => {
 		await indexedDbStorage.settings.update({ [key]: value });
-		setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
 		if (key === 'accentColor') {
 			setAccent(value as string);
 		}
-		useAppStore.getState().notifySettingsChanged();
 	};
 
 	const handleInstallUpdate = useCallback(() => {
@@ -140,8 +111,6 @@ export function GeneralSettings() {
 		}
 	};
 
-	if (loading || !settings) return null;
-
 	return (
 		<div className="space-y-6">
 			{/* Appearance Card - always shown */}
@@ -179,12 +148,12 @@ export function GeneralSettings() {
 								type="text"
 								value={accent}
 								onChange={(e) => {
-									setAccent(e.target.value);
-									updateSetting('accentColor', e.target.value);
-									document.documentElement.style.setProperty(
-										'--accent-color',
-										e.target.value,
-									);
+									const value = e.target.value;
+									setAccent(value);
+									if (CSS.supports('color', value)) {
+										updateSetting('accentColor', value);
+										document.documentElement.style.setProperty('--accent-color', value);
+									}
 								}}
 								className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
 								aria-label="Accent color hex"
@@ -338,16 +307,17 @@ export function GeneralSettings() {
 							size="sm"
 							disabled={changelogLoading}
 							onClick={async () => {
+								setCurrentChangelog('');
+								setShowCurrentChangelog(true);
+								setChangelogLoading(true);
 								if (
 									typeof window !== 'undefined' &&
 									window.electronAPI?.getCurrentChangelog
 								) {
-									setChangelogLoading(true);
 									try {
 										const result =
 											await window.electronAPI.getCurrentChangelog();
 										setCurrentChangelog(result.changelog ?? '');
-										setShowCurrentChangelog(true);
 									} catch {
 										toast.error('Failed to load changelog');
 									} finally {
@@ -355,7 +325,6 @@ export function GeneralSettings() {
 									}
 								} else {
 									// Web mode: fetch version from package.json, then fetch changelog from GitHub Releases API
-									setChangelogLoading(true);
 									try {
 										// Try to get version from package.json (must be exposed as a static asset in public/ or via Vite config)
 										let version = null;
@@ -373,7 +342,7 @@ export function GeneralSettings() {
 										}
 										if (!version) {
 											// fallback: try to get version from window or hardcode
-											version = '1.2.0'; // fallback to known version
+											version = '1.3.0'; // fallback to known version
 										}
 										const tag = `v${version}`;
 										const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
@@ -395,7 +364,6 @@ export function GeneralSettings() {
 										if (typeof data.body === 'string') {
 											setCurrentChangelog(data.body);
 											setAppVersion(version);
-											setShowCurrentChangelog(true);
 										} else {
 											throw new Error(
 												'Changelog is not available in release body',
@@ -427,7 +395,8 @@ export function GeneralSettings() {
 			<UpdateProgressModal open={showProgress} version={updateVersion ?? ''} />
 			<ChangelogModal
 				open={showCurrentChangelog}
-				changelog={currentChangelog}
+				changelog={currentChangelog || null}
+				loading={changelogLoading}
 				version={appVersion ?? ''}
 				onOpenChange={setShowCurrentChangelog}
 			/>

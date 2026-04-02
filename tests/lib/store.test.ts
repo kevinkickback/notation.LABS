@@ -8,8 +8,6 @@ describe('useAppStore', () => {
 			selectedGameId: null,
 			selectedCharacterId: null,
 			selectedComboId: null,
-			searchQuery: '',
-			settingsVersion: 0,
 		});
 	});
 
@@ -78,34 +76,6 @@ describe('useAppStore', () => {
 		});
 	});
 
-	describe('setSearchQuery', () => {
-		it('sets the search query', () => {
-			useAppStore.getState().setSearchQuery('hadouken');
-			expect(useAppStore.getState().searchQuery).toBe('hadouken');
-		});
-
-		it('can clear the search query', () => {
-			useAppStore.setState({ searchQuery: 'hadouken' });
-			useAppStore.getState().setSearchQuery('');
-			expect(useAppStore.getState().searchQuery).toBe('');
-		});
-	});
-
-	describe('notifySettingsChanged', () => {
-		it('increments the settings version', () => {
-			const v0 = useAppStore.getState().settingsVersion;
-			useAppStore.getState().notifySettingsChanged();
-			expect(useAppStore.getState().settingsVersion).toBe(v0 + 1);
-		});
-
-		it('increments on each call', () => {
-			useAppStore.getState().notifySettingsChanged();
-			useAppStore.getState().notifySettingsChanged();
-			useAppStore.getState().notifySettingsChanged();
-			expect(useAppStore.getState().settingsVersion).toBe(3);
-		});
-	});
-
 	describe('resetSelection', () => {
 		it('clears all selections', () => {
 			useAppStore.setState({
@@ -117,12 +87,6 @@ describe('useAppStore', () => {
 			expect(useAppStore.getState().selectedGameId).toBeNull();
 			expect(useAppStore.getState().selectedCharacterId).toBeNull();
 			expect(useAppStore.getState().selectedComboId).toBeNull();
-		});
-
-		it('does not affect search query', () => {
-			useAppStore.setState({ searchQuery: 'test' });
-			useAppStore.getState().resetSelection();
-			expect(useAppStore.getState().searchQuery).toBe('test');
 		});
 	});
 });

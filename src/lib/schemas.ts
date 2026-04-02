@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const comboTokenSchema = z.object({
+export const comboTokenSchema = z.object({
 	type: z.enum([
 		'direction',
 		'motion',
@@ -16,7 +16,7 @@ const comboTokenSchema = z.object({
 	repeatCount: z.number().optional(),
 });
 
-const gameSchema = z.object({
+export const gameSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	logoImage: z.string().optional(),
@@ -30,7 +30,7 @@ const gameSchema = z.object({
 	updatedAt: z.number(),
 });
 
-const characterSchema = z.object({
+export const characterSchema = z.object({
 	id: z.string(),
 	gameId: z.string(),
 	name: z.string(),
@@ -43,7 +43,7 @@ const characterSchema = z.object({
 	updatedAt: z.number(),
 });
 
-const comboSchema = z.object({
+export const comboSchema = z.object({
 	id: z.string(),
 	characterId: z.string(),
 	name: z.string(),
@@ -64,7 +64,7 @@ const comboSchema = z.object({
 	updatedAt: z.number(),
 });
 
-const settingsSchema = z.object({
+export const settingsSchema = z.object({
 	colorTheme: z.enum(['light', 'dark']),
 	fontFamily: z.enum([
 		'system-ui',
@@ -87,9 +87,11 @@ const settingsSchema = z.object({
 	videoPlayerSize: z.enum(['sm', 'md', 'lg', 'xl']),
 	gameCardSize: z.number(),
 	characterCardSize: z.number(),
+	notesDefaultOpen: z.boolean().default(false),
 	lastUpdateCheck: z.number().optional(),
 	lastSeenVersion: z.string().optional(),
 	showChangelogBeforeUpdate: z.boolean(),
+	accentColor: z.string().optional(),
 });
 
 const demoVideoSchema = z.object({
@@ -108,3 +110,15 @@ export const importDataSchema = z.object({
 	settings: settingsSchema.optional(),
 	demoVideos: z.array(demoVideoSchema).optional(),
 });
+
+// Derived TypeScript types — single source of truth
+export type ComboToken = z.infer<typeof comboTokenSchema>;
+export type TokenType = ComboToken['type'];
+export type Game = z.infer<typeof gameSchema>;
+export type Character = z.infer<typeof characterSchema>;
+export type Combo = z.infer<typeof comboSchema>;
+export type UserSettings = z.infer<typeof settingsSchema>;
+export type NotationColors = UserSettings['notationColors'];
+export type FontFamily = UserSettings['fontFamily'];
+export type DisplayMode = UserSettings['displayMode'];
+export type IconStyle = UserSettings['iconStyle'];

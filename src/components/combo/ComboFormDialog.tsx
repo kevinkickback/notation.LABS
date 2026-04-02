@@ -1,7 +1,7 @@
 import type { Game, Character, Combo } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { X, Play, VideoCamera } from '@phosphor-icons/react';
-import { useState, useEffect, useMemo, useCallback, useId } from 'react';
+import { useState, useEffect, useMemo, useCallback, useId, useRef } from 'react';
 import {
 	Dialog,
 	DialogContent,
@@ -66,6 +66,8 @@ export function ComboFormDialog({
 	const [demoFileName, setDemoFileName] = useState('');
 	const [demoVideoTitle, setDemoVideoTitle] = useState('');
 	const [outdated, setOutdated] = useState(false);
+	const videoFileInputRef = useRef<HTMLInputElement>(null);
+	const isDesktop = !!window.electronAPI;
 
 	const comboNameId = useId();
 	const comboNotationId = useId();
@@ -90,7 +92,6 @@ export function ComboFormDialog({
 	}, []);
 
 	// Populate form when editing
-	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
 		if (editingCombo) {
 			setName(editingCombo.name);
@@ -110,12 +111,11 @@ export function ComboFormDialog({
 			resetForm();
 		}
 	}, [editingCombo, resetForm]);
-	/* eslint-enable react-hooks/set-state-in-effect */
 
 	// Fetch YouTube video title when URL changes
 	useEffect(() => {
 		if (!demoUrl || demoUrl.startsWith('local:')) {
-			setDemoVideoTitle(''); // eslint-disable-line react-hooks/set-state-in-effect
+			setDemoVideoTitle('');
 			return;
 		}
 		const videoId = getYouTubeVideoId(demoUrl);
@@ -214,39 +214,36 @@ export function ComboFormDialog({
 		}
 	};
 
-	const handleVideoFileSelect = () => {
-		const input = document.createElement('input');
-		input.type = 'file';
-		input.accept = 'video/*';
-		input.onchange = async (e) => {
-			const file = (e.target as HTMLInputElement).files?.[0];
-			if (!file) return;
-			try {
-				if (demoUrl.startsWith('local:')) {
-					const oldId = demoUrl.replace('local:', '');
-					const origLocalId = editingCombo?.demoUrl?.startsWith('local:')
-						? editingCombo.demoUrl.replace('local:', '')
-						: null;
-					if (oldId !== origLocalId) {
-						await indexedDbStorage.demoVideos.delete(oldId);
-					}
-				}
+	const handleVideoFileSelect = () => videoFileInputRef.current?.click();
 
-				const buffer = await file.arrayBuffer();
-				const videoId = `video-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-				await indexedDbStorage.demoVideos.add({
-					id: videoId,
-					data: buffer,
-					mimeType: file.type,
-					fileName: file.name,
-				});
-				setDemoUrl(`local:${videoId}`);
-				setDemoFileName(file.name);
-			} catch {
-				toast.error('Failed to save video file');
+	const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		try {
+			if (demoUrl.startsWith('local:')) {
+				const oldId = demoUrl.replace('local:', '');
+				const origLocalId = editingCombo?.demoUrl?.startsWith('local:')
+					? editingCombo.demoUrl.replace('local:', '')
+					: null;
+				if (oldId !== origLocalId) {
+					await indexedDbStorage.demoVideos.delete(oldId);
+				}
 			}
-		};
-		input.click();
+
+			const buffer = await file.arrayBuffer();
+			const videoId = `video-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+			await indexedDbStorage.demoVideos.add({
+				id: videoId,
+				data: buffer,
+				mimeType: file.type,
+				fileName: file.name,
+			});
+			setDemoUrl(`local:${videoId}`);
+			setDemoFileName(file.name);
+		} catch {
+			toast.error('Failed to save video file');
+		}
+		e.target.value = '';
 	};
 
 	// Tag helpers
@@ -442,15 +439,29 @@ export function ComboFormDialog({
 							<span className="text-xs text-muted-foreground font-medium">
 								OR
 							</span>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={handleVideoFileSelect}
-								className="gap-2"
-							>
-								<VideoCamera className="w-4 h-4" />
-								Upload File
-							</Button>
+							{isDesktop ? (
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleVideoFileSelect}
+									className="gap-2"
+								>
+									<VideoCamera className="w-4 h-4" />
+									Upload File
+								</Button>
+							) : (
+								<span title="Only available in the desktop app" className="cursor-not-allowed">
+									<Button
+										type="button"
+										variant="outline"
+										disabled
+										className="gap-2 pointer-events-none opacity-50"
+									>
+										<VideoCamera className="w-4 h-4" />
+										Upload File
+									</Button>
+								</span>
+							)}
 						</div>
 						{demoUrl && (
 							<div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
@@ -520,6 +531,13 @@ export function ComboFormDialog({
 					</div>
 				</div>
 			</DialogContent>
+			<input
+				ref={videoFileInputRef}
+				type="file"
+				accept="video/*"
+				className="hidden"
+				onChange={handleVideoFileChange}
+			/>
 		</Dialog>
 	);
 }

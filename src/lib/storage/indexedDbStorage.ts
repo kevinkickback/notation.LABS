@@ -1,6 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
-import type { Game, Character, Combo, UserSettings } from '../types';
+import type {
+	Game,
+	Character,
+	Combo,
+	UserSettings,
+	NotationColors,
+} from '../types';
 import { DEFAULT_SETTINGS } from '../defaults';
 import { importDataSchema } from '../schemas';
 
@@ -54,6 +60,9 @@ db.version(3).stores({
 	demoVideos: 'id',
 });
 
+// Version 4: no schema changes — reserved for future migration.
+// Dexie requires strictly increasing version numbers; this bump
+// holds the slot without modifying any table definitions.
 db.version(4).stores({
 	games: 'id, name, createdAt',
 	characters: 'id, gameId, name, createdAt',
@@ -65,6 +74,37 @@ db.version(4).stores({
 
 function generateId(): string {
 	return uuidv4();
+}
+
+/**
+ * One-time migration: older versions stored notationColors as oklch() strings.
+ * Map the two known defaults to their correct hex equivalents; any other
+ * unknown oklch value (produced by the now-removed buggy hexToOklch) falls
+ * back to the corresponding default since the stored value was incorrect anyway.
+ */
+const OKLCH_TO_HEX: Record<string, string> = {
+	'oklch(0.85 0.05 265)': '#bdceef',
+	'oklch(0.55 0.02 265)': '#6c727e',
+};
+
+function migrateNotationColors(colors: Record<string, string>): {
+	colors: Record<string, string>;
+	changed: boolean;
+} {
+	const migrated = { ...colors };
+	let changed = false;
+	for (const key of Object.keys(colors)) {
+		const val = colors[key];
+		if (typeof val === 'string' && val.startsWith('oklch(')) {
+			const fallback =
+				key in DEFAULT_SETTINGS.notationColors
+					? (DEFAULT_SETTINGS.notationColors as Record<string, string>)[key]
+					: '#bdceef';
+			migrated[key] = OKLCH_TO_HEX[val] ?? fallback;
+			changed = true;
+		}
+	}
+	return { colors: migrated, changed };
 }
 
 export const indexedDbStorage = {
@@ -197,6 +237,15 @@ export const indexedDbStorage = {
 				return DEFAULT_SETTINGS;
 			}
 			const { id: _id, ...rest } = settings;
+			const { colors: migratedColors, changed } = migrateNotationColors(
+				rest.notationColors,
+			);
+			if (changed) {
+				await db.settings.update(1, {
+					notationColors: migratedColors as NotationColors,
+				});
+				return { ...rest, notationColors: migratedColors as NotationColors };
+			}
 			return rest;
 		},
 		update: async (updates: Partial<UserSettings>) => {
@@ -212,7 +261,7 @@ export const indexedDbStorage = {
 	demoVideos: {
 		get: async (id: string) => db.demoVideos.get(id),
 		add: async (video: DemoVideo) => {
-			await db.demoVideos.put(video);
+			await db.demoVideos.add(video);
 			return video.id;
 		},
 		delete: async (id: string) => db.demoVideos.delete(id),
@@ -233,10 +282,17 @@ export const indexedDbStorage = {
 			comboIds?: string[];
 		},
 	) => {
-		let games = await db.games.toArray();
-		let characters = await db.characters.toArray();
-		let combos = await db.combos.toArray();
-		const settings = await db.settings.get(1);
+		let [games, characters, combos, settings] = await db.transaction(
+			'r',
+			[db.games, db.characters, db.combos, db.settings],
+			() =>
+				Promise.all([
+					db.games.toArray(),
+					db.characters.toArray(),
+					db.combos.toArray(),
+					db.settings.get(1),
+				]),
+		);
 
 		if (filter) {
 			if (filter.gameIds) {
@@ -319,7 +375,6 @@ export const indexedDbStorage = {
 				if (parsed.settings) {
 					await db.settings.put({
 						id: 1,
-						notesDefaultOpen: false,
 						...parsed.settings,
 					});
 				}
@@ -340,9 +395,10 @@ export const indexedDbStorage = {
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	const bytes = new Uint8Array(buffer);
+	const CHUNK = 8192;
 	let binary = '';
-	for (let i = 0; i < bytes.byteLength; i++) {
-		binary += String.fromCharCode(bytes[i]);
+	for (let i = 0; i < bytes.length; i += CHUNK) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
 	}
 	return btoa(binary);
 }

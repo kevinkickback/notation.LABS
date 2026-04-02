@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSettings } from '@/hooks/useSettings';
 import {
 	Card,
 	CardContent,
@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { ArrowClockwise } from '@phosphor-icons/react';
-import { useAppStore } from '@/lib/store';
+
 
 const SAMPLE_COMBO = '5L > 2M > 236H > j.M';
 
@@ -26,37 +26,17 @@ const SCALE_LABELS: Record<number, string> = {
 };
 
 export function ComboSizeSettings() {
-	const [scale, setScale] = useState(1);
-	const [loading, setLoading] = useState(true);
-
-	const loadSettings = useCallback(async () => {
-		setLoading(true);
-		const settings = await indexedDbStorage.settings.get();
-		setScale(settings.comboScale ?? 1);
-		setLoading(false);
-	}, []);
-
-	/* eslint-disable react-hooks/set-state-in-effect */
-	useEffect(() => {
-		loadSettings();
-	}, [loadSettings]);
-	/* eslint-enable react-hooks/set-state-in-effect */
+	const settings = useSettings();
+	const scale = settings.comboScale ?? 1;
 
 	const handleScaleChange = async (value: number[]) => {
-		const newScale = value[0];
-		setScale(newScale);
-		await indexedDbStorage.settings.update({ comboScale: newScale });
-		useAppStore.getState().notifySettingsChanged();
+		await indexedDbStorage.settings.update({ comboScale: value[0] });
 	};
 
 	const handleReset = async () => {
-		setScale(1);
 		await indexedDbStorage.settings.update({ comboScale: 1 });
-		useAppStore.getState().notifySettingsChanged();
 		toast.success('Combo size reset to default');
 	};
-
-	if (loading) return null;
 
 	const sampleTokens = parseComboNotation(SAMPLE_COMBO);
 	const scaleLabel = SCALE_LABELS[scale] || `${Math.round(scale * 100)}%`;

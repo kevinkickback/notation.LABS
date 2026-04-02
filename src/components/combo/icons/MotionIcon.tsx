@@ -28,7 +28,6 @@ function MirroredCircle() {
 	);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const motionSVGMap: Record<string, MotionSVGData> = {
 	'236': {
 		viewBox: '0 0 184 184',
@@ -398,7 +397,6 @@ export const motionSVGMap: Record<string, MotionSVGData> = {
  * while preserving all visible content (circle + arrow).
  * Format: "minX minY width height"
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const croppedViewBoxMap: Record<string, string> = {
 	'1': '22 38 124 124',
 	'2': '38 38 108 150',

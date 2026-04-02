@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
 import type { DisplayMode, IconStyle, UserSettings } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSettings } from '@/hooks/useSettings';
 import {
 	Card,
 	CardContent,
@@ -17,7 +17,7 @@ import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { ButtonIcon } from '@/components/combo/icons/ButtonIcon';
 import { ArrowClockwise } from '@phosphor-icons/react';
-import { useAppStore } from '@/lib/store';
+
 
 const SAMPLE_COMBO = '5L > 2M > 236H';
 
@@ -29,33 +29,14 @@ const SCALE_LABELS: Record<number, string> = {
 };
 
 export function NotationSettings() {
-	const [settings, setSettings] = useState<UserSettings | null>(null);
-	const [loading, setLoading] = useState(true);
-
-	const loadSettings = useCallback(async () => {
-		setLoading(true);
-		const s = await indexedDbStorage.settings.get();
-		setSettings(s);
-		setLoading(false);
-	}, []);
-
-	/* eslint-disable react-hooks/set-state-in-effect */
-	useEffect(() => {
-		loadSettings();
-	}, [loadSettings]);
-	/* eslint-enable react-hooks/set-state-in-effect */
+	const settings = useSettings();
 
 	const updateSetting = async <K extends keyof UserSettings>(
 		key: K,
 		value: UserSettings[K],
 	) => {
 		await indexedDbStorage.settings.update({ [key]: value });
-		setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
-		useAppStore.getState().notifySettingsChanged();
 	};
-
-	if (loading || !settings) return null;
-
 	const sampleTokens = parseComboNotation(SAMPLE_COMBO);
 	const scale = settings.comboScale ?? 1;
 	const scaleLabel = SCALE_LABELS[scale] || `${Math.round(scale * 100)}%`;

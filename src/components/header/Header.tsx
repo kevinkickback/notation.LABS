@@ -7,17 +7,18 @@ import {
 	List as ListIcon,
 } from '@phosphor-icons/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
-import { NotationGuide } from '@/components/combo/NotationGuide';
-import { ExportDialog } from '@/components/layout/ExportDialog';
+import { NotationGuide } from '@/components/header/NotationGuide';
+import { ExportDialog } from '@/components/header/ExportDialog';
 
 export function Header() {
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [exportDialogOpen, setExportDialogOpen] = useState(false);
 	const [appVersion, setAppVersion] = useState<string>('');
+	const importInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		window.electronAPI?.getAppVersion().then(setAppVersion);
@@ -45,23 +46,19 @@ export function Header() {
 		}
 	};
 
-	const handleImportClick = () => {
-		const input = document.createElement('input');
-		input.type = 'file';
-		input.accept = 'application/json';
-		input.onchange = async (e) => {
-			const file = (e.target as HTMLInputElement).files?.[0];
-			if (!file) return;
-			try {
-				const text = await file.text();
-				await indexedDbStorage.import(text, true);
-				toast.success('Data imported');
-				window.location.reload();
-			} catch {
-				toast.error('Failed to import data');
-			}
-		};
-		input.click();
+	const handleImportClick = () => importInputRef.current?.click();
+
+	const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		try {
+			const text = await file.text();
+			await indexedDbStorage.import(text, true);
+			toast.success('Data imported');
+		} catch {
+			toast.error('Failed to import data');
+		}
+		e.target.value = '';
 	};
 
 	return (
@@ -190,6 +187,13 @@ export function Header() {
 				open={exportDialogOpen}
 				onOpenChange={setExportDialogOpen}
 				onExport={handleExport}
+			/>
+			<input
+				ref={importInputRef}
+				type="file"
+				accept="application/json"
+				className="hidden"
+				onChange={handleImportChange}
 			/>
 		</header>
 	);

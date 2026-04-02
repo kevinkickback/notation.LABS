@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { NotationColors, Game } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
 	Card,
 	CardContent,
@@ -18,9 +20,9 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowClockwise } from '@phosphor-icons/react';
-import { useAppStore } from '@/lib/store';
-import { oklchToHex, hexToOklch, colorToHex } from '@/lib/utils';
+import { ArrowClockwise, Plus, Trash } from '@phosphor-icons/react';
+
+import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
 const DEFAULT_BUTTON_PALETTE = [
 	'#e53e3e',
@@ -34,53 +36,43 @@ const DEFAULT_BUTTON_PALETTE = [
 	'#d53f8c',
 	'#718096',
 ];
-const DEFAULT_COLORS: NotationColors = {
-	direction: 'oklch(0.85 0.05 265)',
-	separator: 'oklch(0.55 0.02 265)',
-};
+const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
 
 export function ColorCustomization() {
-	const [_colors, setColors] = useState<NotationColors>(DEFAULT_COLORS);
-	const [tempColors, setTempColors] = useState<NotationColors>(DEFAULT_COLORS);
+	const settings = useSettings();
+	const [tempColors, setTempColors] = useState<NotationColors>(settings.notationColors);
 	const [selectedGameId, setSelectedGameId] = useState<string>('');
 	const [games, setGames] = useState<Game[]>([]);
-	const [selectedGame, setSelectedGame] = useState<Game | undefined>();
 	const [tempButtonColors, setTempButtonColors] = useState<
 		Record<string, string>
 	>({});
+	const [tempButtonLayout, setTempButtonLayout] = useState<string[]>([]);
+	const [newButtonName, setNewButtonName] = useState('');
 	const [hexEdits, setHexEdits] = useState<Record<string, string>>({});
-	const [loading, setLoading] = useState(true);
 
-	const loadData = useCallback(async () => {
-		setLoading(true);
-		const settings = await indexedDbStorage.settings.get();
+	const refreshGames = useCallback(async () => {
 		const allGames = await indexedDbStorage.games.getAll();
-		const sorted = allGames
-			.slice()
-			.sort((a, b) => a.name.localeCompare(b.name));
-		setColors(settings.notationColors);
-		setTempColors(settings.notationColors);
+		const sorted = allGames.slice().sort((a, b) => a.name.localeCompare(b.name));
 		setGames(sorted);
-		if (sorted.length > 0) {
-			setSelectedGameId(sorted[0].id);
-		}
-		setLoading(false);
+		return sorted;
 	}, []);
 
-	/* eslint-disable react-hooks/set-state-in-effect */
-	useEffect(() => {
-		loadData();
-	}, [loadData]);
-	/* eslint-enable react-hooks/set-state-in-effect */
+	// Derive selectedGame directly from state
+	const selectedGame = games.find((g) => g.id === selectedGameId);
 
-	/* eslint-disable react-hooks/set-state-in-effect */
+	useEffect(() => {
+		refreshGames().then((sorted) => {
+			if (sorted.length > 0) setSelectedGameId(sorted[0].id);
+		});
+	}, [refreshGames]);
+
 	useEffect(() => {
 		const game = games.find((g) => g.id === selectedGameId);
-		setSelectedGame(game);
 		setTempButtonColors(game?.buttonColors || {});
+		setTempButtonLayout(game?.buttonLayout ? [...game.buttonLayout] : []);
+		setNewButtonName('');
 		setHexEdits({});
 	}, [selectedGameId, games]);
-	/* eslint-enable react-hooks/set-state-in-effect */
 
 	const handleColorChange = (key: keyof NotationColors, value: string) => {
 		setTempColors((prev) => ({
@@ -98,26 +90,25 @@ export function ColorCustomization() {
 
 	const handleApply = async () => {
 		await indexedDbStorage.settings.update({ notationColors: tempColors });
-		setColors(tempColors);
 
-		if (selectedGameId && tempButtonColors) {
+		if (selectedGameId && selectedGame) {
 			await indexedDbStorage.games.update(selectedGameId, {
+				buttonLayout: tempButtonLayout,
 				buttonColors: tempButtonColors,
 			});
-			await loadData();
+			await refreshGames();
 		}
 
 		toast.success('Colors updated successfully');
-		useAppStore.getState().notifySettingsChanged();
 	};
 
 	const handleReset = async () => {
 		setTempColors(DEFAULT_COLORS);
 		await indexedDbStorage.settings.update({ notationColors: DEFAULT_COLORS });
-		setColors(DEFAULT_COLORS);
 
 		if (selectedGameId && selectedGame) {
-			const defaultButtonColors = selectedGame.buttonLayout.reduce(
+			const defaultLayout = [...selectedGame.buttonLayout];
+			const defaultButtonColors = defaultLayout.reduce(
 				(acc, btn, idx) => {
 					acc[btn] =
 						DEFAULT_BUTTON_PALETTE[idx % DEFAULT_BUTTON_PALETTE.length];
@@ -126,21 +117,18 @@ export function ColorCustomization() {
 				{} as Record<string, string>,
 			);
 
+			setTempButtonLayout(defaultLayout);
 			setTempButtonColors(defaultButtonColors);
 			await indexedDbStorage.games.update(selectedGameId, {
+				buttonLayout: defaultLayout,
 				buttonColors: defaultButtonColors,
 			});
 			setHexEdits({});
-			await loadData();
+			await refreshGames();
 		}
 
 		toast.success('Colors reset to defaults');
-		useAppStore.getState().notifySettingsChanged();
 	};
-
-	if (loading) {
-		return <div className="text-sm text-muted-foreground">Loading...</div>;
-	}
 
 	return (
 		<div className="space-y-6">
@@ -164,9 +152,9 @@ export function ColorCustomization() {
 								/>
 								<input
 									type="color"
-									value={oklchToHex(tempColors.separator)}
+									value={tempColors.separator}
 									onChange={(e) => {
-										handleColorChange('separator', hexToOklch(e.target.value));
+										handleColorChange('separator', e.target.value);
 										setHexEdits((prev) => ({
 											...prev,
 											separator: e.target.value,
@@ -176,7 +164,7 @@ export function ColorCustomization() {
 								/>
 							</label>
 							{(() => {
-								const currentHex = oklchToHex(tempColors.separator);
+								const currentHex = tempColors.separator;
 								return (
 									<input
 										type="text"
@@ -194,7 +182,7 @@ export function ColorCustomization() {
 											let val = e.target.value.trim();
 											if (!val.startsWith('#')) val = `#${val}`;
 											if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-												handleColorChange('separator', hexToOklch(val));
+												handleColorChange('separator', val);
 												setHexEdits((prev) => ({ ...prev, separator: val }));
 											} else {
 												setHexEdits((prev) => ({
@@ -240,10 +228,8 @@ export function ColorCustomization() {
 					</div>
 					{selectedGame && (
 						<div className="grid gap-4 pt-2">
-							{selectedGame.buttonLayout.map((button) => {
-								const currentHex = colorToHex(
-									tempButtonColors[button] || '#3b82f6',
-								);
+							{tempButtonLayout.map((button) => {
+								const currentHex = tempButtonColors[button] || '#3b82f6';
 								const editHex = hexEdits[button] ?? currentHex;
 								return (
 									<div key={button} className="flex items-center gap-4">
@@ -299,9 +285,65 @@ export function ColorCustomization() {
 												className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
 											/>
 										</div>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="size-8 text-muted-foreground hover:text-destructive shrink-0"
+											onClick={() =>
+												setTempButtonLayout((prev) =>
+													prev.filter((b) => b !== button),
+												)
+											}
+										>
+											<Trash className="w-4 h-4" />
+										</Button>
 									</div>
 								);
 							})}
+
+							<div className="flex gap-2 pt-3 border-t border-border">
+								<Input
+									placeholder="Button name (e.g. LP)"
+									value={newButtonName}
+									onChange={(e) => setNewButtonName(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') {
+											const name = newButtonName.trim();
+											if (name && !tempButtonLayout.includes(name)) {
+												const i = tempButtonLayout.length;
+												setTempButtonLayout((prev) => [...prev, name]);
+												setTempButtonColors((prev) => ({
+													...prev,
+													[name]: DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length],
+												}));
+												setNewButtonName('');
+											}
+										}
+									}}
+									className="h-8 text-sm"
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="shrink-0"
+									onClick={() => {
+										const name = newButtonName.trim();
+										if (name && !tempButtonLayout.includes(name)) {
+											const i = tempButtonLayout.length;
+											setTempButtonLayout((prev) => [...prev, name]);
+											setTempButtonColors((prev) => ({
+												...prev,
+												[name]: DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length],
+											}));
+											setNewButtonName('');
+										}
+									}}
+								>
+									<Plus className="w-4 h-4 mr-1" weight="bold" />
+									Add
+								</Button>
+							</div>
 
 							<div className="flex gap-2 pt-4">
 								<Button onClick={handleApply} className="flex-1">

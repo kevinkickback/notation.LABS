@@ -1,106 +1,19 @@
-export interface Game {
-	id: string;
-	name: string;
-	logoImage?: string;
-	coverZoom?: number;
-	coverPanX?: number;
-	coverPanY?: number;
-	buttonLayout: string[];
-	buttonColors?: Record<string, string>;
-	notes?: string;
-	createdAt: number;
-	updatedAt: number;
-}
+// All entity types are derived from Zod schemas in schemas.ts.
+// This eliminates manual sync between type definitions and validation schemas.
+export type {
+	ComboToken,
+	TokenType,
+	Game,
+	Character,
+	Combo,
+	UserSettings,
+	NotationColors,
+	FontFamily,
+	DisplayMode,
+	IconStyle,
+} from './schemas';
 
-export interface Character {
-	id: string;
-	gameId: string;
-	name: string;
-	portraitImage?: string;
-	portraitZoom?: number;
-	portraitPanX?: number;
-	portraitPanY?: number;
-	notes?: string;
-	createdAt: number;
-	updatedAt: number;
-}
-
-export interface Combo {
-	id: string;
-	characterId: string;
-	name: string;
-	notation: string;
-	parsedNotation: ComboToken[];
-	description?: string;
-	difficulty?: number;
-	damage?: string;
-	meterCost?: string;
-	tags: string[];
-	demoUrl?: string;
-	demoFileName?: string;
-	demoVideoTitle?: string;
-	notes?: string;
-	outdated?: boolean;
-	sortOrder: number;
-	createdAt: number;
-	updatedAt: number;
-}
-
-export type TokenType =
-	| 'direction'
-	| 'motion'
-	| 'button'
-	| 'separator'
-	| 'modifier'
-	| 'repeat-start'
-	| 'repeat-end'
-	| 'unknown';
-
-export interface ComboToken {
-	type: TokenType;
-	value: string;
-	rawValue: string;
-	repeatCount?: number;
-}
-
-export type FontFamily =
-	| 'system-ui'
-	| 'jetbrains-mono'
-	| 'verdana'
-	| 'space-grotesk';
-
-export interface UserSettings {
-	colorTheme: 'light' | 'dark';
-	fontFamily: FontFamily;
-	notationColors: NotationColors;
-	displayMode: DisplayMode;
-	iconStyle: IconStyle;
-	uiTheme: string;
-	comboScale: number;
-	autoUpdate: boolean;
-	confirmBeforeDelete: boolean;
-	videoPlayerSize: 'sm' | 'md' | 'lg' | 'xl';
-	gameCardSize: number;
-	characterCardSize: number;
-	notesDefaultOpen: boolean;
-	lastUpdateCheck?: number;
-	lastSeenVersion?: string;
-	showChangelogBeforeUpdate: boolean;
-	/**
-	 * User-selected accent color (CSS color string, e.g. #3b82f6 or oklch(...))
-	 */
-	accentColor?: string;
-}
-
-export interface NotationColors {
-	direction: string;
-	separator: string;
-	[key: string]: string;
-}
-
-export type DisplayMode = 'colored-text' | 'visual-icons';
-
-export type IconStyle = 'round' | 'square' | 'hexagon';
+import type { Combo, Character, Game } from './schemas';
 
 export interface ShareableCombo {
 	combo: Combo;

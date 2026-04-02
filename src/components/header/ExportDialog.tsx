@@ -54,7 +54,7 @@ export function ExportDialog({
 
 	useEffect(() => {
 		if (!open) return;
-		setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect
+		setLoading(true);
 		Promise.all([
 			indexedDbStorage.games.getAll(),
 			indexedDbStorage.characters.getAll(),

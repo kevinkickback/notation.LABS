@@ -39,7 +39,7 @@ export function UpdateProgressModal({
 
 	useEffect(() => {
 		if (!open) {
-			// eslint-disable-next-line react-hooks/set-state-in-effect
+			// reset progress state
 			setPhase('downloading');
 			setPercentage(0);
 			setBytesPerSecond(0);
@@ -125,7 +125,7 @@ export function UpdateProgressModal({
 	}, []);
 
 	return (
-		<Dialog open={open} onOpenChange={() => {}}>
+		<Dialog open={open} onOpenChange={() => { }}>
 			<DialogContent
 				className="w-full max-w-xs sm:max-w-sm p-3 sm:p-6"
 				onPointerDownOutside={(e) => e.preventDefault()}

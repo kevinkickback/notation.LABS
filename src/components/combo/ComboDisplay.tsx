@@ -1,9 +1,91 @@
-import type { ComboToken, Game } from '@/lib/types';
+import type { ComboToken, Game, NotationColors } from '@/lib/types';
 import { getTokenColor } from '@/lib/parser';
 import { useSettings } from '@/hooks/useSettings';
 import { MotionIcon } from './icons/MotionIcon';
 import { ButtonIcon } from './icons/ButtonIcon';
 import { CounterHitIcon } from './icons/CounterHitIcon';
+
+const REPEAT_PAREN_COLOR = 'oklch(0.65 0.02 265)';
+
+const DIRECTION_MODIFIERS: Record<string, string> = {
+	'st.': '5',
+	'cr.': '2',
+	'b.': '4',
+	'db.': '1',
+	'df.': '3',
+	'f.': '6',
+	'ub.': '7',
+	'u.': '8',
+	'uf.': '9',
+	dash: '66',
+};
+
+function getRepeatParenIndices(tokens: ComboToken[]): Set<number> {
+	const showParens = new Set<number>();
+	for (let i = 0; i < tokens.length; i++) {
+		if (tokens[i].type === 'repeat-start') {
+			let innerCount = 0;
+			let endIdx = -1;
+			for (let j = i + 1; j < tokens.length; j++) {
+				if (tokens[j].type === 'repeat-end') {
+					endIdx = j;
+					break;
+				}
+				if (tokens[j].type !== 'separator') {
+					innerCount++;
+				}
+			}
+			if (innerCount > 1 && endIdx !== -1) {
+				showParens.add(i);
+				showParens.add(endIdx);
+			}
+		}
+	}
+	return showParens;
+}
+
+function groupTokensWithButtons(
+	tokens: ComboToken[],
+	colors: NotationColors,
+	buttonColors?: Record<string, string>,
+): Array<{ tokens: ComboToken[]; buttonColor?: string }> {
+	const groups: Array<{ tokens: ComboToken[]; buttonColor?: string }> = [];
+	let currentGroup: ComboToken[] = [];
+	let pendingButton: ComboToken | null = null;
+
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+
+		if (token.type === 'separator') {
+			if (pendingButton) {
+				const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
+				groups.push({ tokens: currentGroup, buttonColor });
+				currentGroup = [];
+				pendingButton = null;
+			} else if (currentGroup.length > 0) {
+				groups.push({ tokens: currentGroup });
+				currentGroup = [];
+			}
+			groups.push({ tokens: [token] });
+		} else if (token.type === 'button') {
+			pendingButton = token;
+			currentGroup.push(token);
+		} else {
+			currentGroup.push(token);
+		}
+	}
+
+	if (currentGroup.length > 0) {
+		if (pendingButton) {
+			const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
+			groups.push({ tokens: currentGroup, buttonColor });
+		} else {
+			groups.push({ tokens: currentGroup });
+		}
+	}
+
+	return groups;
+}
 
 interface ComboDisplayProps {
 	tokens: ComboToken[];
@@ -23,78 +105,7 @@ export function ComboDisplay({
 	const comboScale = settings.comboScale ?? 1;
 	const iconStyle = settings.iconStyle ?? 'hexagon';
 
-	const getRepeatParenIndices = (tokens: ComboToken[]): Set<number> => {
-		const showParens = new Set<number>();
-		for (let i = 0; i < tokens.length; i++) {
-			if (tokens[i].type === 'repeat-start') {
-				let innerCount = 0;
-				let endIdx = -1;
-				for (let j = i + 1; j < tokens.length; j++) {
-					if (tokens[j].type === 'repeat-end') {
-						endIdx = j;
-						break;
-					}
-					if (tokens[j].type !== 'separator') {
-						innerCount++;
-					}
-				}
-				if (innerCount > 1 && endIdx !== -1) {
-					showParens.add(i);
-					showParens.add(endIdx);
-				}
-			}
-		}
-		return showParens;
-	};
-
 	const repeatParenIndices = getRepeatParenIndices(tokens);
-
-	const groupTokensWithButtons = (tokens: ComboToken[]) => {
-		const groups: Array<{ tokens: ComboToken[]; buttonColor?: string }> = [];
-		let currentGroup: ComboToken[] = [];
-		let pendingButton: ComboToken | null = null;
-
-		for (let i = 0; i < tokens.length; i++) {
-			const token = tokens[i];
-
-			if (token.type === 'separator') {
-				if (pendingButton) {
-					const buttonColor = getTokenColor(
-						pendingButton,
-						colors,
-						game?.buttonColors,
-					);
-					groups.push({ tokens: currentGroup, buttonColor });
-					currentGroup = [];
-					pendingButton = null;
-				} else if (currentGroup.length > 0) {
-					groups.push({ tokens: currentGroup });
-					currentGroup = [];
-				}
-				groups.push({ tokens: [token] });
-			} else if (token.type === 'button') {
-				pendingButton = token;
-				currentGroup.push(token);
-			} else {
-				currentGroup.push(token);
-			}
-		}
-
-		if (currentGroup.length > 0) {
-			if (pendingButton) {
-				const buttonColor = getTokenColor(
-					pendingButton,
-					colors,
-					game?.buttonColors,
-				);
-				groups.push({ tokens: currentGroup, buttonColor });
-			} else {
-				groups.push({ tokens: currentGroup });
-			}
-		}
-
-		return groups;
-	};
 
 	const renderColoredToken = (
 		token: ComboToken,
@@ -110,7 +121,7 @@ export function ComboDisplay({
 			return (
 				<span
 					key={idx}
-					style={{ color: 'oklch(0.65 0.02 265)' }}
+					style={{ color: REPEAT_PAREN_COLOR }}
 					className="font-medium tracking-tight"
 				>
 					(
@@ -124,14 +135,14 @@ export function ComboDisplay({
 				<span key={idx} className="inline-flex items-baseline">
 					{showParen && (
 						<span
-							style={{ color: 'oklch(0.65 0.02 265)' }}
+							style={{ color: REPEAT_PAREN_COLOR }}
 							className="font-medium tracking-tight"
 						>
 							)
 						</span>
 					)}
 					<sup
-						style={{ color: 'oklch(0.65 0.02 265)' }}
+						style={{ color: REPEAT_PAREN_COLOR }}
 						className="font-medium text-xs ml-0.5"
 					>
 						×{token.repeatCount}
@@ -175,7 +186,7 @@ export function ComboDisplay({
 			return (
 				<span
 					key={idx}
-					style={{ color: 'oklch(0.65 0.02 265)' }}
+					style={{ color: REPEAT_PAREN_COLOR }}
 					className="font-medium text-lg"
 				>
 					(
@@ -189,14 +200,14 @@ export function ComboDisplay({
 				<span key={idx} className="inline-flex items-baseline">
 					{showParen && (
 						<span
-							style={{ color: 'oklch(0.65 0.02 265)' }}
+							style={{ color: REPEAT_PAREN_COLOR }}
 							className="font-medium text-lg"
 						>
 							)
 						</span>
 					)}
 					<sup
-						style={{ color: 'oklch(0.65 0.02 265)' }}
+						style={{ color: REPEAT_PAREN_COLOR }}
 						className="font-medium text-xs ml-0.5"
 					>
 						×{token.repeatCount}
@@ -204,19 +215,6 @@ export function ComboDisplay({
 				</span>
 			);
 		}
-
-		const DIRECTION_MODIFIERS: Record<string, string> = {
-			'st.': '5',
-			'cr.': '2',
-			'b.': '4',
-			'db.': '1',
-			'df.': '3',
-			'f.': '6',
-			'ub.': '7',
-			'u.': '8',
-			'uf.': '9',
-			dash: '66',
-		};
 
 		switch (token.type) {
 			case 'motion':
@@ -275,8 +273,8 @@ export function ComboDisplay({
 				return (
 					<span
 						key={idx}
-						className={`font-medium tracking-tight text-sm${token.value.startsWith('(') ? ' mx-1' : ''}`}
-						style={{ color }}
+						className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : ''}`}
+						style={{ color, fontSize: `${1.25 * comboScale}rem` }}
 					>
 						{token.value}
 					</span>
@@ -286,15 +284,15 @@ export function ComboDisplay({
 				return (
 					<span
 						key={idx}
-						className="text-2xl font-bold opacity-50 mx-1"
-						style={{ color }}
+						className="font-bold opacity-50 mx-1"
+						style={{ color, fontSize: `${1.5 * comboScale}rem` }}
 					>
 						{token.value === '>' ? '→' : token.value}
 					</span>
 				);
 			default:
 				return (
-					<span key={idx} className="text-lg font-mono" style={{ color }}>
+					<span key={idx} className="font-mono" style={{ color, fontSize: `${1 * comboScale}rem` }}>
 						{token.value}
 					</span>
 				);
@@ -302,7 +300,7 @@ export function ComboDisplay({
 	};
 
 	if (mode === 'colored-text') {
-		const groups = groupTokensWithButtons(tokens);
+		const groups = groupTokensWithButtons(tokens, colors, game?.buttonColors);
 		let tokenIndex = 0;
 
 		return (
@@ -331,7 +329,7 @@ export function ComboDisplay({
 		);
 	}
 
-	const groups = groupTokensWithButtons(tokens);
+	const groups = groupTokensWithButtons(tokens, colors, game?.buttonColors);
 	let tokenIndex = 0;
 
 	return (

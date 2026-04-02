@@ -147,7 +147,8 @@ describe('ComboView', () => {
 			/>,
 		);
 		expect(screen.getByText('Ryu')).not.toBeNull();
-		expect(screen.getByText(/Street Fighter 6 • 2 combos/)).not.toBeNull();
+		expect(screen.getByText('Street Fighter 6')).not.toBeNull();
+		expect(screen.getByText(/2 combos/)).not.toBeNull();
 	});
 
 	it('renders all combo cards', () => {

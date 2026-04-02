@@ -693,7 +693,7 @@ describe('getTokenColor', () => {
 
 	it('uses fallback colors when none specified', () => {
 		const token = { type: 'direction' as const, value: '2', rawValue: '2' };
-		expect(getTokenColor(token, {})).toBe('oklch(0.85 0.05 265)');
+		expect(getTokenColor(token, {})).toBe('#bdceef');
 	});
 });
 
