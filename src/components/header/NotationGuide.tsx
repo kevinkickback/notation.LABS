@@ -11,14 +11,26 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { BookOpen } from '@phosphor-icons/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export function NotationGuide() {
+interface NotationGuideProps {
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	showTrigger?: boolean;
+}
+
+export function NotationGuide({
+	open,
+	onOpenChange,
+	showTrigger = true,
+}: NotationGuideProps) {
 	return (
-		<Dialog>
-			<DialogTrigger asChild>
-				<Button variant="ghost" size="icon" title="Notation Guide">
-					<BookOpen className="size-6" />
-				</Button>
-			</DialogTrigger>
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			{showTrigger ? (
+				<DialogTrigger asChild>
+					<Button variant="ghost" size="icon" title="Notation Guide">
+						<BookOpen className="size-6" />
+					</Button>
+				</DialogTrigger>
+			) : null}
 			<DialogContent className="max-w-4xl max-h-[85vh]">
 				<DialogHeader>
 					<DialogTitle className="font-mono text-2xl">

@@ -20,7 +20,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { generateId, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { toast } from 'sonner';
@@ -231,7 +231,7 @@ export function ComboFormDialog({
 			}
 
 			const buffer = await file.arrayBuffer();
-			const videoId = `video-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+			const videoId = generateId();
 			await indexedDbStorage.demoVideos.add({
 				id: videoId,
 				data: buffer,

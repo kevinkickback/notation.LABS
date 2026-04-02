@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
 beforeEach(async () => {
 	await db.games.clear();
@@ -787,5 +788,85 @@ describe('indexedDbStorage.import', () => {
 		await indexedDbStorage.import(data);
 		const games = await indexedDbStorage.games.getAll();
 		expect(games).toHaveLength(2);
+	});
+
+	it('round-trips exported data including settings and local demo videos', async () => {
+		const gameId = await indexedDbStorage.games.add({
+			name: 'Round Trip Game',
+			buttonLayout: ['LP', 'MP'],
+			buttonColors: { LP: '#112233', MP: '#445566' },
+		});
+		const characterId = await indexedDbStorage.characters.add({
+			gameId,
+			name: 'Round Trip Hero',
+		});
+		const videoBytes = new Uint8Array([0, 5, 10, 200, 255]);
+		await indexedDbStorage.demoVideos.add({
+			id: 'video-roundtrip',
+			data: videoBytes.buffer.slice(0),
+			mimeType: 'video/mp4',
+			fileName: 'roundtrip.mp4',
+		});
+		await indexedDbStorage.combos.add({
+			characterId,
+			name: 'Round Trip Combo',
+			notation: 'LP > MP',
+			parsedNotation: [],
+			tags: ['roundtrip'],
+			demoUrl: 'local:video-roundtrip',
+			demoFileName: 'roundtrip.mp4',
+		});
+		await indexedDbStorage.settings.update({
+			fontFamily: 'jetbrains-mono',
+			comboScale: 1.25,
+			notationColors: {
+				...DEFAULT_SETTINGS.notationColors,
+				direction: '#123456',
+				separator: '#654321',
+			},
+		});
+
+		const exported = await indexedDbStorage.export(true);
+
+		await db.games.clear();
+		await db.characters.clear();
+		await db.combos.clear();
+		await db.settings.clear();
+		await db.demoVideos.clear();
+
+		await indexedDbStorage.import(exported, true);
+
+		const importedGames = await indexedDbStorage.games.getAll();
+		const importedCharacters = await indexedDbStorage.characters.getAll();
+		const importedCombos = await indexedDbStorage.combos.getAll();
+		const importedSettings = await indexedDbStorage.settings.get();
+		const importedVideo =
+			await indexedDbStorage.demoVideos.get('video-roundtrip');
+
+		expect(importedGames).toHaveLength(1);
+		expect(importedCharacters).toHaveLength(1);
+		expect(importedCombos).toHaveLength(1);
+		expect(importedCombos[0].demoUrl).toBe('local:video-roundtrip');
+		expect(importedSettings.fontFamily).toBe('jetbrains-mono');
+		expect(importedSettings.comboScale).toBe(1.25);
+		expect(importedSettings.notationColors.direction).toBe('#123456');
+		assertDefined(importedVideo);
+		expect(importedVideo.fileName).toBe('roundtrip.mp4');
+		expect(Array.from(new Uint8Array(importedVideo.data))).toEqual(
+			Array.from(videoBytes),
+		);
+	});
+
+	it('rejects invalid import data before writing records', async () => {
+		const invalidData = JSON.stringify({
+			version: 2,
+			exported: new Date().toISOString(),
+			games: [{ id: 'g1', name: 'Broken' }],
+		});
+
+		await expect(indexedDbStorage.import(invalidData, true)).rejects.toThrow();
+		await expect(indexedDbStorage.games.getAll()).resolves.toHaveLength(0);
+		await expect(indexedDbStorage.characters.getAll()).resolves.toHaveLength(0);
+		await expect(indexedDbStorage.combos.getAll()).resolves.toHaveLength(0);
 	});
 });

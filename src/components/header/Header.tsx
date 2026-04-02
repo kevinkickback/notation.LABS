@@ -6,17 +6,23 @@ import {
 	Notebook,
 	List as ListIcon,
 } from '@phosphor-icons/react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect, useState, useRef } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotationGuide } from '@/components/header/NotationGuide';
 import { ExportDialog } from '@/components/header/ExportDialog';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function Header() {
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+	const [notationGuideOpen, setNotationGuideOpen] = useState(false);
 	const [appVersion, setAppVersion] = useState<string>('');
 	const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +90,10 @@ export function Header() {
 
 				{/* Desktop: show inline, Mobile: show hamburger */}
 				<div className="hidden sm:flex items-center gap-2 flex-wrap min-w-0">
-					<NotationGuide />
+					<NotationGuide
+						open={notationGuideOpen}
+						onOpenChange={setNotationGuideOpen}
+					/>
 					<Button
 						variant="ghost"
 						size="icon"
@@ -115,36 +124,29 @@ export function Header() {
 
 				{/* Mobile: Hamburger menu */}
 				<div className="flex sm:hidden items-center">
-					<DropdownMenu.Root>
-						<DropdownMenu.Trigger asChild>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
 							<Button variant="ghost" size="icon" aria-label="Open menu">
 								<ListIcon className="size-6" />
 							</Button>
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
 							align="end"
 							sideOffset={8}
 							className="z-50 min-w-[10rem] rounded-md border bg-popover p-2 shadow-md"
 						>
-							<DropdownMenu.Item asChild>
+							<DropdownMenuItem asChild>
 								<Button
 									variant="ghost"
 									size="icon"
 									className="w-full justify-start"
-									// NotationGuide is a button, so we trigger its click
-									onClick={() => {
-										// Find the NotationGuide button in the DOM and click it
-										const guideBtn = document.querySelector(
-											'[data-slot="notation-guide-button"]',
-										);
-										if (guideBtn) (guideBtn as HTMLElement).click();
-									}}
+									onClick={() => setNotationGuideOpen(true)}
 								>
 									<Notebook className="size-5" />
 									<span className="ml-2">Notation Guide</span>
 								</Button>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item asChild>
+							</DropdownMenuItem>
+							<DropdownMenuItem asChild>
 								<Button
 									variant="ghost"
 									size="icon"
@@ -154,8 +156,8 @@ export function Header() {
 									<Upload className="size-5" />
 									<span className="ml-2">Export Data</span>
 								</Button>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item asChild>
+							</DropdownMenuItem>
+							<DropdownMenuItem asChild>
 								<Button
 									variant="ghost"
 									size="icon"
@@ -165,8 +167,8 @@ export function Header() {
 									<Download className="size-5" />
 									<span className="ml-2">Import Data</span>
 								</Button>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item asChild>
+							</DropdownMenuItem>
+							<DropdownMenuItem asChild>
 								<Button
 									variant="ghost"
 									size="icon"
@@ -176,9 +178,9 @@ export function Header() {
 									<GearSix className="size-5" />
 									<span className="ml-2">Settings</span>
 								</Button>
-							</DropdownMenu.Item>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 			</div>
 

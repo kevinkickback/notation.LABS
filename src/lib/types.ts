@@ -15,6 +15,13 @@ export type {
 
 import type { Combo, Character, Game } from './schemas';
 
+export type GameSort =
+	| 'name-asc'
+	| 'name-desc'
+	| 'characters'
+	| 'combos'
+	| 'modified';
+
 export interface ShareableCombo {
 	combo: Combo;
 	character: Character;

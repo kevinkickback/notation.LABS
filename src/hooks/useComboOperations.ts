@@ -1,0 +1,64 @@
+import { useCallback, useState } from 'react';
+import type { Combo } from '@/lib/types';
+import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { toast } from 'sonner';
+
+/**
+ * Manages common combo operations: create, edit, duplicate, mark outdated
+ */
+export function useComboOperations() {
+	const [editingCombo, setEditingCombo] = useState<Combo | null>(null);
+	const [dialogOpen, setDialogOpen] = useState(false);
+
+	const handleEdit = useCallback((combo: Combo) => {
+		setEditingCombo(combo);
+		setDialogOpen(true);
+	}, []);
+
+	const handleDuplicate = useCallback(async (combo: Combo) => {
+		try {
+			const { id, createdAt, updatedAt, sortOrder, ...rest } = combo;
+			await indexedDbStorage.combos.add({
+				...rest,
+				name: `${combo.name} (copy)`,
+				demoUrl: combo.demoUrl?.startsWith('local:')
+					? ''
+					: (combo.demoUrl ?? ''),
+			});
+			toast.success('Combo duplicated');
+		} catch {
+			toast.error('Failed to duplicate combo');
+		}
+	}, []);
+
+	const handleBulkMarkOutdated = useCallback(
+		async (selectedIds: Set<string>, outdated: boolean) => {
+			if (selectedIds.size === 0) return;
+			try {
+				await db.transaction('rw', db.combos, async () => {
+					for (const id of selectedIds) {
+						await indexedDbStorage.combos.update(id, {
+							outdated: outdated || undefined,
+						});
+					}
+				});
+				toast.success(
+					`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
+				);
+			} catch {
+				toast.error('Failed to update combos');
+			}
+		},
+		[],
+	);
+
+	return {
+		editingCombo,
+		setEditingCombo,
+		dialogOpen,
+		setDialogOpen,
+		handleEdit,
+		handleDuplicate,
+		handleBulkMarkOutdated,
+	};
+}

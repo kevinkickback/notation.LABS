@@ -72,7 +72,7 @@ db.version(4).stores({
 	demoVideos: 'id',
 });
 
-function generateId(): string {
+export function generateId(): string {
 	return uuidv4();
 }
 
