@@ -117,10 +117,10 @@
 			}
 		],
 		"portable": {
-			"artifactName": "${productName}-${version}-portable.${ext}"
+			"artifactName": "Notation-Labs-${version}-portable.${ext}"
 		},
 		"nsis": {
-			"artifactName": "${productName}-${version}-Setup.${ext}",
+			"artifactName": "Notation-Labs-Setup-${version}.${ext}",
 			"oneClick": false,
 			"perMachine": false,
 			"allowToChangeInstallationDirectory": true,
