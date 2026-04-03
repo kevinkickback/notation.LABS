@@ -9,6 +9,8 @@ interface GameListCardProps {
     comboCount: number;
     lastModified: number;
     isMobile: boolean;
+    isSelecting: boolean;
+    isSelected: boolean;
     onSelect: (gameId: string) => void;
     onEdit: (game: Game) => void;
     onDelete: (game: Game) => void;
@@ -20,20 +22,33 @@ export function GameListCard({
     comboCount,
     lastModified,
     isMobile,
+    isSelecting,
+    isSelected,
     onSelect,
     onEdit,
     onDelete,
 }: GameListCardProps) {
     return (
         <Card
-            className="group cursor-pointer hover:shadow-lg transition-shadow border-2 hover:border-primary overflow-hidden h-[72px] !py-0 !gap-0"
+            className={`group cursor-pointer hover:shadow-lg transition-shadow border-2 hover:border-primary overflow-hidden h-[72px] !py-0 !gap-0 ${isSelected ? 'ring-2 ring-primary' : ''}`}
             onClick={() => onSelect(game.id)}
         >
             <CardContent
                 className={`p-0 flex items-center h-full${isMobile ? ' relative' : ''}`}
             >
+                {isSelecting && (
+                    <div className="pl-3 shrink-0">
+                        <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => onSelect(game.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 accent-primary cursor-pointer"
+                        />
+                    </div>
+                )}
                 <div
-                    className={`flex items-center flex-1 pl-4 ${isMobile ? 'gap-2 pr-16' : 'gap-6 pr-2'}`}
+                    className={`flex items-center flex-1 ${isSelecting ? 'pl-2' : 'pl-4'} ${isMobile ? 'gap-2 pr-16' : 'gap-6 pr-2'}`}
                     style={isMobile ? { minWidth: 0 } : undefined}
                 >
                     <h3 className="font-bold text-white text-base min-w-[120px] truncate max-w-[40vw]">
@@ -87,33 +102,35 @@ export function GameListCard({
                         )
                     )}
                 </div>
-                <div
-                    className={`flex gap-1 pr-3 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'} ${isMobile ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
-                    style={isMobile ? { height: 'auto', background: 'none' } : undefined}
-                >
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit(game);
-                        }}
+                {!isSelecting && (
+                    <div
+                        className={`flex gap-1 pr-3 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'} ${isMobile ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
+                        style={isMobile ? { height: 'auto', background: 'none' } : undefined}
                     >
-                        <PencilSimple className="w-4 h-4" weight="bold" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(game);
-                        }}
-                    >
-                        <Trash className="w-4 h-4" weight="bold" />
-                    </Button>
-                </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(game);
+                            }}
+                        >
+                            <PencilSimple className="w-4 h-4" weight="bold" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(game);
+                            }}
+                        >
+                            <Trash className="w-4 h-4" weight="bold" />
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

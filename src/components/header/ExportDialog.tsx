@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
@@ -13,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { CaretRight, CaretDown } from '@phosphor-icons/react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { Game, Character, Combo } from '@/lib/types';
+import { toast } from 'sonner';
 
 interface ExportDialogProps {
 	open: boolean;
@@ -60,18 +62,31 @@ export function ExportDialog({
 			indexedDbStorage.characters.getAll(),
 			indexedDbStorage.combos.getAll(),
 			indexedDbStorage.demoVideos.getAll(),
-		]).then(([games, characters, combos, videos]) => {
-			setData({ games, characters, combos });
-			// Select everything by default
-			setSelectedGames(new Set(games.map((g) => g.id)));
-			setSelectedCharacters(new Set(characters.map((c) => c.id)));
-			setSelectedCombos(new Set(combos.map((c) => c.id)));
-			setExpandedGames(new Set());
-			setExpandedCharacters(new Set());
-			setHasLocalVideos(videos.length > 0);
-			setIncludeVideos(false);
-			setLoading(false);
-		});
+		])
+			.then(([games, characters, combos, videos]) => {
+				setData({ games, characters, combos });
+				// Select everything by default
+				setSelectedGames(new Set(games.map((g) => g.id)));
+				setSelectedCharacters(new Set(characters.map((c) => c.id)));
+				setSelectedCombos(new Set(combos.map((c) => c.id)));
+				setExpandedGames(new Set());
+				setExpandedCharacters(new Set());
+				setHasLocalVideos(videos.length > 0);
+				setIncludeVideos(false);
+				setLoading(false);
+			})
+			.catch(() => {
+				setData({ games: [], characters: [], combos: [] });
+				setSelectedGames(new Set());
+				setSelectedCharacters(new Set());
+				setSelectedCombos(new Set());
+				setExpandedGames(new Set());
+				setExpandedCharacters(new Set());
+				setHasLocalVideos(false);
+				setIncludeVideos(false);
+				setLoading(false);
+				toast.error('Failed to load export data');
+			});
 	}, [open]);
 
 	const charactersByGame = useMemo(() => {
@@ -262,6 +277,9 @@ export function ExportDialog({
 			<DialogContent className="w-full max-w-xs sm:max-w-md p-3 sm:p-6">
 				<DialogHeader>
 					<DialogTitle>Export Data</DialogTitle>
+					<DialogDescription>
+						Choose which games, characters, and combos to include in your export.
+					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex items-center justify-between">

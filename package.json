@@ -13,7 +13,9 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",
@@ -36,8 +38,8 @@
 		"@radix-ui/react-tabs": "^1.1.13",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"dexie": "^4.3.0",
-		"dexie-react-hooks": "^4.2.0",
+		"dexie": "^4.4.2",
+		"dexie-react-hooks": "^4.4.0",
 		"electron-updater": "^6.1.1",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
@@ -52,6 +54,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
+		"@playwright/test": "^1.59.1",
 		"@tailwindcss/container-queries": "^0.1.1",
 		"@tailwindcss/postcss": "^4.2.1",
 		"@tailwindcss/vite": "^4.2.1",
@@ -62,7 +65,7 @@
 		"@vitejs/plugin-react-swc": "^4.2.3",
 		"cross-env": "^10.1.0",
 		"dotenv": "^17.3.1",
-		"electron": "^40.8.0",
+		"electron": "^40.8.5",
 		"electron-builder": "^26.8.1",
 		"fake-indexeddb": "^6.2.5",
 		"jsdom": "^28.1.0",
@@ -71,7 +74,7 @@
 		"tailwindcss": "^4.2.1",
 		"typescript": "~5.9.3",
 		"vite": "^7.3.1",
-		"vite-plugin-electron": "^0.29.0",
+		"vite-plugin-electron": "^0.29.1",
 		"vite-plugin-electron-renderer": "^0.14.6",
 		"vitest": "^4.1.2"
 	},

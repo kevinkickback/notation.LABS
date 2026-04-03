@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/storage/indexedDbStorage';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/hooks/useSettings';
 import { getFontFamilyCSS } from '@/lib/defaults';
@@ -32,26 +32,15 @@ function App() {
 			'--app-font-family',
 			getFontFamilyCSS(settings.fontFamily),
 		);
-	}, [settings.fontFamily]);
-
-	useEffect(() => {
-		if (settings.accentColor) {
-			document.documentElement.style.setProperty(
-				'--accent-color',
-				settings.accentColor,
-			);
-		} else {
-			document.documentElement.style.setProperty('--accent-color', '#3b82f6');
-		}
-	}, [settings.accentColor]);
-
-	useEffect(() => {
-		if (settings.colorTheme === 'dark') {
-			document.documentElement.classList.add('dark');
-		} else {
-			document.documentElement.classList.remove('dark');
-		}
-	}, [settings.colorTheme]);
+		document.documentElement.style.setProperty(
+			'--accent-color',
+			settings.accentColor || '#3b82f6',
+		);
+		document.documentElement.classList.toggle(
+			'dark',
+			settings.colorTheme === 'dark',
+		);
+	}, [settings.fontFamily, settings.accentColor, settings.colorTheme]);
 
 	useEffect(() => {
 		if (!window.electronAPI?.onUpdateAvailable) return;
@@ -83,21 +72,18 @@ function App() {
 		}
 	}, []);
 
-	const games = useLiveQuery(() => db.games.toArray(), []);
+	const games = useLiveQuery(indexedDbStorage.games.getAll, []);
 	const characters = useLiveQuery(
 		() =>
 			selectedGameId
-				? db.characters.where('gameId').equals(selectedGameId).toArray()
+				? indexedDbStorage.characters.getByGame(selectedGameId)
 				: [],
 		[selectedGameId],
 	);
 	const combos = useLiveQuery(
 		() =>
 			selectedCharacterId
-				? db.combos
-					.where('characterId')
-					.equals(selectedCharacterId)
-					.sortBy('sortOrder')
+				? indexedDbStorage.combos.getByCharacter(selectedCharacterId)
 				: [],
 		[selectedCharacterId],
 	);
@@ -144,6 +130,7 @@ function App() {
 			<UpdateProgressModal
 				open={showAutoProgress}
 				version={autoUpdateVersion ?? ''}
+				onOpenChange={setShowAutoProgress}
 			/>
 		</div>
 	);

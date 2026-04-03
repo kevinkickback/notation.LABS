@@ -8,6 +8,8 @@ interface GameGridCardProps {
     game: Game;
     charCount: number;
     isMobile: boolean;
+    isSelecting: boolean;
+    isSelected: boolean;
     onSelect: (gameId: string) => void;
     onEdit: (game: Game) => void;
     onDelete: (game: Game) => void;
@@ -17,15 +19,28 @@ export function GameGridCard({
     game,
     charCount,
     isMobile,
+    isSelecting,
+    isSelected,
     onSelect,
     onEdit,
     onDelete,
 }: GameGridCardProps) {
     return (
         <Card
-            className="group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary overflow-hidden relative aspect-[3/4] !py-0 !gap-0 hover:scale-[1.03]"
+            className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary overflow-hidden relative aspect-[3/4] !py-0 !gap-0 hover:scale-[1.03] ${isSelected ? 'ring-2 ring-primary' : ''}`}
             onClick={() => onSelect(game.id)}
         >
+            {isSelecting && (
+                <div className="absolute top-2 left-2 z-30">
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onSelect(game.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 accent-primary cursor-pointer"
+                    />
+                </div>
+            )}
             <div
                 className="absolute inset-0"
                 style={{
@@ -63,32 +78,34 @@ export function GameGridCard({
                         </span>
                     </div>
                 </div>
-                <div
-                    className={`absolute top-1.5 right-1.5 flex gap-1 transition-opacity z-20 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                >
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 cursor-pointer"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit(game);
-                        }}
+                {!isSelecting && (
+                    <div
+                        className={`absolute top-1.5 right-1.5 flex gap-1 transition-opacity z-20 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                     >
-                        <PencilSimple className="w-4 h-4" weight="bold" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(game);
-                        }}
-                    >
-                        <Trash className="w-4 h-4" weight="bold" />
-                    </Button>
-                </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(game);
+                            }}
+                        >
+                            <PencilSimple className="w-4 h-4" weight="bold" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(game);
+                            }}
+                        >
+                            <Trash className="w-4 h-4" weight="bold" />
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

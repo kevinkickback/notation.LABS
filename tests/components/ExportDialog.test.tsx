@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ExportDialog } from '@/components/header/ExportDialog';
 import type { Game, Character, Combo } from '@/lib/types';
@@ -72,11 +72,31 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
 	},
 }));
 
+vi.mock('sonner', () => ({
+	toast: {
+		error: vi.fn(),
+	},
+}));
+
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { toast } from 'sonner';
 
 describe('ExportDialog', () => {
 	const onOpenChange = vi.fn();
 	const onExport = vi.fn();
+
+	const renderDialog = async (open = true) => {
+		await act(async () => {
+			render(
+				<ExportDialog
+					open={open}
+					onOpenChange={onOpenChange}
+					onExport={onExport}
+				/>,
+			);
+			await Promise.resolve();
+		});
+	};
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -89,24 +109,12 @@ describe('ExportDialog', () => {
 	});
 
 	it('renders dialog title', async () => {
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 		expect(screen.getByText('Export Data')).toBeTruthy();
 	});
 
 	it('loads and displays games in the tree', async () => {
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 
 		await waitFor(() => {
 			expect(screen.getByText('Street Fighter 6')).toBeTruthy();
@@ -115,13 +123,7 @@ describe('ExportDialog', () => {
 	});
 
 	it('shows character counts for each game', async () => {
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 
 		await waitFor(() => {
 			const charLabels = screen.getAllByText('1 char');
@@ -131,13 +133,7 @@ describe('ExportDialog', () => {
 
 	it('calls onExport with all items selected by default', async () => {
 		const user = userEvent.setup();
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 
 		await waitFor(() => {
 			expect(screen.getByText('Street Fighter 6')).toBeTruthy();
@@ -154,13 +150,7 @@ describe('ExportDialog', () => {
 
 	it('deselects all when None is clicked, disabling export', async () => {
 		const user = userEvent.setup();
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 
 		await waitFor(() => {
 			expect(screen.queryByText('Street Fighter 6')).not.toBeNull();
@@ -176,13 +166,7 @@ describe('ExportDialog', () => {
 
 	it('re-selects all when All is clicked after None', async () => {
 		const user = userEvent.setup();
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 
 		await waitFor(() => {
 			expect(screen.queryByText('Street Fighter 6')).not.toBeNull();
@@ -211,16 +195,22 @@ describe('ExportDialog', () => {
 		vi.mocked(indexedDbStorage.characters.getAll).mockResolvedValueOnce([]);
 		vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([]);
 
-		render(
-			<ExportDialog
-				open={true}
-				onOpenChange={onOpenChange}
-				onExport={onExport}
-			/>,
-		);
+		await renderDialog();
 
 		await waitFor(() => {
 			expect(screen.getByText('No data to export.')).toBeTruthy();
+		});
+	});
+
+	it('shows an error toast when loading export data fails', async () => {
+		vi.mocked(indexedDbStorage.games.getAll).mockRejectedValueOnce(
+			new Error('boom'),
+		);
+
+		await renderDialog();
+
+		await waitFor(() => {
+			expect(toast.error).toHaveBeenCalledWith('Failed to load export data');
 		});
 	});
 });

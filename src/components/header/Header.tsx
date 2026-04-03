@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotationGuide } from '@/components/header/NotationGuide';
 import { ExportDialog } from '@/components/header/ExportDialog';
+import { ImportDialog } from '@/components/header/ImportDialog';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -19,11 +20,18 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024;
+
 export function Header() {
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [notationGuideOpen, setNotationGuideOpen] = useState(false);
 	const [appVersion, setAppVersion] = useState<string>('');
+	const [importOptions, setImportOptions] = useState({
+		includeVideos: true,
+		includeSettings: false,
+	});
 	const importInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -52,18 +60,41 @@ export function Header() {
 		}
 	};
 
-	const handleImportClick = () => importInputRef.current?.click();
+	const handleImportClick = () => setImportDialogOpen(true);
+
+	const handleChooseImportFile = (
+		includeVideos: boolean,
+		includeSettings: boolean,
+	) => {
+		setImportOptions({ includeVideos, includeSettings });
+		setImportDialogOpen(false);
+		importInputRef.current?.click();
+	};
 
 	const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
+		if (file.size > MAX_IMPORT_SIZE_BYTES) {
+			toast.error('Import file exceeds 50 MB limit');
+			e.target.value = '';
+			return;
+		}
 		try {
 			const text = await file.text();
-			await indexedDbStorage.import(text, true);
-			toast.success('Data imported');
+			await indexedDbStorage.import(
+				text,
+				importOptions.includeVideos,
+				importOptions.includeSettings,
+			);
+			toast.success(
+				importOptions.includeSettings
+					? 'Data imported. Settings were replaced from backup.'
+					: 'Data imported. Current settings were preserved.',
+			);
 		} catch {
 			toast.error('Failed to import data');
 		}
+		setImportOptions({ includeVideos: true, includeSettings: false });
 		e.target.value = '';
 	};
 
@@ -189,6 +220,11 @@ export function Header() {
 				open={exportDialogOpen}
 				onOpenChange={setExportDialogOpen}
 				onExport={handleExport}
+			/>
+			<ImportDialog
+				open={importDialogOpen}
+				onOpenChange={setImportDialogOpen}
+				onChooseFile={handleChooseImportFile}
 			/>
 			<input
 				ref={importInputRef}

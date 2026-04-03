@@ -80,6 +80,7 @@ async function loadUpdateManager(options: LoadUpdateManagerOptions = {}) {
 
 afterEach(() => {
 	delete process.env.PORTABLE_EXECUTABLE_DIR;
+	vi.useRealTimers();
 	vi.clearAllMocks();
 	vi.resetModules();
 });
@@ -167,5 +168,27 @@ describe('updateManager', () => {
 			false,
 			true,
 		);
+	});
+
+	it('deduplicates scheduled auto-checks when enabled repeatedly', async () => {
+		vi.useFakeTimers();
+		const context = await loadUpdateManager({
+			isPackaged: true,
+			checkForUpdatesImpl: vi.fn().mockResolvedValue(undefined),
+		});
+
+		context.module.initAutoUpdater();
+		context.module.startAutoCheckSchedule();
+		context.module.startAutoCheckSchedule();
+
+		await vi.advanceTimersByTimeAsync(3000);
+		expect(context.autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1);
+
+		await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+		expect(context.autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2);
+
+		context.module.stopAutoCheckSchedule();
+		await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+		expect(context.autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2);
 	});
 });

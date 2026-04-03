@@ -27,11 +27,20 @@ export interface UpdateStatus {
 let cancellationToken: CancellationToken | null = null;
 let currentStatus: UpdateStatus = { status: 'idle' };
 let autoCheckTimer: ReturnType<typeof setInterval> | null = null;
+let startupCheckTimeout: ReturnType<typeof setTimeout> | null = null;
 let devSimInterval: ReturnType<typeof setInterval> | null = null;
 let isPortableMode = false;
 
 const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 const STARTUP_CHECK_DELAY = 3000; // 3 seconds after launch
+
+function isSafeExternalUrl(url: string): boolean {
+	try {
+		return new URL(url).protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
 
 function detectPortableMode(): boolean {
 	return !!process.env.PORTABLE_EXECUTABLE_DIR;
@@ -228,6 +237,7 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
 
 export async function downloadUpdate(): Promise<void> {
 	if (!app.isPackaged) {
+		if (devSimInterval) return;
 		// Dev mode: simulate download progress
 		const mockVersion = currentStatus.version ?? '99.0.0';
 		let progress = 0;
@@ -252,9 +262,11 @@ export async function downloadUpdate(): Promise<void> {
 	if (isPortableMode) {
 		const version = currentStatus.version ?? '';
 		const tag = version ? `tag/v${version}` : 'latest';
-		await shell.openExternal(
-			`https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/${tag}`,
-		);
+		const releaseUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/${tag}`;
+		if (!isSafeExternalUrl(releaseUrl)) {
+			throw new Error('Unsafe release URL blocked');
+		}
+		await shell.openExternal(releaseUrl);
 		return;
 	}
 
@@ -294,8 +306,13 @@ export function getUpdateStatus(): UpdateStatus {
 }
 
 export function startAutoCheckSchedule() {
+	if (startupCheckTimeout || autoCheckTimer) {
+		return;
+	}
+
 	// Initial delayed check
-	setTimeout(async () => {
+	startupCheckTimeout = setTimeout(async () => {
+		startupCheckTimeout = null;
 		try {
 			await checkForUpdate();
 		} catch {
@@ -315,6 +332,11 @@ export function startAutoCheckSchedule() {
 }
 
 export function stopAutoCheckSchedule() {
+	if (startupCheckTimeout) {
+		clearTimeout(startupCheckTimeout);
+		startupCheckTimeout = null;
+	}
+
 	if (autoCheckTimer) {
 		clearInterval(autoCheckTimer);
 		autoCheckTimer = null;

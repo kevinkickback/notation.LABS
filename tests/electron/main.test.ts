@@ -83,6 +83,7 @@ async function loadMainModule() {
 		ipcHandlers,
 		browserWindows,
 		sessionMock,
+		shellMock,
 		updateManagerMock,
 	};
 }
@@ -182,5 +183,28 @@ describe('electron main process wiring', () => {
 		expect(
 			context.updateManagerMock.stopAutoCheckSchedule,
 		).toHaveBeenCalledTimes(1);
+	});
+
+	it('only opens validated https links externally', async () => {
+		const context = await loadMainModule();
+
+		await context.appEvents.ready();
+
+		const mainWindow = context.browserWindows[1];
+		const windowOpenHandler = mainWindow.webContents.setWindowOpenHandler.mock
+			.calls[0][0] as ({ url }: { url: string }) => { action: 'deny' };
+
+		expect(windowOpenHandler({ url: 'https://example.com' })).toEqual({
+			action: 'deny',
+		});
+		expect(context.shellMock.openExternal).toHaveBeenCalledWith(
+			'https://example.com',
+		);
+
+		context.shellMock.openExternal.mockClear();
+		expect(windowOpenHandler({ url: 'http://example.com' })).toEqual({
+			action: 'deny',
+		});
+		expect(context.shellMock.openExternal).not.toHaveBeenCalled();
 	});
 });

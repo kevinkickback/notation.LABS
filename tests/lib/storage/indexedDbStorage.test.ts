@@ -124,6 +124,35 @@ describe('indexedDbStorage.games', () => {
 		expect(combos).toHaveLength(0);
 	});
 
+	it('cascading delete removes local demo videos when game is deleted', async () => {
+		const gameId = await indexedDbStorage.games.add(gameData);
+		const charId = await indexedDbStorage.characters.add({
+			gameId,
+			name: 'Ryu',
+		});
+		await indexedDbStorage.demoVideos.add({
+			id: 'game-video',
+			data: new Uint8Array([1, 2, 3]).buffer,
+			mimeType: 'video/mp4',
+			fileName: 'game.mp4',
+		});
+		await indexedDbStorage.combos.add({
+			characterId: charId,
+			name: 'Video Combo',
+			notation: '236P',
+			parsedNotation: [],
+			tags: [],
+			demoUrl: 'local:game-video',
+			demoFileName: 'game.mp4',
+		});
+
+		await indexedDbStorage.games.delete(gameId);
+
+		await expect(
+			indexedDbStorage.demoVideos.get('game-video'),
+		).resolves.toBeUndefined();
+	});
+
 	it('returns undefined for non-existent game', async () => {
 		const game = await indexedDbStorage.games.get('non-existent');
 		expect(game).toBeUndefined();
@@ -231,6 +260,34 @@ describe('indexedDbStorage.characters', () => {
 		const combos = await indexedDbStorage.combos.getByCharacter(charId);
 		expect(combos).toHaveLength(0);
 	});
+
+	it('cascading delete removes local demo videos when character is deleted', async () => {
+		const charId = await indexedDbStorage.characters.add({
+			gameId,
+			name: 'Fighter',
+		});
+		await indexedDbStorage.demoVideos.add({
+			id: 'character-video',
+			data: new Uint8Array([4, 5, 6]).buffer,
+			mimeType: 'video/mp4',
+			fileName: 'character.mp4',
+		});
+		await indexedDbStorage.combos.add({
+			characterId: charId,
+			name: 'Video Combo',
+			notation: 'A > B',
+			parsedNotation: [],
+			tags: [],
+			demoUrl: 'local:character-video',
+			demoFileName: 'character.mp4',
+		});
+
+		await indexedDbStorage.characters.delete(charId);
+
+		await expect(
+			indexedDbStorage.demoVideos.get('character-video'),
+		).resolves.toBeUndefined();
+	});
 });
 
 describe('indexedDbStorage.combos', () => {
@@ -267,7 +324,7 @@ describe('indexedDbStorage.combos', () => {
 		expect(combo.tags).toEqual(['bnb', 'easy']);
 	});
 
-	it('auto-assigns sortOrder based on existing combo count', async () => {
+	it('auto-assigns sortOrder as max+1 per character', async () => {
 		const id1 = await indexedDbStorage.combos.add(comboData());
 		const id2 = await indexedDbStorage.combos.add({
 			...comboData(),
@@ -287,6 +344,26 @@ describe('indexedDbStorage.combos', () => {
 		expect(c1.sortOrder).toBe(0);
 		expect(c2.sortOrder).toBe(1);
 		expect(c3.sortOrder).toBe(2);
+	});
+
+	it('continues sortOrder from highest existing value', async () => {
+		const firstId = await indexedDbStorage.combos.add(comboData());
+		const secondId = await indexedDbStorage.combos.add({
+			...comboData(),
+			name: 'Combo 2',
+		});
+
+		await indexedDbStorage.combos.update(firstId, { sortOrder: 10 });
+		await indexedDbStorage.combos.update(secondId, { sortOrder: 2 });
+
+		const thirdId = await indexedDbStorage.combos.add({
+			...comboData(),
+			name: 'Combo 3',
+		});
+
+		const third = await indexedDbStorage.combos.get(thirdId);
+		assertDefined(third);
+		expect(third.sortOrder).toBe(11);
 	});
 
 	it('retrieves combos by character sorted by sortOrder', async () => {
@@ -392,7 +469,7 @@ describe('indexedDbStorage.combos', () => {
 		});
 
 		it('searches by description', async () => {
-			const results = await indexedDbStorage.combos.search('fireball');
+			const results = await indexedDbStorage.combos.search('basic');
 			expect(results).toHaveLength(1);
 			expect(results[0].name).toBe('Hadouken Combo');
 		});
@@ -414,7 +491,7 @@ describe('indexedDbStorage.combos', () => {
 		});
 
 		it('returns multiple matches', async () => {
-			const results = await indexedDbStorage.combos.search('combo');
+			const results = await indexedDbStorage.combos.search('6');
 			expect(results.length).toBeGreaterThanOrEqual(1);
 		});
 	});
@@ -645,6 +722,42 @@ describe('indexedDbStorage.export', () => {
 		expect(parsed.demoVideos[0].dataBase64).toBeDefined();
 		expect(parsed.demoVideos[0].mimeType).toBe('video/mp4');
 	});
+
+	it('sanitizes local demo references when videos are excluded from export', async () => {
+		const gameId = await indexedDbStorage.games.add({
+			name: 'Game',
+			buttonLayout: [],
+		});
+		const charId = await indexedDbStorage.characters.add({
+			gameId,
+			name: 'Char',
+		});
+		await indexedDbStorage.demoVideos.add({
+			id: 'export-video',
+			data: new Uint8Array([7, 8, 9]).buffer,
+			mimeType: 'video/mp4',
+			fileName: 'export.mp4',
+		});
+		await indexedDbStorage.combos.add({
+			characterId: charId,
+			name: 'Local Demo Combo',
+			notation: 'A',
+			parsedNotation: [],
+			tags: [],
+			demoUrl: 'local:export-video',
+			demoFileName: 'export.mp4',
+			demoVideoTitle: 'Export demo',
+		});
+
+		const json = await indexedDbStorage.export(false);
+		const parsed = JSON.parse(json);
+
+		expect(parsed.version).toBe(1);
+		expect(parsed.combos).toHaveLength(1);
+		expect(parsed.combos[0].demoUrl).toBeUndefined();
+		expect(parsed.combos[0].demoFileName).toBeUndefined();
+		expect(parsed.combos[0].demoVideoTitle).toBeUndefined();
+	});
 });
 
 describe('indexedDbStorage.import', () => {
@@ -716,11 +829,43 @@ describe('indexedDbStorage.import', () => {
 			},
 		});
 
-		await indexedDbStorage.import(data);
+		await indexedDbStorage.import(data, false, true);
 		const raw = await db.settings.get(1);
 		assertDefined(raw);
 		expect(raw.comboScale).toBe(2.5);
 		expect(raw.displayMode).toBe('visual-icons');
+	});
+
+	it('does not import settings unless includeSettings is true', async () => {
+		await indexedDbStorage.settings.update({
+			colorTheme: 'light',
+			comboScale: 1,
+		});
+
+		const data = JSON.stringify({
+			version: 1,
+			exported: new Date().toISOString(),
+			settings: {
+				colorTheme: 'dark',
+				fontFamily: 'system-ui',
+				notationColors: { direction: '#fff', separator: '#ccc' },
+				displayMode: 'visual-icons',
+				iconStyle: 'round',
+				uiTheme: 'default',
+				comboScale: 2.5,
+				autoUpdate: true,
+				confirmBeforeDelete: true,
+				videoPlayerSize: 'lg',
+				gameCardSize: 180,
+				characterCardSize: 180,
+				showChangelogBeforeUpdate: true,
+			},
+		});
+
+		await indexedDbStorage.import(data, false, false);
+		const settings = await indexedDbStorage.settings.get();
+		expect(settings.colorTheme).toBe('light');
+		expect(settings.comboScale).toBe(1);
 	});
 
 	it('imports demo videos when includeVideos is true', async () => {
@@ -763,6 +908,54 @@ describe('indexedDbStorage.import', () => {
 		await indexedDbStorage.import(data, false);
 		const video = await indexedDbStorage.demoVideos.get('v1');
 		expect(video).toBeUndefined();
+	});
+
+	it('sanitizes local demo references when referenced videos are not imported', async () => {
+		const data = JSON.stringify({
+			version: 2,
+			exported: new Date().toISOString(),
+			games: [
+				{
+					id: 'g1',
+					name: 'Imported Game',
+					buttonLayout: ['A'],
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			],
+			characters: [
+				{
+					id: 'c1',
+					gameId: 'g1',
+					name: 'Imported Char',
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			],
+			combos: [
+				{
+					id: 'combo-local',
+					characterId: 'c1',
+					name: 'Imported Combo',
+					notation: 'A',
+					parsedNotation: [],
+					tags: [],
+					demoUrl: 'local:missing-video',
+					demoFileName: 'missing.mp4',
+					demoVideoTitle: 'Missing demo',
+					sortOrder: 0,
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			],
+		});
+
+		await indexedDbStorage.import(data, false);
+		const combo = await indexedDbStorage.combos.get('combo-local');
+		assertDefined(combo);
+		expect(combo.demoUrl).toBeUndefined();
+		expect(combo.demoFileName).toBeUndefined();
+		expect(combo.demoVideoTitle).toBeUndefined();
 	});
 
 	it('merges imported data with existing data (put semantics)', async () => {
@@ -834,7 +1027,7 @@ describe('indexedDbStorage.import', () => {
 		await db.settings.clear();
 		await db.demoVideos.clear();
 
-		await indexedDbStorage.import(exported, true);
+		await indexedDbStorage.import(exported, true, true);
 
 		const importedGames = await indexedDbStorage.games.getAll();
 		const importedCharacters = await indexedDbStorage.characters.getAll();
@@ -865,6 +1058,71 @@ describe('indexedDbStorage.import', () => {
 		});
 
 		await expect(indexedDbStorage.import(invalidData, true)).rejects.toThrow();
+		await expect(indexedDbStorage.games.getAll()).resolves.toHaveLength(0);
+		await expect(indexedDbStorage.characters.getAll()).resolves.toHaveLength(0);
+		await expect(indexedDbStorage.combos.getAll()).resolves.toHaveLength(0);
+	});
+
+	it('rejects imports that exceed the max number of videos', async () => {
+		const demoVideos = Array.from({ length: 101 }, (_, idx) => ({
+			id: `video-${idx}`,
+			fileName: `video-${idx}.mp4`,
+			mimeType: 'video/mp4',
+			dataBase64: btoa('a'),
+		}));
+
+		const data = JSON.stringify({
+			version: 2,
+			exported: new Date().toISOString(),
+			demoVideos,
+		});
+
+		await expect(indexedDbStorage.import(data, true)).rejects.toThrow(
+			'Import contains 101 videos; max is 100',
+		);
+		await expect(indexedDbStorage.demoVideos.getAll()).resolves.toHaveLength(0);
+	});
+
+	it('rejects imports with referential integrity issues', async () => {
+		const data = JSON.stringify({
+			version: 1,
+			exported: new Date().toISOString(),
+			games: [
+				{
+					id: 'game-1',
+					name: 'Game 1',
+					buttonLayout: ['A'],
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			],
+			characters: [
+				{
+					id: 'char-orphan',
+					gameId: 'missing-game',
+					name: 'Orphan Char',
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			],
+			combos: [
+				{
+					id: 'combo-orphan',
+					characterId: 'missing-char',
+					name: 'Orphan Combo',
+					notation: 'A',
+					parsedNotation: [],
+					tags: [],
+					sortOrder: 0,
+					createdAt: 1000,
+					updatedAt: 1000,
+				},
+			],
+		});
+
+		await expect(indexedDbStorage.import(data, false)).rejects.toThrow(
+			'Import has referential integrity issues: 1 orphaned characters, 1 orphaned combos',
+		);
 		await expect(indexedDbStorage.games.getAll()).resolves.toHaveLength(0);
 		await expect(indexedDbStorage.characters.getAll()).resolves.toHaveLength(0);
 		await expect(indexedDbStorage.combos.getAll()).resolves.toHaveLength(0);

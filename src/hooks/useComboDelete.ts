@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Combo } from '@/lib/types';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
 
 interface ComboDeleteOptions {
@@ -28,7 +29,8 @@ export function useComboDelete({
 			}
 			await indexedDbStorage.combos.delete(comboId);
 			toast.success('Combo deleted');
-		} catch {
+		} catch (err) {
+			reportError('useComboDelete.executeDelete', err);
 			toast.error('Failed to delete combo');
 		}
 	};
@@ -57,7 +59,8 @@ export function useComboDelete({
 			toast.success(
 				`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} deleted`,
 			);
-		} catch {
+		} catch (err) {
+			reportError('useComboDelete.executeBulkDelete', err);
 			toast.error('Failed to delete combos');
 		}
 	};
@@ -68,7 +71,7 @@ export function useComboDelete({
 			setBulkDeleteConfirm(true);
 			return;
 		}
-		executeBulkDelete(selectedIds);
+		void executeBulkDelete(selectedIds);
 	};
 
 	return {

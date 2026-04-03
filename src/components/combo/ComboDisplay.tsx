@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { ComboToken, Game, NotationColors } from '@/lib/types';
 import { getTokenColor } from '@/lib/parser';
 import { useSettings } from '@/hooks/useSettings';
@@ -105,19 +106,29 @@ export function ComboDisplay({
 	const comboScale = settings.comboScale ?? 1;
 	const iconStyle = settings.iconStyle ?? 'hexagon';
 
-	const repeatParenIndices = getRepeatParenIndices(tokens);
+	const repeatParenIndices = useMemo(() => getRepeatParenIndices(tokens), [tokens]);
+	const groups = useMemo(
+		() => groupTokensWithButtons(tokens, colors, game?.buttonColors),
+		[tokens, colors, game?.buttonColors],
+	);
+	const indexedGroups = useMemo(() => {
+		let flatIdx = 0;
+		return groups.map((g) => ({
+			buttonColor: g.buttonColor,
+			tokens: g.tokens.map((t) => ({ token: t, flatIndex: flatIdx++ })),
+		}));
+	}, [groups]);
 
 	const renderColoredToken = (
 		token: ComboToken,
 		idx: number,
-		tokenIndex: number,
 		groupColor?: string,
 	) => {
 		const color =
 			groupColor || getTokenColor(token, colors, game?.buttonColors);
 
 		if (token.type === 'repeat-start') {
-			if (!repeatParenIndices.has(tokenIndex)) return null;
+			if (!repeatParenIndices.has(idx)) return null;
 			return (
 				<span
 					key={idx}
@@ -130,7 +141,7 @@ export function ComboDisplay({
 		}
 
 		if (token.type === 'repeat-end') {
-			const showParen = repeatParenIndices.has(tokenIndex);
+			const showParen = repeatParenIndices.has(idx);
 			return (
 				<span key={idx} className="inline-flex items-baseline">
 					{showParen && (
@@ -175,14 +186,13 @@ export function ComboDisplay({
 	const renderIconToken = (
 		token: ComboToken,
 		idx: number,
-		tokenIndex: number,
 		groupColor?: string,
 	) => {
 		const color =
 			groupColor || getTokenColor(token, colors, game?.buttonColors);
 
 		if (token.type === 'repeat-start') {
-			if (!repeatParenIndices.has(tokenIndex)) return null;
+			if (!repeatParenIndices.has(idx)) return null;
 			return (
 				<span
 					key={idx}
@@ -195,7 +205,7 @@ export function ComboDisplay({
 		}
 
 		if (token.type === 'repeat-end') {
-			const showParen = repeatParenIndices.has(tokenIndex);
+			const showParen = repeatParenIndices.has(idx);
 			return (
 				<span key={idx} className="inline-flex items-baseline">
 					{showParen && (
@@ -300,28 +310,18 @@ export function ComboDisplay({
 	};
 
 	if (mode === 'colored-text') {
-		const groups = groupTokensWithButtons(tokens, colors, game?.buttonColors);
-		let tokenIndex = 0;
-
 		return (
 			<div
 				className={`flex flex-wrap items-center font-mono ${className}`}
 				style={{ fontSize: `${1.125 * comboScale}rem` }}
 			>
-				{groups.map((group, groupIdx) => {
-					const groupKey = `${groupIdx}-${group.tokens.map((t) => t.value).join('')}`;
+				{indexedGroups.map((group, groupIdx) => {
+					const groupKey = `${groupIdx}-${group.tokens.map(({ token }) => token.value).join('')}`;
 					return (
 						<div key={groupKey} className="flex items-center">
-							{group.tokens.map((token) => {
-								const currentIndex = tokenIndex++;
-								const rendered = renderColoredToken(
-									token,
-									currentIndex,
-									currentIndex,
-									group.buttonColor,
-								);
-								return rendered;
-							})}
+							{group.tokens.map(({ token, flatIndex }) =>
+								renderColoredToken(token, flatIndex, group.buttonColor),
+							)}
 						</div>
 					);
 				})}
@@ -329,25 +329,15 @@ export function ComboDisplay({
 		);
 	}
 
-	const groups = groupTokensWithButtons(tokens, colors, game?.buttonColors);
-	let tokenIndex = 0;
-
 	return (
 		<div className={`flex flex-wrap items-center gap-2 ${className}`}>
-			{groups.map((group, groupIdx) => {
-				const groupKey = `${groupIdx}-${group.tokens.map((t) => t.value).join('')}`;
+			{indexedGroups.map((group, groupIdx) => {
+				const groupKey = `${groupIdx}-${group.tokens.map(({ token }) => token.value).join('')}`;
 				return (
 					<div key={groupKey} className="flex items-center gap-1">
-						{group.tokens.map((token) => {
-							const currentIndex = tokenIndex++;
-							const rendered = renderIconToken(
-								token,
-								currentIndex,
-								currentIndex,
-								group.buttonColor,
-							);
-							return rendered;
-						})}
+						{group.tokens.map(({ token, flatIndex }) =>
+							renderIconToken(token, flatIndex, group.buttonColor),
+						)}
 					</div>
 				);
 			})}

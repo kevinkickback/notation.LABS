@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
@@ -109,6 +110,9 @@ export function CharacterSearchDialog({
 			<DialogContent className="sm:max-w-[540px] max-h-[80vh] flex flex-col">
 				<DialogHeader>
 					<DialogTitle>Search Character Images</DialogTitle>
+					<DialogDescription>
+						Search and select an image to use as the character portrait.
+					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex gap-2">

@@ -1,4 +1,4 @@
-import { Funnel, SquaresFour, List, Plus } from '@phosphor-icons/react';
+import { Funnel, SquaresFour, List, Plus, CheckSquare } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
@@ -10,6 +10,8 @@ interface GameLibraryToolbarProps {
     showFilters: boolean;
     onToggleFilters: () => void;
     activeFilterCount: number;
+    isSelecting: boolean;
+    onToggleSelect: () => void;
     onAddGame: () => void;
 }
 
@@ -21,6 +23,8 @@ export function GameLibraryToolbar({
     showFilters,
     onToggleFilters,
     activeFilterCount,
+    isSelecting,
+    onToggleSelect,
     onAddGame,
 }: GameLibraryToolbarProps) {
     return (
@@ -76,6 +80,17 @@ export function GameLibraryToolbar({
                             {activeFilterCount}
                         </span>
                     )}
+                </Button>
+            </div>
+            <div className="bg-muted rounded-md">
+                <Button
+                    variant={isSelecting ? 'secondary' : 'ghost'}
+                    onClick={onToggleSelect}
+                    title="Multi-select games"
+                    className="flex items-center gap-1.5"
+                >
+                    <CheckSquare className="w-5 h-5" />
+                    <span className="text-xs leading-tight">Select</span>
                 </Button>
             </div>
             <Button onClick={onAddGame} className="gap-2">

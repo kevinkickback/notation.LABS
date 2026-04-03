@@ -13,6 +13,7 @@ import {
 interface UpdateProgressModalProps {
 	open: boolean;
 	version: string;
+	onOpenChange: (open: boolean) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -28,6 +29,7 @@ type UpdatePhase = 'downloading' | 'downloaded' | 'error' | 'cancelled';
 export function UpdateProgressModal({
 	open,
 	version,
+	onOpenChange,
 }: UpdateProgressModalProps) {
 	const [phase, setPhase] = useState<UpdatePhase>('downloading');
 	const [percentage, setPercentage] = useState(0);
@@ -124,8 +126,12 @@ export function UpdateProgressModal({
 		}
 	}, []);
 
+	const handleDismiss = useCallback(() => {
+		onOpenChange(false);
+	}, [onOpenChange]);
+
 	return (
-		<Dialog open={open} onOpenChange={() => { }}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				className="w-full max-w-xs sm:max-w-sm p-3 sm:p-6"
 				onPointerDownOutside={(e) => e.preventDefault()}
@@ -186,8 +192,19 @@ export function UpdateProgressModal({
 
 				{phase === 'error' && (
 					<div className="flex justify-end gap-2">
+						<Button variant="ghost" size="sm" onClick={handleDismiss}>
+							Dismiss
+						</Button>
 						<Button variant="outline" size="sm" onClick={handleRetry}>
 							Retry
+						</Button>
+					</div>
+				)}
+
+				{phase === 'cancelled' && (
+					<div className="flex justify-end gap-2">
+						<Button variant="outline" size="sm" onClick={handleDismiss}>
+							Close
 						</Button>
 					</div>
 				)}

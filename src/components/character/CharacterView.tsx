@@ -15,6 +15,7 @@ import {
 	CaretDown,
 	Palette,
 	X,
+	CheckSquare,
 } from '@phosphor-icons/react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
@@ -44,9 +45,10 @@ import { Slider } from '@/components/ui/slider';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/hooks/useSettings';
-import { useNotesOverride, removeNotesOverride } from '@/hooks/useNotesOverride';
+import { useNotesOverride } from '@/hooks/useNotesOverride';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
+import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 
 type CharacterSort = 'name-asc' | 'name-desc' | 'combos' | 'modified';
 
@@ -69,7 +71,10 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 	const [sortBy, setSortBy] = useState<CharacterSort>('name-asc');
 	const [filterSearch, setFilterSearch] = useState('');
 	const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
+	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 	const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+	const [isSelecting, setIsSelecting] = useState(false);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 	const settings = useSettings();
 	const [cardSize, setCardSize] = useState(() =>
 		clampCharSize(settings.characterCardSize),
@@ -146,7 +151,12 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 	const handleDeleteCharacter = async (character: Character) => {
 		try {
 			await indexedDbStorage.characters.delete(character.id);
-			removeNotesOverride(character.id);
+			setSelectedIds((prev) => {
+				if (!prev.has(character.id)) return prev;
+				const next = new Set(prev);
+				next.delete(character.id);
+				return next;
+			});
 			toast.success(`"${character.name}" deleted`);
 			setDeleteTarget(null);
 		} catch {
@@ -157,6 +167,43 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 	const openEditDialog = (character: Character) => {
 		setEditingCharacter(character);
 		setCharDialogOpen(true);
+	};
+
+	const handleCharacterSelect = (characterId: string) => {
+		if (!isSelecting) {
+			setSelectedCharacter(characterId);
+			return;
+		}
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(characterId)) next.delete(characterId);
+			else next.add(characterId);
+			return next;
+		});
+	};
+
+	const selectedComboCount = useMemo(() => {
+		let comboCount = 0;
+		for (const id of selectedIds) {
+			comboCount += comboCountByChar[id] || 0;
+		}
+		return comboCount;
+	}, [selectedIds, comboCountByChar]);
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.size === 0) return;
+		if (settings.confirmBeforeDelete) {
+			setBulkDeleteConfirm(true);
+			return;
+		}
+		for (const id of selectedIds) {
+			const character = characters.find((c) => c.id === id);
+			if (character) {
+				await handleDeleteCharacter(character);
+			}
+		}
+		setSelectedIds(new Set());
+		setIsSelecting(false);
 	};
 
 	if (characters.length === 0) {
@@ -278,6 +325,24 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					</div>
 					<div className="bg-muted rounded-md">
 						<Button
+							variant={isSelecting ? 'secondary' : 'ghost'}
+							onClick={() => {
+								setIsSelecting((prev) => {
+									if (prev) {
+										setSelectedIds(new Set());
+									}
+									return !prev;
+								});
+							}}
+							title="Multi-select characters"
+							className="flex items-center gap-1.5"
+						>
+							<CheckSquare className="w-5 h-5" />
+							<span className="text-xs leading-tight">Select</span>
+						</Button>
+					</div>
+					<div className="bg-muted rounded-md">
+						<Button
 							variant="ghost"
 							onClick={() => setColorDialogOpen(true)}
 							title="Edit button colors"
@@ -363,6 +428,19 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 				</div>
 			)}
 
+			{isSelecting && (
+				<SelectionToolbar
+					selectedCount={selectedIds.size}
+					onSelectAll={() =>
+						setSelectedIds(new Set(filteredAndSorted.map((c) => c.id)))
+					}
+					onDeselectAll={() => setSelectedIds(new Set())}
+					onDelete={() => {
+						void handleBulkDelete();
+					}}
+				/>
+			)}
+
 			<div
 				className={viewMode === 'list' ? 'flex flex-col gap-3' : 'grid gap-4'}
 				style={
@@ -377,9 +455,20 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					viewMode === 'grid' ? (
 						<Card
 							key={character.id}
-							className="group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative aspect-[4/3] !py-0 !gap-0 hover:scale-[1.03]"
-							onClick={() => setSelectedCharacter(character.id)}
+							className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative aspect-[4/3] !py-0 !gap-0 hover:scale-[1.03] ${selectedIds.has(character.id) ? 'ring-2 ring-primary' : ''}`}
+							onClick={() => handleCharacterSelect(character.id)}
 						>
+							{isSelecting && (
+								<div className="absolute top-2 left-2 z-30">
+									<input
+										type="checkbox"
+										checked={selectedIds.has(character.id)}
+										onChange={() => handleCharacterSelect(character.id)}
+										onClick={(e) => e.stopPropagation()}
+										className="w-4 h-4 accent-primary cursor-pointer"
+									/>
+								</div>
+							)}
 							<div
 								className="absolute inset-0"
 								style={{
@@ -420,45 +509,58 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 										</span>
 									</div>
 								</div>
-								<div className={`absolute top-1.5 right-1.5 flex gap-1 transition-opacity z-20 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 cursor-pointer"
-										onClick={(e) => {
-											e.stopPropagation();
-											openEditDialog(character);
-										}}
-									>
-										<PencilSimple className="w-4 h-4" weight="bold" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
-										onClick={(e) => {
-											e.stopPropagation();
-											if (settings.confirmBeforeDelete) {
-												setDeleteTarget(character);
-											} else {
-												handleDeleteCharacter(character);
-											}
-										}}
-									>
-										<Trash className="w-4 h-4" weight="bold" />
-									</Button>
-								</div>
+								{!isSelecting && (
+									<div className={`absolute top-1.5 right-1.5 flex gap-1 transition-opacity z-20 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 cursor-pointer"
+											onClick={(e) => {
+												e.stopPropagation();
+												openEditDialog(character);
+											}}
+										>
+											<PencilSimple className="w-4 h-4" weight="bold" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
+											onClick={(e) => {
+												e.stopPropagation();
+												if (settings.confirmBeforeDelete) {
+													setDeleteTarget(character);
+												} else {
+													handleDeleteCharacter(character);
+												}
+											}}
+										>
+											<Trash className="w-4 h-4" weight="bold" />
+										</Button>
+									</div>
+								)}
 							</CardContent>
 						</Card>
 					) : (
 						<Card
 							key={character.id}
-							className="group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden h-[72px] !py-0 !gap-0"
-							onClick={() => setSelectedCharacter(character.id)}
+							className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden h-[72px] !py-0 !gap-0 ${selectedIds.has(character.id) ? 'ring-2 ring-primary' : ''}`}
+							onClick={() => handleCharacterSelect(character.id)}
 						>
 							<CardContent className={`p-0 flex items-center h-full${isMobile && viewMode === 'list' ? ' relative' : ''}`}>
+								{isSelecting && (
+									<div className="pl-3 shrink-0">
+										<input
+											type="checkbox"
+											checked={selectedIds.has(character.id)}
+											onChange={() => handleCharacterSelect(character.id)}
+											onClick={(e) => e.stopPropagation()}
+											className="w-4 h-4 accent-primary cursor-pointer"
+										/>
+									</div>
+								)}
 								<div
-									className={`flex items-center flex-1 pl-4 ${isMobile && viewMode === 'list' ? 'gap-2 pr-16' : 'gap-6 pr-2'}`}
+									className={`flex items-center flex-1 ${isSelecting ? 'pl-2' : 'pl-4'} ${isMobile && viewMode === 'list' ? 'gap-2 pr-16' : 'gap-6 pr-2'}`}
 									style={isMobile && viewMode === 'list' ? { minWidth: 0 } : undefined}
 								>
 									<h3 className="font-bold text-white text-base min-w-[120px] truncate max-w-[40vw]">
@@ -506,37 +608,39 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 										</>
 									)}
 								</div>
-								<div
-									className={`flex gap-1 pr-3 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'} ${isMobile && viewMode === 'list' ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
-									style={isMobile && viewMode === 'list' ? { height: 'auto', background: 'none' } : undefined}
-								>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600"
-										onClick={(e) => {
-											e.stopPropagation();
-											openEditDialog(character);
-										}}
+								{!isSelecting && (
+									<div
+										className={`flex gap-1 pr-3 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'} ${isMobile && viewMode === 'list' ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
+										style={isMobile && viewMode === 'list' ? { height: 'auto', background: 'none' } : undefined}
 									>
-										<PencilSimple className="w-4 h-4" weight="bold" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
-										onClick={(e) => {
-											e.stopPropagation();
-											if (settings.confirmBeforeDelete) {
-												setDeleteTarget(character);
-											} else {
-												handleDeleteCharacter(character);
-											}
-										}}
-									>
-										<Trash className="w-4 h-4" weight="bold" />
-									</Button>
-								</div>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600"
+											onClick={(e) => {
+												e.stopPropagation();
+												openEditDialog(character);
+											}}
+										>
+											<PencilSimple className="w-4 h-4" weight="bold" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
+											onClick={(e) => {
+												e.stopPropagation();
+												if (settings.confirmBeforeDelete) {
+													setDeleteTarget(character);
+												} else {
+													handleDeleteCharacter(character);
+												}
+											}}
+										>
+											<Trash className="w-4 h-4" weight="bold" />
+										</Button>
+									</div>
+								)}
 							</CardContent>
 						</Card>
 					),
@@ -582,6 +686,43 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 					</AlertDialogContent>
 				</AlertDialog>
 			)}
+
+			<AlertDialog
+				open={bulkDeleteConfirm}
+				onOpenChange={setBulkDeleteConfirm}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Delete {selectedIds.size} character
+							{selectedIds.size !== 1 ? 's' : ''}?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will also delete {selectedComboCount} combo
+							{selectedComboCount !== 1 ? 's' : ''}. This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={async () => {
+								for (const id of selectedIds) {
+									const character = characters.find((c) => c.id === id);
+									if (character) {
+										await handleDeleteCharacter(character);
+									}
+								}
+								setBulkDeleteConfirm(false);
+								setSelectedIds(new Set());
+								setIsSelecting(false);
+							}}
+						>
+							Delete Selected ({selectedIds.size})
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			<ButtonColorDialog
 				open={colorDialogOpen}

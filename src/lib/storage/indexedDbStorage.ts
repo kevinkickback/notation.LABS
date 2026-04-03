@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
+import { removeNotesOverride } from '@/hooks/useNotesOverride';
 import type {
 	Game,
 	Character,
@@ -9,6 +10,9 @@ import type {
 } from '../types';
 import { DEFAULT_SETTINGS } from '../defaults';
 import { importDataSchema } from '../schemas';
+
+const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_IMPORT_VIDEOS = 100;
 
 export interface DemoVideo {
 	id: string;
@@ -72,6 +76,15 @@ db.version(4).stores({
 	demoVideos: 'id',
 });
 
+db.version(5).stores({
+	games: 'id, name, createdAt',
+	characters: 'id, gameId, name, createdAt',
+	combos:
+		'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder',
+	settings: 'id',
+	demoVideos: 'id',
+});
+
 export function generateId(): string {
 	return uuidv4();
 }
@@ -86,6 +99,54 @@ const OKLCH_TO_HEX: Record<string, string> = {
 	'oklch(0.85 0.05 265)': '#bdceef',
 	'oklch(0.55 0.02 265)': '#6c727e',
 };
+
+function getLocalVideoId(demoUrl?: string): string | null {
+	if (!demoUrl?.startsWith('local:')) {
+		return null;
+	}
+
+	const videoId = demoUrl.slice('local:'.length);
+	return videoId || null;
+}
+
+function collectLocalVideoIds(combos: Array<Pick<Combo, 'demoUrl'>>): string[] {
+	const videoIds = new Set<string>();
+
+	for (const combo of combos) {
+		const videoId = getLocalVideoId(combo.demoUrl);
+		if (videoId) {
+			videoIds.add(videoId);
+		}
+	}
+
+	return [...videoIds];
+}
+
+function sanitizeComboLocalVideo<T extends Combo>(
+	combo: T,
+	availableVideoIds: Set<string>,
+): T {
+	const videoId = getLocalVideoId(combo.demoUrl);
+	if (!videoId || availableVideoIds.has(videoId)) {
+		return combo;
+	}
+
+	return {
+		...combo,
+		demoUrl: undefined,
+		demoFileName: undefined,
+		demoVideoTitle: undefined,
+	};
+}
+
+function sanitizeCombosLocalVideos(
+	combos: Combo[],
+	availableVideoIds: Set<string>,
+): Combo[] {
+	return combos.map((combo) =>
+		sanitizeComboLocalVideo(combo, availableVideoIds),
+	);
+}
 
 function migrateNotationColors(colors: Record<string, string>): {
 	colors: Record<string, string>;
@@ -129,21 +190,36 @@ export const indexedDbStorage = {
 			});
 		},
 		delete: async (id: string) => {
+			let characterIds: string[] = [];
 			await db.transaction(
 				'rw',
-				[db.games, db.characters, db.combos],
+				[db.games, db.characters, db.combos, db.demoVideos],
 				async () => {
 					const characters = await db.characters
 						.where('gameId')
 						.equals(id)
 						.toArray();
-					for (const char of characters) {
-						await db.combos.where('characterId').equals(char.id).delete();
+					characterIds = characters.map((c) => c.id);
+
+					if (characterIds.length > 0) {
+						const combos = await db.combos
+							.where('characterId')
+							.anyOf(characterIds)
+							.toArray();
+						const videoIds = collectLocalVideoIds(combos);
+						if (videoIds.length > 0) {
+							await db.demoVideos.bulkDelete(videoIds);
+						}
+						await db.combos.where('characterId').anyOf(characterIds).delete();
 					}
 					await db.characters.where('gameId').equals(id).delete();
 					await db.games.delete(id);
 				},
 			);
+			for (const charId of characterIds) {
+				removeNotesOverride(charId);
+			}
+			removeNotesOverride(id);
 		},
 	},
 
@@ -172,10 +248,23 @@ export const indexedDbStorage = {
 			});
 		},
 		delete: async (id: string) => {
-			await db.transaction('rw', [db.characters, db.combos], async () => {
-				await db.combos.where('characterId').equals(id).delete();
-				await db.characters.delete(id);
-			});
+			await db.transaction(
+				'rw',
+				[db.characters, db.combos, db.demoVideos],
+				async () => {
+					const combos = await db.combos
+						.where('characterId')
+						.equals(id)
+						.toArray();
+					const videoIds = collectLocalVideoIds(combos);
+					if (videoIds.length > 0) {
+						await db.demoVideos.bulkDelete(videoIds);
+					}
+					await db.combos.where('characterId').equals(id).delete();
+					await db.characters.delete(id);
+				},
+			);
+			removeNotesOverride(id);
 		},
 	},
 
@@ -189,16 +278,22 @@ export const indexedDbStorage = {
 		) => {
 			const id = generateId();
 			const now = Date.now();
-			const existing = await db.combos
-				.where('characterId')
-				.equals(combo.characterId)
-				.count();
-			await db.combos.add({
-				...combo,
-				id,
-				sortOrder: existing,
-				createdAt: now,
-				updatedAt: now,
+			await db.transaction('rw', db.combos, async () => {
+				const existing = await db.combos
+					.where('characterId')
+					.equals(combo.characterId)
+					.toArray();
+				const maxOrder = existing.reduce(
+					(max, current) => Math.max(max, current.sortOrder ?? 0),
+					-1,
+				);
+				await db.combos.add({
+					...combo,
+					id,
+					sortOrder: maxOrder + 1,
+					createdAt: now,
+					updatedAt: now,
+				});
 			});
 			return id;
 		},
@@ -217,15 +312,36 @@ export const indexedDbStorage = {
 			});
 		},
 		search: async (query: string) => {
-			const lowerQuery = query.toLowerCase();
-			const allCombos = await db.combos.toArray();
-			return allCombos.filter(
-				(combo) =>
-					combo.name.toLowerCase().includes(lowerQuery) ||
-					combo.notation.toLowerCase().includes(lowerQuery) ||
-					combo.description?.toLowerCase().includes(lowerQuery) ||
-					combo.tags.some((tag) => tag.toLowerCase().includes(lowerQuery)),
-			);
+			const trimmedQuery = query.trim();
+			if (!trimmedQuery) {
+				return [];
+			}
+
+			const [nameMatches, notationMatches, descriptionMatches, tagMatches] =
+				await Promise.all([
+					db.combos.where('name').startsWithIgnoreCase(trimmedQuery).toArray(),
+					db.combos
+						.where('notation')
+						.startsWithIgnoreCase(trimmedQuery)
+						.toArray(),
+					db.combos
+						.where('description')
+						.startsWithIgnoreCase(trimmedQuery)
+						.toArray(),
+					db.combos.where('tags').startsWithIgnoreCase(trimmedQuery).toArray(),
+				]);
+
+			const unique = new Map<string, Combo>();
+			for (const combo of [
+				...nameMatches,
+				...notationMatches,
+				...descriptionMatches,
+				...tagMatches,
+			]) {
+				unique.set(combo.id, combo);
+			}
+
+			return [...unique.values()].sort((a, b) => a.sortOrder - b.sortOrder);
 		},
 	},
 
@@ -267,6 +383,18 @@ export const indexedDbStorage = {
 			} else {
 				await db.settings.update(1, updates);
 			}
+		},
+	},
+
+	gameStats: {
+		getInputs: async () => {
+			const [characters, combos] = await db.transaction(
+				'r',
+				[db.characters, db.combos],
+				() => Promise.all([db.characters.toArray(), db.combos.toArray()]),
+			);
+
+			return { characters, combos };
 		},
 	},
 
@@ -321,6 +449,8 @@ export const indexedDbStorage = {
 			}
 		}
 
+		let sanitizedCombos = combos;
+
 		let videos:
 			| Array<{
 					id: string;
@@ -344,6 +474,12 @@ export const indexedDbStorage = {
 					mimeType: v.mimeType,
 					dataBase64: arrayBufferToBase64(v.data),
 				}));
+			sanitizedCombos = sanitizeCombosLocalVideos(
+				combos,
+				new Set(videos.map((video) => video.id)),
+			);
+		} else {
+			sanitizedCombos = sanitizeCombosLocalVideos(combos, new Set());
 		}
 
 		return JSON.stringify(
@@ -352,7 +488,7 @@ export const indexedDbStorage = {
 				exported: new Date().toISOString(),
 				games,
 				characters,
-				combos,
+				combos: sanitizedCombos,
 				settings,
 				...(videos ? { demoVideos: videos } : {}),
 			},
@@ -361,9 +497,46 @@ export const indexedDbStorage = {
 		);
 	},
 
-	import: async (data: string, includeVideos = false) => {
+	import: async (
+		data: string,
+		includeVideos = false,
+		includeSettings = false,
+	) => {
+		const importSizeBytes = new Blob([data]).size;
+		if (importSizeBytes > MAX_IMPORT_SIZE_BYTES) {
+			throw new Error('Import file exceeds 50 MB limit');
+		}
+
 		const json = JSON.parse(data);
 		const parsed = importDataSchema.parse(json);
+		if (parsed.demoVideos && parsed.demoVideos.length > MAX_IMPORT_VIDEOS) {
+			throw new Error(
+				`Import contains ${parsed.demoVideos.length} videos; max is ${MAX_IMPORT_VIDEOS}`,
+			);
+		}
+
+		const availableVideoIds = includeVideos
+			? new Set((parsed.demoVideos ?? []).map((video) => video.id))
+			: new Set<string>();
+		const sanitizedCombos = parsed.combos
+			? sanitizeCombosLocalVideos(parsed.combos, availableVideoIds)
+			: undefined;
+
+		const gameIds = new Set((parsed.games ?? []).map((game) => game.id));
+		const characterIds = new Set(
+			(parsed.characters ?? []).map((character) => character.id),
+		);
+		const orphanedCharacters = (parsed.characters ?? []).filter(
+			(character) => !gameIds.has(character.gameId),
+		);
+		const orphanedCombos = (sanitizedCombos ?? []).filter(
+			(combo) => !characterIds.has(combo.characterId),
+		);
+		if (orphanedCharacters.length > 0 || orphanedCombos.length > 0) {
+			throw new Error(
+				`Import has referential integrity issues: ${orphanedCharacters.length} orphaned characters, ${orphanedCombos.length} orphaned combos`,
+			);
+		}
 
 		await db.transaction(
 			'rw',
@@ -379,12 +552,12 @@ export const indexedDbStorage = {
 						await db.characters.put(character);
 					}
 				}
-				if (parsed.combos) {
-					for (const combo of parsed.combos) {
+				if (sanitizedCombos) {
+					for (const combo of sanitizedCombos) {
 						await db.combos.put(combo);
 					}
 				}
-				if (parsed.settings) {
+				if (includeSettings && parsed.settings) {
 					await db.settings.put({
 						id: 1,
 						...parsed.settings,

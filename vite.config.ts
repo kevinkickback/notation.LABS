@@ -9,6 +9,9 @@ const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname;
 // https://vite.dev/config/
 export default defineConfig(() => {
 	return {
+		define: {
+			__APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+		},
 		plugins: [
 			react(),
 			tailwindcss(),

@@ -1,6 +1,7 @@
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
@@ -10,6 +11,9 @@ import { ColorCustomization } from './ColorCustomization';
 import { NotationSettings } from './NotationSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { AboutTab } from './AboutTab';
+
+const TAB_TRIGGER_CLS =
+	'cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors';
 
 interface SettingsPanelProps {
 	open: boolean;
@@ -22,35 +26,26 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 			<DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
 				<DialogHeader>
 					<DialogTitle className="text-2xl">Settings</DialogTitle>
+					<DialogDescription>
+						Manage application preferences, appearance, notation, and update behavior.
+					</DialogDescription>
 				</DialogHeader>
 
 				<Tabs defaultValue="general" className="gap-6 min-w-0">
 					<TabsList className="w-full">
-						<TabsTrigger
-							value="general"
-							className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-						>
+						<TabsTrigger value="general" className={TAB_TRIGGER_CLS}>
 							<GearSix className="w-4 h-4" />
 							General
 						</TabsTrigger>
-						<TabsTrigger
-							value="colors"
-							className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-						>
+						<TabsTrigger value="colors" className={TAB_TRIGGER_CLS}>
 							<Palette className="w-4 h-4" />
 							Colors
 						</TabsTrigger>
-						<TabsTrigger
-							value="notation"
-							className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-						>
+						<TabsTrigger value="notation" className={TAB_TRIGGER_CLS}>
 							<TextAa className="w-4 h-4" />
 							Notation
 						</TabsTrigger>
-						<TabsTrigger
-							value="about"
-							className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-						>
+						<TabsTrigger value="about" className={TAB_TRIGGER_CLS}>
 							<Info className="w-4 h-4" />
 							About
 						</TabsTrigger>

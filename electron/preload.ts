@@ -1,7 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Expose a minimal, safe API to the renderer process via contextBridge.
-// Only expose what the app actually needs — nothing more.
 contextBridge.exposeInMainWorld('electronAPI', {
 	platform: process.platform,
 	versions: {
@@ -124,6 +122,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	},
 });
 
+// Type declarations for the exposed API live in src/types/electron.d.ts
+// so the renderer can import them directly.
+// The interfaces below are kept locally for the preload's own type safety.
+
 interface UpdateIPCResponse<T> {
 	success: boolean;
 	data: T | null;
@@ -137,7 +139,8 @@ interface UpdateProgress {
 	transferred: number;
 }
 
-// Type declaration for the exposed API
+// Verify the implementation satisfies the declared Window type at compile time.
+// The authoritative declaration is in src/types/electron.d.ts.
 declare global {
 	interface Window {
 		electronAPI: {

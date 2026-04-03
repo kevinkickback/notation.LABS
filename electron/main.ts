@@ -20,6 +20,14 @@ const __dirname = dirname(__filename);
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 
+function isSafeExternalUrl(url: string): boolean {
+	try {
+		return new URL(url).protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
 const iconPath = app.isPackaged
 	? join(process.resourcesPath, 'icon.ico')
 	: join(__dirname, '..', 'build', 'icon.ico');
@@ -97,8 +105,7 @@ function createWindow(): void {
 
 	// Restrict new window creation: open external links in default browser, block others
 	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-		// Allow safe protocols to open in the system browser
-		if (url.startsWith('https://') || url.startsWith('http://')) {
+		if (isSafeExternalUrl(url)) {
 			shell.openExternal(url);
 		}
 		return { action: 'deny' };

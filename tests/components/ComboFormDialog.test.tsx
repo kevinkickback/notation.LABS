@@ -35,6 +35,7 @@ vi.mock('sonner', () => ({
 	toast: {
 		success: vi.fn(),
 		error: vi.fn(),
+		warning: vi.fn(),
 	},
 }));
 
@@ -137,6 +138,21 @@ describe('ComboFormDialog', () => {
 		expect(screen.getByText('M')).not.toBeNull();
 		expect(screen.getByText('H')).not.toBeNull();
 		expect(screen.getByText('S')).not.toBeNull();
+	});
+
+	it('shows upload file size guidance', () => {
+		render(
+			<ComboFormDialog
+				open={true}
+				onOpenChange={onOpenChange}
+				game={mockGame}
+				character={mockCharacter}
+				editingCombo={null}
+				allTags={[]}
+			/>,
+		);
+
+		expect(screen.getByText(/max file size:\s*50 mb/i)).not.toBeNull();
 	});
 
 	it('shows validation error when submitting without name and notation', async () => {

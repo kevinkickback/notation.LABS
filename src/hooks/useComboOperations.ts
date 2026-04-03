@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { Combo } from '@/lib/types';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
 
 /**
@@ -26,7 +27,8 @@ export function useComboOperations() {
 					: (combo.demoUrl ?? ''),
 			});
 			toast.success('Combo duplicated');
-		} catch {
+		} catch (err) {
+			reportError('useComboOperations.handleDuplicate', err);
 			toast.error('Failed to duplicate combo');
 		}
 	}, []);
@@ -45,7 +47,8 @@ export function useComboOperations() {
 				toast.success(
 					`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
 				);
-			} catch {
+			} catch (err) {
+				reportError('useComboOperations.handleBulkMarkOutdated', err);
 				toast.error('Failed to update combos');
 			}
 		},

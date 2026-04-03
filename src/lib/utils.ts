@@ -1,3 +1,6 @@
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
 /**
  * Fetches an image from a remote worker and returns a base64 data URL.
  * @param workerUrl The worker endpoint (e.g., https://igdb.capitol-k.workers.dev/download)
@@ -21,8 +24,6 @@ export async function fetchImageAsBase64(
 		return null;
 	}
 }
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));

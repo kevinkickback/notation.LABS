@@ -16,5 +16,9 @@ export async function searchIGDB(query: string): Promise<RawIGDBApiResult[]> {
 		body: JSON.stringify({ query }),
 	});
 	if (!res.ok) throw new Error(`IGDB search failed: ${res.status}`);
-	return res.json();
+	try {
+		return (await res.json()) as RawIGDBApiResult[];
+	} catch {
+		throw new Error('IGDB search failed: invalid JSON response');
+	}
 }

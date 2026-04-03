@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GameLibrary } from '@/components/game/GameLibrary';
 import type { Game } from '@/lib/types';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
 	indexedDbStorage: {
@@ -10,6 +11,12 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
 			add: vi.fn().mockResolvedValue('new-game-id'),
 			update: vi.fn().mockResolvedValue(undefined),
 			delete: vi.fn().mockResolvedValue(undefined),
+		},
+		gameStats: {
+			getInputs: vi.fn().mockResolvedValue({
+				characters: [],
+				combos: [],
+			}),
 		},
 		settings: {
 			update: vi.fn().mockResolvedValue(undefined),
@@ -168,5 +175,19 @@ describe('GameLibrary', () => {
 		await user.type(searchInput, 'street');
 
 		expect(screen.getByText(/1 of 3 games/)).not.toBeNull();
+	});
+
+	it('supports multi-select bulk delete for games', async () => {
+		const user = userEvent.setup();
+		render(<GameLibrary games={mockGames} />);
+
+		await user.click(screen.getByTitle('Multi-select games'));
+		await user.click(screen.getByRole('button', { name: /select all/i }));
+		await user.click(screen.getByRole('button', { name: /delete \(3\)/i }));
+		await user.click(
+			screen.getByRole('button', { name: /delete selected \(3\)/i }),
+		);
+
+		expect(indexedDbStorage.games.delete).toHaveBeenCalledTimes(3);
 	});
 });

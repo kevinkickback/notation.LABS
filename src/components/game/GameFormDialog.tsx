@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -194,6 +195,9 @@ export function GameFormDialog({ open, onOpenChange, editingGame }: GameFormDial
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{editingGame ? 'Edit Game' : 'Add New Game'}</DialogTitle>
+                        <DialogDescription>
+                            Set the game name, artwork, button layout, and optional notes.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div>

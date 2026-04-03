@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useCallback, useRef } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import {
 	Dialog,
 	DialogContent,
@@ -62,17 +63,15 @@ export function VideoPlayerDialog({
 		}
 	};
 
-	const videoRef = useCallback((el: HTMLVideoElement | null) => {
-		if (!el) return;
-		el.addEventListener('dblclick', () => {
-			if (document.fullscreenElement) {
-				document.exitFullscreen();
-			} else {
-				el.requestFullscreen().catch(() => {
-					(el as WebkitFullscreenVideoElement).webkitEnterFullscreen?.();
-				});
-			}
-		});
+	const handleVideoDoubleClick = useCallback((event: ReactMouseEvent<HTMLVideoElement>) => {
+		const element = event.currentTarget as WebkitFullscreenVideoElement;
+		if (document.fullscreenElement) {
+			document.exitFullscreen();
+		} else {
+			element.requestFullscreen().catch(() => {
+				element.webkitEnterFullscreen?.();
+			});
+		}
 	}, []);
 
 	return (
@@ -136,10 +135,10 @@ export function VideoPlayerDialog({
 					) : (
 						<div ref={mediaContainerRef}>
 							<video
-								ref={videoRef}
 								src={videoUrl}
 								controls
 								autoPlay
+								onDoubleClick={handleVideoDoubleClick}
 								className="w-full rounded-lg"
 								style={{ maxHeight: '80vh' }}
 							>

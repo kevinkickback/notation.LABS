@@ -24,13 +24,13 @@ describe('SettingsPanel', () => {
 		// General tab is default
 		expect(screen.getByText(/general settings content/i)).not.toBeNull();
 		// Switch to Colors
-		await userEvent.click(screen.getByText(/colors/i));
+		await userEvent.click(screen.getByRole('tab', { name: /^colors$/i }));
 		expect(screen.getByText(/color customization content/i)).not.toBeNull();
 		// Switch to Notation
-		await userEvent.click(screen.getByText(/notation/i));
+		await userEvent.click(screen.getByRole('tab', { name: /^notation$/i }));
 		expect(screen.getByText(/notation settings content/i)).not.toBeNull();
 		// Switch to About
-		await userEvent.click(screen.getByText(/about/i));
+		await userEvent.click(screen.getByRole('tab', { name: /^about$/i }));
 		expect(screen.getByText(/about tab content/i)).not.toBeNull();
 	});
 });

@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback, useId, useRef } from 'react'
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
@@ -24,6 +25,15 @@ import { generateId, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { toast } from 'sonner';
+
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
+const SOFT_WARN_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
+const ALLOWED_VIDEO_MIME_TYPES = [
+	'video/mp4',
+	'video/webm',
+	'video/quicktime',
+	'video/x-matroska',
+];
 
 function getYouTubeVideoId(url: string): string | null {
 	try {
@@ -123,19 +133,46 @@ export function ComboFormDialog({
 			setDemoVideoTitle('');
 			return;
 		}
-		let cancelled = false;
-		fetch(`https://noembed.com/embed?url=${encodeURIComponent(demoUrl)}`)
-			.then((r) => r.json())
-			.then((data) => {
-				if (!cancelled && data.title) setDemoVideoTitle(data.title);
+		const controller = new AbortController();
+		const timeoutId = window.setTimeout(() => {
+			fetch(`https://noembed.com/embed?url=${encodeURIComponent(demoUrl)}`, {
+				signal: controller.signal,
 			})
-			.catch(() => {
-				if (!cancelled) setDemoVideoTitle('');
-			});
+				.then((r) => r.json())
+				.then((data) => {
+					if (data.title) setDemoVideoTitle(data.title);
+					else setDemoVideoTitle('');
+				})
+				.catch((err: unknown) => {
+					if (err instanceof DOMException && err.name === 'AbortError') {
+						return;
+					}
+					setDemoVideoTitle('');
+				});
+		}, 350);
 		return () => {
-			cancelled = true;
+			window.clearTimeout(timeoutId);
+			controller.abort();
 		};
 	}, [demoUrl]);
+
+	const buildComboPayload = () => ({
+		name: name.trim(),
+		notation: notation.trim(),
+		parsedNotation: parseComboNotation(notation, game.buttonLayout),
+		description: description.trim(),
+		difficulty: difficulty ? parseInt(difficulty, 10) : undefined,
+		damage: damage.trim(),
+		meterCost: meterCost.trim(),
+		tags: tags
+			.split(',')
+			.map((t) => t.trim())
+			.filter(Boolean),
+		demoUrl: demoUrl.trim() || undefined,
+		demoFileName: demoFileName || undefined,
+		demoVideoTitle: demoVideoTitle || undefined,
+		outdated: outdated || undefined,
+	});
 
 	const handleAdd = async () => {
 		if (!name.trim() || !notation.trim()) {
@@ -144,24 +181,9 @@ export function ComboFormDialog({
 		}
 
 		try {
-			const parsed = parseComboNotation(notation, game.buttonLayout);
 			await indexedDbStorage.combos.add({
 				characterId: character.id,
-				name: name.trim(),
-				notation: notation.trim(),
-				parsedNotation: parsed,
-				description: description.trim(),
-				difficulty: difficulty ? parseInt(difficulty, 10) : undefined,
-				damage: damage.trim(),
-				meterCost: meterCost.trim(),
-				tags: tags
-					.split(',')
-					.map((t) => t.trim())
-					.filter(Boolean),
-				demoUrl: demoUrl.trim() || undefined,
-				demoFileName: demoFileName || undefined,
-				demoVideoTitle: demoVideoTitle || undefined,
-				outdated: outdated || undefined,
+				...buildComboPayload(),
 			});
 			toast.success('Combo added');
 			onOpenChange(false);
@@ -188,24 +210,7 @@ export function ComboFormDialog({
 				await indexedDbStorage.demoVideos.delete(oldLocalId);
 			}
 
-			const parsed = parseComboNotation(notation, game.buttonLayout);
-			await indexedDbStorage.combos.update(editingCombo.id, {
-				name: name.trim(),
-				notation: notation.trim(),
-				parsedNotation: parsed,
-				description: description.trim(),
-				difficulty: difficulty ? parseInt(difficulty, 10) : undefined,
-				damage: damage.trim(),
-				meterCost: meterCost.trim(),
-				tags: tags
-					.split(',')
-					.map((t) => t.trim())
-					.filter(Boolean),
-				demoUrl: demoUrl.trim() || undefined,
-				demoFileName: demoFileName || undefined,
-				outdated: outdated || undefined,
-				demoVideoTitle: demoVideoTitle || undefined,
-			});
+			await indexedDbStorage.combos.update(editingCombo.id, buildComboPayload());
 			toast.success('Combo updated');
 			onOpenChange(false);
 			resetForm();
@@ -219,6 +224,23 @@ export function ComboFormDialog({
 	const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
+
+		if (file.size > MAX_VIDEO_SIZE_BYTES) {
+			toast.error('Video exceeds 50 MB limit. Please compress the file and try again.');
+			e.target.value = '';
+			return;
+		}
+
+		if (file.size > SOFT_WARN_VIDEO_SIZE_BYTES) {
+			toast.warning('Large files may affect app performance.');
+		}
+
+		if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
+			toast.error('Unsupported video format');
+			e.target.value = '';
+			return;
+		}
+
 		try {
 			if (demoUrl.startsWith('local:')) {
 				const oldId = demoUrl.replace('local:', '');
@@ -304,6 +326,9 @@ export function ComboFormDialog({
 					<DialogTitle>
 						{editingCombo ? 'Edit' : 'Add'} Combo for {character.name}
 					</DialogTitle>
+					<DialogDescription>
+						Enter notation, tags, and optional demo media for this combo.
+					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-4">
 					<div>
@@ -463,6 +488,9 @@ export function ComboFormDialog({
 								</span>
 							)}
 						</div>
+						<p className="mt-2 text-xs text-muted-foreground">
+							Max file size: 50 MB.
+						</p>
 						{demoUrl && (
 							<div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
 								<Play className="w-4 h-4 text-primary shrink-0" weight="fill" />
@@ -534,7 +562,7 @@ export function ComboFormDialog({
 			<input
 				ref={videoFileInputRef}
 				type="file"
-				accept="video/*"
+				accept={ALLOWED_VIDEO_MIME_TYPES.join(',')}
 				className="hidden"
 				onChange={handleVideoFileChange}
 			/>

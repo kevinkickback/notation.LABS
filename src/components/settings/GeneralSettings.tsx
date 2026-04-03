@@ -76,33 +76,51 @@ export function GeneralSettings() {
 		}
 	}, []);
 
-	const isUpdateStatus = (
-		data: unknown,
-	): data is { status: string; version?: string; changelog?: string } => {
-		return (
-			typeof data === 'object' &&
-			data !== null &&
-			'status' in data &&
-			typeof (data as { status: unknown }).status === 'string'
-		);
-	};
+	const handleProgressModalOpenChange = useCallback((open: boolean) => {
+		setShowProgress(open);
+		if (!open) {
+			setUpdateStatus('idle');
+			setUpdateChecking(false);
+		}
+	}, []);
 
 	const handleCheckForUpdate = async () => {
 		setUpdateChecking(true);
 		try {
 			const result = await window.electronAPI?.checkForUpdate?.();
-			if (
-				result?.success &&
-				isUpdateStatus(result.data) &&
-				result.data.status === 'available'
-			) {
+			if (!result) {
+				setUpdateStatus('error');
+				toast.error('Update checks are unavailable in this environment.');
+				return;
+			}
+
+			if (!result.success) {
+				setUpdateStatus('error');
+				toast.error(result.error ?? 'Could not check for updates.');
+				return;
+			}
+
+			if (!result.data) {
+				setUpdateStatus('error');
+				toast.error('Update check returned an invalid response.');
+				return;
+			}
+
+			if (result.data.status === 'available') {
 				setUpdateStatus('available');
-				setUpdateVersion(result.data.version ?? null);
+				setUpdateVersion(result.data.version);
 				setUpdateChangelog(result.data.changelog ?? '');
 				setShowChangelog(true);
-			} else {
-				setUpdateStatus('up-to-date');
+				return;
 			}
+
+			if (result.data.status === 'not-available') {
+				setUpdateStatus('up-to-date');
+				return;
+			}
+
+			setUpdateStatus('error');
+			toast.error(result.data.message);
 		} catch {
 			setUpdateStatus('error');
 			toast.error('Could not check for updates. Please try again.');
@@ -341,8 +359,7 @@ export function GeneralSettings() {
 											);
 										}
 										if (!version) {
-											// fallback: try to get version from window or hardcode
-											version = '1.3.0'; // fallback to known version
+											version = __APP_VERSION__;
 										}
 										const tag = `v${version}`;
 										const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
@@ -392,7 +409,11 @@ export function GeneralSettings() {
 				onOpenChange={setShowChangelog}
 				onInstall={handleInstallUpdate}
 			/>
-			<UpdateProgressModal open={showProgress} version={updateVersion ?? ''} />
+			<UpdateProgressModal
+				open={showProgress}
+				version={updateVersion ?? ''}
+				onOpenChange={handleProgressModalOpenChange}
+			/>
 			<ChangelogModal
 				open={showCurrentChangelog}
 				changelog={currentChangelog || null}

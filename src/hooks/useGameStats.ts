@@ -9,50 +9,42 @@ export function useGameStats(
 	characters: Character[] | undefined,
 	combos: Combo[] | undefined,
 ) {
-	const charCountByGame = useMemo(() => {
-		const map: Record<string, number> = {};
-		for (const c of characters || []) {
-			map[c.gameId] = (map[c.gameId] || 0) + 1;
-		}
-		return map;
-	}, [characters]);
-
-	const comboCountByGame = useMemo(() => {
+	return useMemo(() => {
+		const charCountByGame: Record<string, number> = {};
+		const comboCountByGame: Record<string, number> = {};
+		const lastModifiedByGame: Record<string, number> = {};
 		const charToGame: Record<string, string> = {};
-		for (const c of characters || []) {
-			charToGame[c.id] = c.gameId;
+
+		for (const game of games) {
+			lastModifiedByGame[game.id] = game.updatedAt;
 		}
-		const map: Record<string, number> = {};
+
+		for (const character of characters || []) {
+			charToGame[character.id] = character.gameId;
+			charCountByGame[character.gameId] =
+				(charCountByGame[character.gameId] || 0) + 1;
+
+			if (character.updatedAt > (lastModifiedByGame[character.gameId] || 0)) {
+				lastModifiedByGame[character.gameId] = character.updatedAt;
+			}
+		}
+
 		for (const combo of combos || []) {
 			const gameId = charToGame[combo.characterId];
-			if (gameId) map[gameId] = (map[gameId] || 0) + 1;
-		}
-		return map;
-	}, [characters, combos]);
+			if (!gameId) {
+				continue;
+			}
 
-	const lastModifiedByGame = useMemo(() => {
-		const charToGame: Record<string, string> = {};
-		for (const c of characters || []) {
-			charToGame[c.id] = c.gameId;
+			comboCountByGame[gameId] = (comboCountByGame[gameId] || 0) + 1;
+			if (combo.updatedAt > (lastModifiedByGame[gameId] || 0)) {
+				lastModifiedByGame[gameId] = combo.updatedAt;
+			}
 		}
-		const map: Record<string, number> = {};
-		for (const g of games) {
-			map[g.id] = g.updatedAt;
-		}
-		for (const c of characters || []) {
-			if (c.updatedAt > (map[c.gameId] || 0)) map[c.gameId] = c.updatedAt;
-		}
-		for (const combo of combos || []) {
-			const gameId = charToGame[combo.characterId];
-			if (gameId && combo.updatedAt > (map[gameId] || 0))
-				map[gameId] = combo.updatedAt;
-		}
-		return map;
+
+		return {
+			charCountByGame,
+			comboCountByGame,
+			lastModifiedByGame,
+		};
 	}, [games, characters, combos]);
-
-	return {
-		charCountByGame,
-		comboCountByGame,
-		lastModifiedByGame,
-	};
 }

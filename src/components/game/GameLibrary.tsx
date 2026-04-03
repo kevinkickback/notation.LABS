@@ -10,11 +10,12 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/storage/indexedDbStorage';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/hooks/useSettings';
+import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import { GameFormDialog } from './GameFormDialog';
 import { GameLibraryHeader } from './GameLibraryHeader';
 import { GameLibraryToolbar } from './GameLibraryToolbar';
@@ -36,6 +37,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	const isMobile = useIsMobile();
 	const { setSelectedGame } = useAppStore();
 	const settings = useSettings();
+	const [isSelecting, setIsSelecting] = useState(false);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
 	// Initialize all hooks
 	const filters = useGameFilters();
@@ -43,9 +47,10 @@ export function GameLibrary({ games }: GameLibraryProps) {
 	const deleteState = useGameDelete();
 	const operations = useGameOperations();
 
-	// Get character and combo counts per game
-	const characters = useLiveQuery(() => db.characters.toArray(), []);
-	const combos = useLiveQuery(() => db.combos.toArray(), []);
+	// Read stats inputs in one reactive transaction to reduce query churn.
+	const gameStatsData = useLiveQuery(indexedDbStorage.gameStats.getInputs, []);
+	const characters = gameStatsData?.characters;
+	const combos = gameStatsData?.combos;
 
 	// Update stats with current characters and combos
 	const stats = useGameStats(games, characters, combos);
@@ -84,36 +89,119 @@ export function GameLibrary({ games }: GameLibraryProps) {
 			deleteState.setDeleteTarget(game);
 		} else {
 			await deleteState.handleDeleteGame(game);
+			setSelectedIds((prev) => {
+				if (!prev.has(game.id)) return prev;
+				const next = new Set(prev);
+				next.delete(game.id);
+				return next;
+			});
 		}
 	};
 
 	// Handle confirmed delete
 	const handleConfirmedDelete = async () => {
 		if (deleteState.deleteTarget) {
+			const deletedId = deleteState.deleteTarget.id;
 			await deleteState.handleDeleteGame(deleteState.deleteTarget);
+			setSelectedIds((prev) => {
+				if (!prev.has(deletedId)) return prev;
+				const next = new Set(prev);
+				next.delete(deletedId);
+				return next;
+			});
 		}
 	};
 
+	const handleGameSelect = (gameId: string) => {
+		if (!isSelecting) {
+			setSelectedGame(gameId);
+			return;
+		}
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(gameId)) next.delete(gameId);
+			else next.add(gameId);
+			return next;
+		});
+	};
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.size === 0) return;
+		if (settings.confirmBeforeDelete) {
+			setBulkDeleteConfirm(true);
+			return;
+		}
+		for (const id of selectedIds) {
+			const game = games.find((g) => g.id === id);
+			if (game) {
+				await deleteState.handleDeleteGame(game);
+			}
+		}
+		setSelectedIds(new Set());
+		setIsSelecting(false);
+	};
+
+	const selectedCascadeCounts = useMemo(() => {
+		let characterCount = 0;
+		let comboCount = 0;
+		for (const id of selectedIds) {
+			characterCount += stats.charCountByGame[id] || 0;
+			comboCount += stats.comboCountByGame[id] || 0;
+		}
+		return { characterCount, comboCount };
+	}, [selectedIds, stats.charCountByGame, stats.comboCountByGame]);
+
 	if (games.length === 0) {
-		return <GameLibraryEmptyState onAddGame={() => operations.openAddDialog()} />;
+		return (
+			<>
+				<GameLibraryEmptyState onAddGame={() => operations.openAddDialog()} />
+				<GameFormDialog
+					open={operations.gameDialogOpen}
+					onOpenChange={operations.setGameDialogOpen}
+					editingGame={operations.editingGame}
+				/>
+			</>
+		);
 	}
 
 	return (
 		<div>
-			{/* Header */}
-			<GameLibraryHeader gameCount={games.length} />
+			{/* Header + Toolbar */}
+			<div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
+				<GameLibraryHeader gameCount={games.length} />
+				<GameLibraryToolbar
+					viewMode={viewMode.viewMode}
+					cardSize={viewMode.cardSize}
+					showFilters={filters.showFilters}
+					activeFilterCount={filters.activeFilterCount}
+					isSelecting={isSelecting}
+					onViewModeChange={viewMode.setViewMode}
+					onCardSizeChange={viewMode.handleCardSizeChange}
+					onToggleFilters={() => filters.toggleFilters()}
+					onToggleSelect={() => {
+						setIsSelecting((prev) => {
+							if (prev) {
+								setSelectedIds(new Set());
+							}
+							return !prev;
+						});
+					}}
+					onAddGame={() => operations.openAddDialog()}
+				/>
+			</div>
 
-			{/* Toolbar */}
-			<GameLibraryToolbar
-				viewMode={viewMode.viewMode}
-				cardSize={viewMode.cardSize}
-				showFilters={filters.showFilters}
-				activeFilterCount={filters.activeFilterCount}
-				onViewModeChange={viewMode.setViewMode}
-				onCardSizeChange={viewMode.handleCardSizeChange}
-				onToggleFilters={() => filters.toggleFilters()}
-				onAddGame={() => operations.openAddDialog()}
-			/>
+			{isSelecting && (
+				<SelectionToolbar
+					selectedCount={selectedIds.size}
+					onSelectAll={() =>
+						setSelectedIds(new Set(filteredAndSorted.map((g) => g.id)))
+					}
+					onDeselectAll={() => setSelectedIds(new Set())}
+					onDelete={() => {
+						void handleBulkDelete();
+					}}
+				/>
+			)}
 
 			{/* Filter Panel */}
 			{filters.showFilters && (
@@ -147,7 +235,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 							game={game}
 							charCount={stats.charCountByGame[game.id] || 0}
 							isMobile={isMobile}
-							onSelect={() => setSelectedGame(game.id)}
+							isSelecting={isSelecting}
+							isSelected={selectedIds.has(game.id)}
+							onSelect={() => handleGameSelect(game.id)}
 							onEdit={() => operations.openEditDialog(game)}
 							onDelete={() => handleDelete(game)}
 						/>
@@ -159,7 +249,9 @@ export function GameLibrary({ games }: GameLibraryProps) {
 							comboCount={stats.comboCountByGame[game.id] || 0}
 							lastModified={stats.lastModifiedByGame[game.id] || game.updatedAt}
 							isMobile={isMobile}
-							onSelect={() => setSelectedGame(game.id)}
+							isSelecting={isSelecting}
+							isSelected={selectedIds.has(game.id)}
+							onSelect={() => handleGameSelect(game.id)}
 							onEdit={() => operations.openEditDialog(game)}
 							onDelete={() => handleDelete(game)}
 						/>
@@ -205,6 +297,45 @@ export function GameLibrary({ games }: GameLibraryProps) {
 					</AlertDialogContent>
 				</AlertDialog>
 			)}
+
+			<AlertDialog
+				open={bulkDeleteConfirm}
+				onOpenChange={setBulkDeleteConfirm}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Delete {selectedIds.size} game{selectedIds.size !== 1 ? 's' : ''}?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will also delete {selectedCascadeCounts.characterCount} character
+							{selectedCascadeCounts.characterCount !== 1 ? 's' : ''} and{' '}
+							{selectedCascadeCounts.comboCount} combo
+							{selectedCascadeCounts.comboCount !== 1 ? 's' : ''}. This action cannot be
+							undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={async () => {
+								for (const id of selectedIds) {
+									const game = games.find((g) => g.id === id);
+									if (game) {
+										await deleteState.handleDeleteGame(game);
+									}
+								}
+								setBulkDeleteConfirm(false);
+								setSelectedIds(new Set());
+								setIsSelecting(false);
+							}}
+						>
+							Delete Selected ({selectedIds.size})
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
