@@ -310,6 +310,27 @@ export const indexedDbStorage = {
       );
       removeNotesOverride(id);
     },
+    bulkDelete: async (ids: string[]) => {
+      await db.transaction(
+        'rw',
+        [db.characters, db.combos, db.demoVideos],
+        async () => {
+          const combos = await db.combos
+            .where('characterId')
+            .anyOf(ids)
+            .toArray();
+          const videoIds = collectLocalVideoIds(combos);
+          if (videoIds.length > 0) {
+            await db.demoVideos.bulkDelete(videoIds);
+          }
+          await db.combos.where('characterId').anyOf(ids).delete();
+          await db.characters.bulkDelete(ids);
+        },
+      );
+      for (const id of ids) {
+        removeNotesOverride(id);
+      }
+    },
   },
 
   combos: {
