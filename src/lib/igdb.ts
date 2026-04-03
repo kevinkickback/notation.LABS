@@ -1,24 +1,24 @@
 import { getApiBase } from './utils';
 
 export interface RawIGDBApiResult {
-	id: number;
-	name: string;
-	coverImageId?: string;
-	cover?: { image_id?: string };
-	firstReleaseDate?: number;
-	first_release_date?: number;
+  id: number;
+  name: string;
+  coverImageId?: string;
+  cover?: { image_id?: string };
+  firstReleaseDate?: number;
+  first_release_date?: number;
 }
 
 export async function searchIGDB(query: string): Promise<RawIGDBApiResult[]> {
-	const res = await fetch(getApiBase('igdb'), {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ query }),
-	});
-	if (!res.ok) throw new Error(`IGDB search failed: ${res.status}`);
-	try {
-		return (await res.json()) as RawIGDBApiResult[];
-	} catch {
-		throw new Error('IGDB search failed: invalid JSON response');
-	}
+  const res = await fetch(getApiBase('igdb'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error(`IGDB search failed: ${res.status}`);
+  try {
+    return (await res.json()) as RawIGDBApiResult[];
+  } catch {
+    throw new Error('IGDB search failed: invalid JSON response');
+  }
 }

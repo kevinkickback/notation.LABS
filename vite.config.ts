@@ -8,36 +8,36 @@ const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname;
 
 // https://vite.dev/config/
 export default defineConfig(() => {
-	return {
-		define: {
-			__APP_VERSION__: JSON.stringify(process.env.npm_package_version),
-		},
-		plugins: [
-			react(),
-			tailwindcss(),
-			...(process.env.ELECTRON === 'true'
-				? [
-						electron({
-							main: {
-								entry: 'electron/main.ts',
-							},
-							preload: {
-								input: 'electron/preload.ts',
-							},
-						}),
-					]
-				: []),
-		],
-		resolve: {
-			alias: {
-				'@': resolve(projectRoot, 'src'),
-			},
-		},
-		server: {
-			proxy: {
-				'/api/igdb': 'http://localhost:3002',
-				'/api/image': 'http://localhost:3001',
-			},
-		},
-	};
+  return {
+    define: {
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    },
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(process.env.ELECTRON === 'true'
+        ? [
+            electron({
+              main: {
+                entry: 'electron/main.ts',
+              },
+              preload: {
+                input: 'electron/preload.ts',
+              },
+            }),
+          ]
+        : []),
+    ],
+    resolve: {
+      alias: {
+        '@': resolve(projectRoot, 'src'),
+      },
+    },
+    server: {
+      proxy: {
+        '/api/igdb': 'http://localhost:3002',
+        '/api/image': 'http://localhost:3001',
+      },
+    },
+  };
 });

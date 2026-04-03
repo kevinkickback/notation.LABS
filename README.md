@@ -90,12 +90,6 @@ Build, visualize, organize, and share combos using standard fighting game notati
 1. Download the latest installer or portable `.exe` from the [Releases](https://github.com/kevinkickback/notation.LABS/releases/latest) page
 2. Run the installer or open the app
 
-
-### Development Notes
-
-- All image search and download logic is now unified and uses fetch to public worker endpoints (see `src/lib/utils.ts`). No Electron-specific IPC or preload code remains for these features.
-- Shared types/interfaces are centralized in `src/lib/types.ts`.
-
 ### Option 3: Build from Source
 
 **Prerequisites:** [Node.js](https://nodejs.org/) (v18 or later)

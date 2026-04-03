@@ -7,29 +7,29 @@ import { resolve } from 'node:path';
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname;
 
 export default defineConfig({
-	plugins: [react(), tailwindcss()],
-	resolve: {
-		alias: {
-			'@': resolve(projectRoot, 'src'),
-		},
-	},
-	test: {
-		globals: true,
-		environment: 'jsdom',
-		setupFiles: ['./tests/setup.ts'],
-		include: ['tests/**/*.{test,spec}.{ts,tsx}'],
-		exclude: ['tests/e2e/**'],
-		coverage: {
-			provider: 'v8',
-			thresholds: {
-				lines: 70,
-				functions: 70,
-				branches: 60,
-				statements: 70,
-			},
-		},
-		alias: {
-			'@': resolve(projectRoot, 'src'),
-		},
-	},
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': resolve(projectRoot, 'src'),
+    },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts'],
+    include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['tests/e2e/**'],
+    coverage: {
+      provider: 'v8',
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
+    },
+    alias: {
+      '@': resolve(projectRoot, 'src'),
+    },
+  },
 });

@@ -10,53 +10,53 @@ const toastErrorMock = vi.fn();
 const reportErrorMock = vi.fn();
 
 vi.mock('dexie-react-hooks', () => ({
-    useLiveQuery: () => DEFAULT_SETTINGS,
+  useLiveQuery: () => DEFAULT_SETTINGS,
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
-    indexedDbStorage: {
-        settings: {
-            init: (...args: unknown[]) => initMock(...args),
-            get: (...args: unknown[]) => getMock(...args),
-        },
+  indexedDbStorage: {
+    settings: {
+      init: (...args: unknown[]) => initMock(...args),
+      get: (...args: unknown[]) => getMock(...args),
     },
+  },
 }));
 
 vi.mock('sonner', () => ({
-    toast: {
-        error: (...args: unknown[]) => toastErrorMock(...args),
-    },
+  toast: {
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
 }));
 
 vi.mock('@/lib/errors', () => ({
-    reportError: (...args: unknown[]) => reportErrorMock(...args),
-    toUserMessage: (err: unknown) =>
-        err instanceof Error ? err.message : 'An unexpected error occurred',
+  reportError: (...args: unknown[]) => reportErrorMock(...args),
+  toUserMessage: (err: unknown) =>
+    err instanceof Error ? err.message : 'An unexpected error occurred',
 }));
 
 describe('SettingsContext', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        getMock.mockResolvedValue(DEFAULT_SETTINGS);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getMock.mockResolvedValue(DEFAULT_SETTINGS);
+  });
+
+  it('shows a toast when settings initialization fails', async () => {
+    initMock.mockRejectedValueOnce(new Error('db unavailable'));
+
+    render(
+      <SettingsProvider>
+        <div>child</div>
+      </SettingsProvider>,
+    );
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        'Failed to load saved settings: db unavailable',
+      );
+      expect(reportErrorMock).toHaveBeenCalledWith(
+        'SettingsProvider.init',
+        expect.any(Error),
+      );
     });
-
-    it('shows a toast when settings initialization fails', async () => {
-        initMock.mockRejectedValueOnce(new Error('db unavailable'));
-
-        render(
-            <SettingsProvider>
-                <div>child</div>
-            </SettingsProvider>,
-        );
-
-        await waitFor(() => {
-            expect(toastErrorMock).toHaveBeenCalledWith(
-                'Failed to load saved settings: db unavailable',
-            );
-            expect(reportErrorMock).toHaveBeenCalledWith(
-                'SettingsProvider.init',
-                expect.any(Error),
-            );
-        });
-    });
+  });
 });
