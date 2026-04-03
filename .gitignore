@@ -32,7 +32,6 @@ test-results/
 
 # Misc
 *.local
-package-lock.json
 tmp/
 .tmp/
 .vite/

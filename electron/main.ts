@@ -13,20 +13,13 @@ import {
 	startAutoCheckSchedule,
 	stopAutoCheckSchedule,
 } from './updateManager';
+import { isSafeExternalUrl } from './security';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
-
-function isSafeExternalUrl(url: string): boolean {
-	try {
-		return new URL(url).protocol === 'https:';
-	} catch {
-		return false;
-	}
-}
 
 const iconPath = app.isPackaged
 	? join(process.resourcesPath, 'icon.ico')
@@ -72,7 +65,6 @@ function createWindow(): void {
 		minHeight: 600,
 		webPreferences: {
 			preload: join(__dirname, 'preload.mjs'),
-			// Security: disable Node.js integration and enable context isolation
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
@@ -85,7 +77,6 @@ function createWindow(): void {
 		autoHideMenuBar: true,
 	});
 
-	// Show main window and close splash
 	mainWindow.once('ready-to-show', () => {
 		if (splashWindow && !splashWindow.isDestroyed()) {
 			splashWindow.close();
@@ -111,7 +102,6 @@ function createWindow(): void {
 		return { action: 'deny' };
 	});
 
-	// Load the app
 	if (process.env.VITE_DEV_SERVER_URL) {
 		mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
 	} else {
@@ -165,23 +155,19 @@ app.on('ready', async () => {
 		});
 	});
 
-	// Deny all permission requests
 	session.defaultSession.setPermissionRequestHandler(
 		(_webContents, _permission, callback) => {
 			callback(false);
 		},
 	);
 
-	// Deny all permission checks
 	session.defaultSession.setPermissionCheckHandler(() => false);
 
 	await createSplashWindow();
 	createWindow();
 
-	// Initialize auto-update
 	initAutoUpdater();
 
-	// Register update-related IPC handlers
 	ipcMain.handle('update:check', async () => {
 		try {
 			const status = await checkForUpdate();
@@ -244,7 +230,6 @@ app.on('activate', () => {
 	}
 });
 
-// Quit app when all windows are closed (except macOS)
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') {
 		app.quit();
@@ -258,6 +243,5 @@ app.on('web-contents-created', (_event, contents) => {
 		event.preventDefault();
 	});
 
-	// Deny new window/tab creation from child contents
 	contents.setWindowOpenHandler(() => ({ action: 'deny' }));
 });

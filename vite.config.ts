@@ -15,7 +15,6 @@ export default defineConfig(() => {
 		plugins: [
 			react(),
 			tailwindcss(),
-			// Only include Electron plugin if ELECTRON env var is set
 			...(process.env.ELECTRON === 'true'
 				? [
 						electron({

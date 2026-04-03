@@ -30,6 +30,7 @@ import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
+import { extractYouTubeVideoId } from '@/lib/utils';
 
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 const SOFT_WARN_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
@@ -39,18 +40,6 @@ const ALLOWED_VIDEO_MIME_TYPES = [
 	'video/quicktime',
 	'video/x-matroska',
 ];
-
-function getYouTubeVideoId(url: string): string | null {
-	try {
-		const u = new URL(url);
-		if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
-		if (u.hostname.includes('youtu.be'))
-			return u.pathname.slice(1).split('/')[0];
-	} catch {
-		/* not a valid URL */
-	}
-	return null;
-}
 
 interface ComboFormDialogProps {
 	open: boolean;
@@ -133,7 +122,7 @@ export function ComboFormDialog({
 			setDemoVideoTitle('');
 			return;
 		}
-		const videoId = getYouTubeVideoId(demoUrl);
+		const videoId = extractYouTubeVideoId(demoUrl);
 		if (!videoId) {
 			setDemoVideoTitle('');
 			return;

@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { MagnifyingGlass, SpinnerGap } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
-import { fetchImageAsBase64 } from '@/lib/utils';
+import { fetchImageAsBase64, getApiBase } from '@/lib/utils';
 import type { ImageSearchResult } from '@/lib/types';
 
 interface CharacterSearchDialogProps {
@@ -27,8 +27,8 @@ export function CharacterSearchDialog({
 	searchQuery,
 	onImageSelect,
 }: CharacterSearchDialogProps) {
+	const ddgApiBase = getApiBase('ddg');
 	const [inputValue, setInputValue] = useState(searchQuery);
-	// All state now declared below for DuckDuckGo logic only
 	const [results, setResults] = useState<ImageSearchResult[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [downloading, setDownloading] = useState<string | null>(null);
@@ -44,15 +44,11 @@ export function CharacterSearchDialog({
 			setResults([]);
 			setHasSearched(true);
 			try {
-				// Use DDG worker endpoint directly
-				const res = await fetch(
-					'https://ddg.capitol-k.workers.dev/image-search',
-					{
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ query: q }),
-					},
-				);
+				const res = await fetch(`${ddgApiBase}/image-search`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ query: q }),
+				});
 				if (!res.ok) {
 					setError('Search failed');
 					setLoading(false);
@@ -66,7 +62,7 @@ export function CharacterSearchDialog({
 				setLoading(false);
 			}
 		},
-		[inputValue],
+		[ddgApiBase, inputValue],
 	);
 
 	// Only reset inputValue from searchQuery when dialog is opened (not on every prop change)
@@ -89,7 +85,7 @@ export function CharacterSearchDialog({
 		setDownloading(result.imageUrl);
 		try {
 			const dataUrl = await fetchImageAsBase64(
-				'https://ddg.capitol-k.workers.dev/download',
+				`${ddgApiBase}/download`,
 				result.imageUrl,
 			);
 			if (dataUrl) {

@@ -23,19 +23,7 @@ import { toast } from 'sonner';
 import { ArrowClockwise, Plus, Trash } from '@phosphor-icons/react';
 
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
-
-const DEFAULT_BUTTON_PALETTE = [
-	'#e53e3e',
-	'#dd6b20',
-	'#d69e2e',
-	'#38a169',
-	'#319795',
-	'#3182ce',
-	'#5a67d8',
-	'#805ad5',
-	'#d53f8c',
-	'#718096',
-];
+import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
 
 export function ColorCustomization() {

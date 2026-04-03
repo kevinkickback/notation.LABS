@@ -1,5 +1,18 @@
 import type { UserSettings, FontFamily } from './types';
 
+export const DEFAULT_BUTTON_PALETTE = [
+	'#e53e3e',
+	'#dd6b20',
+	'#d69e2e',
+	'#38a169',
+	'#319795',
+	'#3182ce',
+	'#5a67d8',
+	'#805ad5',
+	'#d53f8c',
+	'#718096',
+];
+
 export const FONT_OPTIONS: {
 	value: FontFamily;
 	label: string;

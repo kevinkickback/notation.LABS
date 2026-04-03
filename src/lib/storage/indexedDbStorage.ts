@@ -392,8 +392,18 @@ export const indexedDbStorage = {
 		},
 		reorder: async (orderedIds: string[]) => {
 			await db.transaction('rw', db.combos, async () => {
-				for (let i = 0; i < orderedIds.length; i++) {
-					await db.combos.update(orderedIds[i], { sortOrder: i });
+				const combos = await db.combos.bulkGet(orderedIds);
+				const now = Date.now();
+				const reorderedCombos = combos
+					.filter((combo): combo is Combo => combo !== undefined)
+					.map((combo, index) => ({
+						...combo,
+						sortOrder: index,
+						updatedAt: now,
+					}));
+
+				if (reorderedCombos.length > 0) {
+					await db.combos.bulkPut(reorderedCombos);
 				}
 			});
 		},

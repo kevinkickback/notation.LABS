@@ -15,6 +15,7 @@ import { useState, useEffect, useId, useRef } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
+import { isAllowedImageUpload } from '@/lib/utils';
 
 interface CharacterFormDialogProps {
     open: boolean;
@@ -105,11 +106,17 @@ export function CharacterFormDialog({
 
     const handleImageSelect = () => imageInputRef.current?.click();
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (file.size > 2 * 1024 * 1024) {
             toast.error('Image must be under 2MB');
+            e.target.value = '';
+            return;
+        }
+        if (!(await isAllowedImageUpload(file))) {
+            toast.error('Unsupported or invalid image file');
+            e.target.value = '';
             return;
         }
         const reader = new FileReader();

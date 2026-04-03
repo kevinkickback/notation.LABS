@@ -9,6 +9,7 @@ import {
 import { useEffect, useState, useRef } from 'react';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
+import { toUserMessage } from '@/lib/errors';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotationGuide } from '@/components/header/NotationGuide';
 import { ExportDialog } from '@/components/header/ExportDialog';
@@ -91,8 +92,8 @@ export function Header() {
 					? 'Data imported. Settings were replaced from backup.'
 					: 'Data imported. Current settings were preserved.',
 			);
-		} catch {
-			toast.error('Failed to import data');
+		} catch (err) {
+			toast.error(`Failed to import data: ${toUserMessage(err)}`);
 		}
 		setImportOptions({ includeVideos: true, includeSettings: false });
 		e.target.value = '';

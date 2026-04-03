@@ -17,19 +17,8 @@ import { CoverSearchDialog } from './CoverSearchDialog';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
 import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
-
-const DEFAULT_BUTTON_PALETTE = [
-    '#e53e3e',
-    '#dd6b20',
-    '#d69e2e',
-    '#38a169',
-    '#319795',
-    '#3182ce',
-    '#5a67d8',
-    '#805ad5',
-    '#d53f8c',
-    '#718096',
-];
+import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
+import { isAllowedImageUpload } from '@/lib/utils';
 
 interface GameFormDialogProps {
     open: boolean;
@@ -164,11 +153,17 @@ export function GameFormDialog({ open, onOpenChange, editingGame }: GameFormDial
 
     const handleImageSelect = () => imageInputRef.current?.click();
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (file.size > 2 * 1024 * 1024) {
             toast.error('Image must be under 2MB');
+            e.target.value = '';
+            return;
+        }
+        if (!(await isAllowedImageUpload(file))) {
+            toast.error('Unsupported or invalid image file');
+            e.target.value = '';
             return;
         }
         const reader = new FileReader();

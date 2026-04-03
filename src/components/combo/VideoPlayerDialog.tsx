@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn, getYouTubeEmbedUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useCallback, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
@@ -11,17 +11,8 @@ import {
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { ArrowsOut } from '@phosphor-icons/react';
 import { useIsMobile } from '@/hooks/useIsMobile';
-
-function getYouTubeEmbedUrl(url: string): string | null {
-	try {
-		const u = new URL(url);
-		let videoId: string | null = null;
-		if (u.hostname.includes('youtube.com')) videoId = u.searchParams.get('v');
-		else if (u.hostname.includes('youtu.be')) videoId = u.pathname.slice(1).split('/')[0];
-		if (videoId) return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
-	} catch { /* not a valid URL */ }
-	return null;
-}
+import { reportError } from '@/lib/errors';
+import { toast } from 'sonner';
 
 interface VideoPlayerDialogProps {
 	open: boolean;
@@ -48,9 +39,14 @@ export function VideoPlayerDialog({
 	const youtubeEmbedUrl = videoUrl ? getYouTubeEmbedUrl(videoUrl) : null;
 	const mediaContainerRef = useRef<HTMLDivElement>(null);
 
-	const handleSizeChange = (size: 'sm' | 'md' | 'lg' | 'xl') => {
+	const handleSizeChange = async (size: 'sm' | 'md' | 'lg' | 'xl') => {
 		onVideoSizeChange(size);
-		indexedDbStorage.settings.update({ videoPlayerSize: size });
+		try {
+			await indexedDbStorage.settings.update({ videoPlayerSize: size });
+		} catch (err) {
+			reportError('VideoPlayerDialog.handleSizeChange', err);
+			toast.error('Failed to save video player size setting');
+		}
 	};
 
 	const handleFullscreen = () => {

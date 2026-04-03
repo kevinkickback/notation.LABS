@@ -233,6 +233,9 @@ const SORTED_ALIASES = Object.keys(MOTION_ALIASES).sort(
 );
 const SORTED_MOTIONS = [...MOTIONS].sort((a, b) => b.length - a.length);
 
+/**
+ * Parses raw combo notation into displayable tokens.
+ */
 export function parseComboNotation(
 	notation: string,
 	customButtons: string[] = [],
@@ -495,6 +498,9 @@ export function parseComboNotation(
 	return collapsed;
 }
 
+/**
+ * Resolves the color for a parsed combo token.
+ */
 export function getTokenColor(
 	token: ComboToken,
 	colors: Record<string, string> | { [key: string]: string },
@@ -522,6 +528,9 @@ export function getTokenColor(
 	}
 }
 
+/**
+ * Converts motion notation to a human-readable name.
+ */
 export function getMotionName(motion: string): string {
 	const names: Record<string, string> = {
 		'236': 'Quarter Circle Forward',
