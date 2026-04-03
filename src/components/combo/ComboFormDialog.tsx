@@ -21,9 +21,14 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { generateId, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import {
+	generateId,
+	getLocalVideoId,
+	indexedDbStorage,
+} from '@/lib/storage/indexedDbStorage';
 import { parseComboNotation } from '@/lib/parser';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
 
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
@@ -124,7 +129,7 @@ export function ComboFormDialog({
 
 	// Fetch YouTube video title when URL changes
 	useEffect(() => {
-		if (!demoUrl || demoUrl.startsWith('local:')) {
+		if (!demoUrl || getLocalVideoId(demoUrl)) {
 			setDemoVideoTitle('');
 			return;
 		}
@@ -188,7 +193,8 @@ export function ComboFormDialog({
 			toast.success('Combo added');
 			onOpenChange(false);
 			resetForm();
-		} catch {
+		} catch (err) {
+			reportError('ComboFormDialog.handleAdd', err);
 			toast.error('Failed to add combo');
 		}
 	};
@@ -200,12 +206,8 @@ export function ComboFormDialog({
 		}
 
 		try {
-			const oldLocalId = editingCombo.demoUrl?.startsWith('local:')
-				? editingCombo.demoUrl.replace('local:', '')
-				: null;
-			const newLocalId = demoUrl.startsWith('local:')
-				? demoUrl.replace('local:', '')
-				: null;
+			const oldLocalId = getLocalVideoId(editingCombo.demoUrl);
+			const newLocalId = getLocalVideoId(demoUrl);
 			if (oldLocalId && oldLocalId !== newLocalId) {
 				await indexedDbStorage.demoVideos.delete(oldLocalId);
 			}
@@ -214,7 +216,8 @@ export function ComboFormDialog({
 			toast.success('Combo updated');
 			onOpenChange(false);
 			resetForm();
-		} catch {
+		} catch (err) {
+			reportError('ComboFormDialog.handleUpdate', err);
 			toast.error('Failed to update combo');
 		}
 	};
@@ -242,13 +245,11 @@ export function ComboFormDialog({
 		}
 
 		try {
-			if (demoUrl.startsWith('local:')) {
-				const oldId = demoUrl.replace('local:', '');
-				const origLocalId = editingCombo?.demoUrl?.startsWith('local:')
-					? editingCombo.demoUrl.replace('local:', '')
-					: null;
-				if (oldId !== origLocalId) {
-					await indexedDbStorage.demoVideos.delete(oldId);
+			const existingLocalId = getLocalVideoId(demoUrl);
+			if (existingLocalId) {
+				const originalLocalId = getLocalVideoId(editingCombo?.demoUrl);
+				if (existingLocalId !== originalLocalId) {
+					await indexedDbStorage.demoVideos.delete(existingLocalId);
 				}
 			}
 
@@ -262,7 +263,8 @@ export function ComboFormDialog({
 			});
 			setDemoUrl(`local:${videoId}`);
 			setDemoFileName(file.name);
-		} catch {
+		} catch (err) {
+			reportError('ComboFormDialog.handleVideoFileChange', err);
 			toast.error('Failed to save video file');
 		}
 		e.target.value = '';
@@ -273,6 +275,7 @@ export function ComboFormDialog({
 		.split(',')
 		.map((t) => t.trim())
 		.filter(Boolean);
+	const localDemoVideoId = getLocalVideoId(demoUrl);
 	const tagSuggestions = useMemo(
 		() => allTags.filter((t) => !currentTags.includes(t)),
 		[allTags, currentTags],
@@ -453,13 +456,13 @@ export function ComboFormDialog({
 						<Label>Demo Video</Label>
 						<div className="grid grid-cols-[1fr_auto_auto] items-center gap-3">
 							<Input
-								value={demoUrl.startsWith('local:') ? '' : demoUrl}
+								value={localDemoVideoId ? '' : demoUrl}
 								onChange={(e) => {
 									setDemoUrl(e.target.value);
 									setDemoFileName('');
 								}}
 								placeholder="Paste a YouTube URL"
-								disabled={demoUrl.startsWith('local:')}
+								disabled={!!localDemoVideoId}
 							/>
 							<span className="text-xs text-muted-foreground font-medium">
 								OR
@@ -495,7 +498,7 @@ export function ComboFormDialog({
 							<div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
 								<Play className="w-4 h-4 text-primary shrink-0" weight="fill" />
 								<span className="text-xs text-muted-foreground truncate min-w-0">
-									{demoUrl.startsWith('local:')
+									{localDemoVideoId
 										? demoFileName || 'Local video'
 										: demoVideoTitle || demoUrl}
 								</span>

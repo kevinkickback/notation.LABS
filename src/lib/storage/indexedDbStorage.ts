@@ -100,7 +100,7 @@ const OKLCH_TO_HEX: Record<string, string> = {
 	'oklch(0.55 0.02 265)': '#6c727e',
 };
 
-function getLocalVideoId(demoUrl?: string): string | null {
+export function getLocalVideoId(demoUrl?: string): string | null {
 	if (!demoUrl?.startsWith('local:')) {
 		return null;
 	}
@@ -120,6 +120,10 @@ function collectLocalVideoIds(combos: Array<Pick<Combo, 'demoUrl'>>): string[] {
 	}
 
 	return [...videoIds];
+}
+
+function toUniqueIds(ids: string[]): string[] {
+	return [...new Set(ids)];
 }
 
 function sanitizeComboLocalVideo<T extends Combo>(
@@ -221,6 +225,47 @@ export const indexedDbStorage = {
 			}
 			removeNotesOverride(id);
 		},
+		bulkDelete: async (ids: string[]) => {
+			const uniqueIds = toUniqueIds(ids);
+			if (uniqueIds.length === 0) {
+				return;
+			}
+
+			let characterIds: string[] = [];
+			await db.transaction(
+				'rw',
+				[db.games, db.characters, db.combos, db.demoVideos],
+				async () => {
+					const characters = await db.characters
+						.where('gameId')
+						.anyOf(uniqueIds)
+						.toArray();
+					characterIds = characters.map((c) => c.id);
+
+					if (characterIds.length > 0) {
+						const combos = await db.combos
+							.where('characterId')
+							.anyOf(characterIds)
+							.toArray();
+						const videoIds = collectLocalVideoIds(combos);
+						if (videoIds.length > 0) {
+							await db.demoVideos.bulkDelete(videoIds);
+						}
+						await db.combos.where('characterId').anyOf(characterIds).delete();
+					}
+
+					await db.characters.where('gameId').anyOf(uniqueIds).delete();
+					await db.games.bulkDelete(uniqueIds);
+				},
+			);
+
+			for (const charId of characterIds) {
+				removeNotesOverride(charId);
+			}
+			for (const gameId of uniqueIds) {
+				removeNotesOverride(gameId);
+			}
+		},
 	},
 
 	characters: {
@@ -303,7 +348,48 @@ export const indexedDbStorage = {
 				updatedAt: Date.now(),
 			});
 		},
-		delete: (id: string) => db.combos.delete(id),
+		delete: async (id: string) => {
+			await db.transaction('rw', [db.combos, db.demoVideos], async () => {
+				const combo = await db.combos.get(id);
+				const videoId = getLocalVideoId(combo?.demoUrl);
+				if (videoId) {
+					await db.demoVideos.delete(videoId);
+				}
+				await db.combos.delete(id);
+			});
+		},
+		bulkDelete: async (ids: string[]) => {
+			const uniqueIds = toUniqueIds(ids);
+			if (uniqueIds.length === 0) {
+				return;
+			}
+
+			await db.transaction('rw', [db.combos, db.demoVideos], async () => {
+				const combos = (await db.combos.bulkGet(uniqueIds)).filter(
+					(combo): combo is Combo => combo !== undefined,
+				);
+				const videoIds = collectLocalVideoIds(combos);
+				if (videoIds.length > 0) {
+					await db.demoVideos.bulkDelete(videoIds);
+				}
+				await db.combos.bulkDelete(uniqueIds);
+			});
+		},
+		markOutdated: async (ids: string[], outdated: boolean) => {
+			const uniqueIds = toUniqueIds(ids);
+			if (uniqueIds.length === 0) {
+				return;
+			}
+
+			await db.transaction('rw', db.combos, async () => {
+				for (const id of uniqueIds) {
+					await db.combos.update(id, {
+						outdated: outdated || undefined,
+						updatedAt: Date.now(),
+					});
+				}
+			});
+		},
 		reorder: async (orderedIds: string[]) => {
 			await db.transaction('rw', db.combos, async () => {
 				for (let i = 0; i < orderedIds.length; i++) {
@@ -460,11 +546,7 @@ export const indexedDbStorage = {
 			  }>
 			| undefined;
 		if (includeVideos) {
-			const localVideoIds = new Set(
-				combos
-					.filter((c) => c.demoUrl?.startsWith('local:'))
-					.map((c) => c.demoUrl?.replace('local:', '')),
-			);
+			const localVideoIds = new Set(collectLocalVideoIds(combos));
 			const allVideos = await db.demoVideos.toArray();
 			videos = allVideos
 				.filter((v) => localVideoIds.has(v.id))

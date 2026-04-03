@@ -1,32 +1,21 @@
 import { useState } from 'react';
-import type { Combo } from '@/lib/types';
-import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
 
 interface ComboDeleteOptions {
 	confirmBeforeDelete: boolean;
-	combos: Combo[];
 }
 
 /**
  * Manages delete confirmation state and delete operations
  */
-export function useComboDelete({
-	confirmBeforeDelete,
-	combos,
-}: ComboDeleteOptions) {
+export function useComboDelete({ confirmBeforeDelete }: ComboDeleteOptions) {
 	const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 	const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
 	const executeDelete = async (comboId: string) => {
 		try {
-			const combo = combos.find((c) => c.id === comboId);
-			if (combo?.demoUrl?.startsWith('local:')) {
-				await indexedDbStorage.demoVideos.delete(
-					combo.demoUrl.replace('local:', ''),
-				);
-			}
 			await indexedDbStorage.combos.delete(comboId);
 			toast.success('Combo deleted');
 		} catch (err) {
@@ -45,17 +34,7 @@ export function useComboDelete({
 
 	const executeBulkDelete = async (selectedIds: Set<string>) => {
 		try {
-			await db.transaction('rw', [db.combos, db.demoVideos], async () => {
-				for (const id of selectedIds) {
-					const combo = combos.find((c) => c.id === id);
-					if (combo?.demoUrl?.startsWith('local:')) {
-						await indexedDbStorage.demoVideos.delete(
-							combo.demoUrl.replace('local:', ''),
-						);
-					}
-					await indexedDbStorage.combos.delete(id);
-				}
-			});
+			await indexedDbStorage.combos.bulkDelete([...selectedIds]);
 			toast.success(
 				`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} deleted`,
 			);

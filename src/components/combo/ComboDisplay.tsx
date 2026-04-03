@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { ComboToken, Game, NotationColors } from '@/lib/types';
 import { getTokenColor } from '@/lib/parser';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import { MotionIcon } from './icons/MotionIcon';
 import { ButtonIcon } from './icons/ButtonIcon';
 import { CounterHitIcon } from './icons/CounterHitIcon';

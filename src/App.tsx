@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import { getFontFamilyCSS } from '@/lib/defaults';
+import { reportError } from '@/lib/errors';
 import { GameLibrary } from '@/components/game/GameLibrary';
 import { CharacterView } from '@/components/character/CharacterView';
 import { ComboView } from '@/components/combo/ComboView';
@@ -46,19 +47,25 @@ function App() {
 		if (!window.electronAPI?.onUpdateAvailable) return;
 
 		const unsub = window.electronAPI.onUpdateAvailable((data) => {
-			setAutoUpdateVersion(data.version);
-			setAutoUpdateChangelog(data.changelog);
-			toast.info(`Update v${data.version} available`, {
-				action: {
-					label: 'View',
-					onClick: () => setShowAutoChangelog(true),
-				},
-				duration: 10000,
-			});
+			try {
+				setAutoUpdateVersion(data.version);
+				setAutoUpdateChangelog(data.changelog);
+				toast.info(`Update v${data.version} available`, {
+					action: {
+						label: 'View',
+						onClick: () => setShowAutoChangelog(true),
+					},
+					duration: 10000,
+				});
+			} catch (err) {
+				reportError('App.onUpdateAvailable', err);
+			}
 		});
 
 		if (settings.autoUpdate && window.electronAPI.setAutoCheck) {
-			window.electronAPI.setAutoCheck(true);
+			void window.electronAPI.setAutoCheck(true).catch((err) => {
+				reportError('App.setAutoCheck', err);
+			});
 		}
 
 		return unsub;
@@ -88,9 +95,13 @@ function App() {
 		[selectedCharacterId],
 	);
 
-	const selectedGame = games?.find((g) => g.id === selectedGameId);
-	const selectedCharacter = characters?.find(
-		(c) => c.id === selectedCharacterId,
+	const selectedGame = useMemo(
+		() => games?.find((g) => g.id === selectedGameId),
+		[games, selectedGameId],
+	);
+	const selectedCharacter = useMemo(
+		() => characters?.find((c) => c.id === selectedCharacterId),
+		[characters, selectedCharacterId],
 	);
 
 	return (

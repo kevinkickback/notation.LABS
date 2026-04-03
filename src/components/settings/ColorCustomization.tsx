@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { NotationColors, Game } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {

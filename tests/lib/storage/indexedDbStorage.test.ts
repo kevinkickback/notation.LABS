@@ -552,6 +552,24 @@ describe('indexedDbStorage.settings', () => {
 		expect(settings.fontFamily).toBe('jetbrains-mono');
 		expect(settings.colorTheme).toBe('dark'); // default preserved
 	});
+
+	it('migrates legacy oklch notation colors during init', async () => {
+		await db.settings.put({
+			id: 1,
+			...DEFAULT_SETTINGS,
+			notationColors: {
+				...DEFAULT_SETTINGS.notationColors,
+				direction: 'oklch(0.85 0.05 265)',
+				separator: 'oklch(0.55 0.02 265)',
+			},
+		});
+
+		await indexedDbStorage.settings.init();
+
+		const settings = await indexedDbStorage.settings.get();
+		expect(settings.notationColors.direction).toBe('#bdceef');
+		expect(settings.notationColors.separator).toBe('#6c727e');
+	});
 });
 
 describe('indexedDbStorage.demoVideos', () => {
@@ -1081,6 +1099,17 @@ describe('indexedDbStorage.import', () => {
 			'Import contains 101 videos; max is 100',
 		);
 		await expect(indexedDbStorage.demoVideos.getAll()).resolves.toHaveLength(0);
+	});
+
+	it('rejects imports with unsupported version numbers', async () => {
+		const data = JSON.stringify({
+			version: 999999,
+			exported: new Date().toISOString(),
+			games: [],
+		});
+
+		await expect(indexedDbStorage.import(data, false)).rejects.toThrow();
+		await expect(indexedDbStorage.games.getAll()).resolves.toHaveLength(0);
 	});
 
 	it('rejects imports with referential integrity issues', async () => {

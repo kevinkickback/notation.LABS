@@ -44,7 +44,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';

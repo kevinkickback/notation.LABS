@@ -11,6 +11,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
 			add: vi.fn().mockResolvedValue('new-game-id'),
 			update: vi.fn().mockResolvedValue(undefined),
 			delete: vi.fn().mockResolvedValue(undefined),
+			bulkDelete: vi.fn().mockResolvedValue(undefined),
 		},
 		gameStats: {
 			getInputs: vi.fn().mockResolvedValue({
@@ -32,7 +33,7 @@ vi.mock('dexie-react-hooks', () => ({
 	useLiveQuery: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('@/context/SettingsContext', () => ({
 	useSettings: vi.fn().mockReturnValue({
 		colorTheme: 'dark',
 		fontFamily: 'system-ui',
@@ -188,6 +189,9 @@ describe('GameLibrary', () => {
 			screen.getByRole('button', { name: /delete selected \(3\)/i }),
 		);
 
-		expect(indexedDbStorage.games.delete).toHaveBeenCalledTimes(3);
+		expect(indexedDbStorage.games.bulkDelete).toHaveBeenCalledTimes(1);
+		expect(indexedDbStorage.games.bulkDelete).toHaveBeenCalledWith(
+			expect.arrayContaining(['game-1', 'game-2', 'game-3']),
+		);
 	});
 });

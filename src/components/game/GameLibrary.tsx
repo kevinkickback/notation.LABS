@@ -14,7 +14,7 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import { GameFormDialog } from './GameFormDialog';
 import { GameLibraryHeader } from './GameLibraryHeader';
@@ -131,12 +131,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
 			setBulkDeleteConfirm(true);
 			return;
 		}
-		for (const id of selectedIds) {
-			const game = games.find((g) => g.id === id);
-			if (game) {
-				await deleteState.handleDeleteGame(game);
-			}
-		}
+		const selectedGames = games.filter((g) => selectedIds.has(g.id));
+		await deleteState.handleBulkDeleteGames(selectedGames);
 		setSelectedIds(new Set());
 		setIsSelecting(false);
 	};
@@ -320,12 +316,10 @@ export function GameLibrary({ games }: GameLibraryProps) {
 						<AlertDialogAction
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							onClick={async () => {
-								for (const id of selectedIds) {
-									const game = games.find((g) => g.id === id);
-									if (game) {
-										await deleteState.handleDeleteGame(game);
-									}
-								}
+								const selectedGames = games.filter((g) =>
+									selectedIds.has(g.id),
+								);
+								await deleteState.handleBulkDeleteGames(selectedGames);
 								setBulkDeleteConfirm(false);
 								setSelectedIds(new Set());
 								setIsSelecting(false);

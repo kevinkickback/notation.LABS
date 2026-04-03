@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react';
 import type { Combo } from '@/lib/types';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import {
+	getLocalVideoId,
+	indexedDbStorage,
+} from '@/lib/storage/indexedDbStorage';
+import { reportError, toUserMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 
 /**
@@ -16,20 +20,28 @@ export function useVideoPlayer(videoPlayerSize: 'sm' | 'md' | 'lg' | 'xl') {
 
 	const handleWatchDemo = useCallback(async (combo: Combo) => {
 		if (!combo.demoUrl) return;
-		if (combo.demoUrl.startsWith('local:')) {
-			const videoId = combo.demoUrl.replace('local:', '');
-			const blobUrl = await indexedDbStorage.demoVideos.getBlobUrl(videoId);
-			if (blobUrl) {
+		try {
+			const localVideoId = getLocalVideoId(combo.demoUrl);
+			if (localVideoId) {
+				const blobUrl =
+					await indexedDbStorage.demoVideos.getBlobUrl(localVideoId);
+				if (!blobUrl) {
+					toast.error('Video file not found');
+					return;
+				}
+
 				setVideoPlayerUrl(blobUrl);
 				setVideoPlayerTitle(combo.name);
 				setVideoPlayerOpen(true);
-			} else {
-				toast.error('Video file not found');
+				return;
 			}
-		} else {
+
 			setVideoPlayerUrl(combo.demoUrl);
 			setVideoPlayerTitle(combo.name);
 			setVideoPlayerOpen(true);
+		} catch (err) {
+			reportError('useVideoPlayer.handleWatchDemo', err);
+			toast.error(toUserMessage(err));
 		}
 	}, []);
 

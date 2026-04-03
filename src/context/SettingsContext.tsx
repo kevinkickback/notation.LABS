@@ -19,7 +19,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
-    // Pure read — safe inside useLiveQuery.
+    // Pure read - safe inside useLiveQuery.
     const settings = useLiveQuery(indexedDbStorage.settings.get, [], DEFAULT_SETTINGS);
 
     return (

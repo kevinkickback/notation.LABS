@@ -21,9 +21,27 @@ export function useGameDelete() {
 		}
 	};
 
+	const handleBulkDeleteGames = async (games: Game[]) => {
+		if (games.length === 0) {
+			return;
+		}
+
+		try {
+			await indexedDbStorage.games.bulkDelete(games.map((g) => g.id));
+			toast.success(
+				`${games.length} game${games.length > 1 ? 's' : ''} deleted`,
+			);
+			setDeleteTarget(null);
+		} catch (err) {
+			reportError('useGameDelete.handleBulkDeleteGames', err);
+			toast.error('Failed to delete selected games');
+		}
+	};
+
 	return {
 		deleteTarget,
 		setDeleteTarget,
 		handleDeleteGame,
+		handleBulkDeleteGames,
 	};
 }

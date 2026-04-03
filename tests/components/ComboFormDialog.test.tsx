@@ -5,6 +5,11 @@ import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
 import type { Game, Character, Combo } from '@/lib/types';
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
+	getLocalVideoId: (demoUrl?: string) => {
+		if (!demoUrl?.startsWith('local:')) return null;
+		return demoUrl.slice('local:'.length) || null;
+	},
+	generateId: vi.fn(() => 'mock-video-id'),
 	indexedDbStorage: {
 		combos: {
 			add: vi.fn().mockResolvedValue('new-combo-id'),

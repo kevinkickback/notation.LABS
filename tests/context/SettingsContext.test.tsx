@@ -7,6 +7,7 @@ import { DEFAULT_SETTINGS } from '@/lib/defaults';
 const initMock = vi.fn();
 const getMock = vi.fn();
 const toastErrorMock = vi.fn();
+const reportErrorMock = vi.fn();
 
 vi.mock('dexie-react-hooks', () => ({
     useLiveQuery: () => DEFAULT_SETTINGS,
@@ -27,6 +28,12 @@ vi.mock('sonner', () => ({
     },
 }));
 
+vi.mock('@/lib/errors', () => ({
+    reportError: (...args: unknown[]) => reportErrorMock(...args),
+    toUserMessage: (err: unknown) =>
+        err instanceof Error ? err.message : 'An unexpected error occurred',
+}));
+
 describe('SettingsContext', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -45,6 +52,10 @@ describe('SettingsContext', () => {
         await waitFor(() => {
             expect(toastErrorMock).toHaveBeenCalledWith(
                 'Failed to load saved settings: db unavailable',
+            );
+            expect(reportErrorMock).toHaveBeenCalledWith(
+                'SettingsProvider.init',
+                expect.any(Error),
             );
         });
     });

@@ -5,6 +5,10 @@ import { ComboView } from '@/components/combo/ComboView';
 import type { Game, Character, Combo } from '@/lib/types';
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
+	getLocalVideoId: (demoUrl?: string) => {
+		if (!demoUrl?.startsWith('local:')) return null;
+		return demoUrl.slice('local:'.length) || null;
+	},
 	indexedDbStorage: {
 		combos: {
 			add: vi.fn().mockResolvedValue('new-combo-id'),
@@ -22,7 +26,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
 	},
 }));
 
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('@/context/SettingsContext', () => ({
 	useSettings: vi.fn().mockReturnValue({
 		colorTheme: 'dark',
 		fontFamily: 'system-ui',

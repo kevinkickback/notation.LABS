@@ -102,7 +102,7 @@ const demoVideoSchema = z.object({
 });
 
 export const importDataSchema = z.object({
-	version: z.number(),
+	version: z.number().int().min(1).max(2),
 	exported: z.string(),
 	games: z.array(gameSchema).optional(),
 	characters: z.array(characterSchema).optional(),

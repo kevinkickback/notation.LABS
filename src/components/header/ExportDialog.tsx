@@ -12,7 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { CaretRight, CaretDown } from '@phosphor-icons/react';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { getLocalVideoId, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { reportError } from '@/lib/errors';
 import type { Game, Character, Combo } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -75,7 +76,8 @@ export function ExportDialog({
 				setIncludeVideos(false);
 				setLoading(false);
 			})
-			.catch(() => {
+			.catch((err) => {
+				reportError('ExportDialog.loadData', err);
 				setData({ games: [], characters: [], combos: [] });
 				setSelectedGames(new Set());
 				setSelectedCharacters(new Set());
@@ -113,7 +115,7 @@ export function ExportDialog({
 	const selectedVideoCount = useMemo(() => {
 		if (!hasLocalVideos) return 0;
 		return data.combos.filter(
-			(c) => selectedCombos.has(c.id) && c.demoUrl?.startsWith('local:'),
+			(c) => selectedCombos.has(c.id) && !!getLocalVideoId(c.demoUrl),
 		).length;
 	}, [selectedCombos, data.combos, hasLocalVideos]);
 

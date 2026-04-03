@@ -1,5 +1,7 @@
 import type { ComboToken } from './types';
 
+// Ordered from longest to shortest semantic motions so numeric tokens prefer
+// complete motion matches before falling back to individual directions.
 const MOTIONS = [
 	'236236',
 	'214214',
@@ -25,6 +27,8 @@ const MOTIONS = [
 	'1080',
 ];
 
+// Human-friendly aliases are normalized before button parsing, which lets
+// notations like "dp.HP" resolve as a motion followed by a button.
 const MOTION_ALIASES: Record<string, string> = {
 	qcf: '236',
 	quartercircleforward: '236',
@@ -44,7 +48,7 @@ const MOTION_ALIASES: Record<string, string> = {
 	reversedp: '421',
 	'reverse dp': '421',
 	'reverse dragon punch': '421',
-	reversedagonpunch: '421',
+	reversedragonpunch: '421',
 	hcf: '41236',
 	halfcircleforward: '41236',
 	'half circle forward': '41236',
@@ -219,6 +223,7 @@ const SEPARATORS = [
 	'/',
 ];
 
+// Pre-sorted lookup tables keep the parser's hot path allocation-free.
 const SORTED_ALL_MODIFIERS = Object.keys({
 	...STANCE_MODIFIERS,
 	...SPECIAL_MODIFIERS,
@@ -234,6 +239,7 @@ export function parseComboNotation(
 ): ComboToken[] {
 	const tokens: ComboToken[] = [];
 	const allButtons = [...COMMON_BUTTONS, ...customButtons];
+	const sortedButtons = [...allButtons].sort((a, b) => b.length - a.length);
 
 	const tryInlineRepeat = (pos: number): number => {
 		const remaining = input.substring(pos);
@@ -256,6 +262,25 @@ export function parseComboNotation(
 		return 0;
 	};
 
+	const findMatchingParen = (startIndex: number): number => {
+		let depth = 0;
+
+		for (let index = startIndex; index < input.length; index++) {
+			if (input[index] === '(') {
+				depth++;
+			}
+
+			if (input[index] === ')') {
+				depth--;
+				if (depth === 0) {
+					return index;
+				}
+			}
+		}
+
+		return -1;
+	};
+
 	let i = 0;
 	const input = notation.trim();
 
@@ -268,7 +293,7 @@ export function parseComboNotation(
 		let matched = false;
 
 		if (input[i] === '(') {
-			const closeParenIndex = input.indexOf(')', i);
+			const closeParenIndex = findMatchingParen(i);
 			if (closeParenIndex !== -1) {
 				const afterParen = input.substring(closeParenIndex + 1).trimStart();
 				const repeatMatch = afterParen.match(/^[xX*](\d+)/);
@@ -410,7 +435,6 @@ export function parseComboNotation(
 		}
 		if (matched) continue;
 
-		const sortedButtons = [...allButtons].sort((a, b) => b.length - a.length);
 		for (const btn of sortedButtons) {
 			if (
 				input.substring(i, i + btn.length).toUpperCase() === btn.toUpperCase()

@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { MagnifyingGlass, SpinnerGap } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import type { IGDBSearchResult } from '@/lib/types';
-import { searchIGDB } from '@/lib/igdb';
+import { searchIGDB, type RawIGDBApiResult } from '@/lib/igdb';
 import { fetchImageAsBase64 } from '@/lib/utils';
 
 interface CoverSearchDialogProps {
@@ -48,15 +48,6 @@ export function CoverSearchDialog({
 		setHasSearched(true);
 
 		try {
-			// searchIGDB returns RawIGDBApiResult[]; map to IGDBSearchResult[]
-			type RawIGDBApiResult = {
-				id: number;
-				name: string;
-				cover?: { image_id?: string | null };
-				coverImageId?: string | null;
-				first_release_date?: number | null;
-				firstReleaseDate?: number | null;
-			};
 			const rawData: RawIGDBApiResult[] = await searchIGDB(q);
 			const data: IGDBSearchResult[] = (rawData || []).map(
 				(g: RawIGDBApiResult) => {
@@ -122,7 +113,6 @@ export function CoverSearchDialog({
 			let found = false;
 			for (const size of sizes) {
 				const url = `https://images.igdb.com/igdb/image/upload/${size}/${result.coverImageId}.jpg`;
-				console.debug('[IGDB Cover Download] Trying size:', size, url);
 				const dataUrl = await fetchImageAsBase64(
 					'https://igdb.capitol-k.workers.dev/download',
 					url,

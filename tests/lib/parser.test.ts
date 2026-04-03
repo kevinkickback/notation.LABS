@@ -221,6 +221,12 @@ describe('parseComboNotation', () => {
 			expect(tokens[0]).toMatchObject({ type: 'motion', value: '421' });
 		});
 
+		it('parses "reversedragonpunch" as 421', () => {
+			const tokens = parseComboNotation('reversedragonpunch');
+			expect(tokens).toHaveLength(1);
+			expect(tokens[0]).toMatchObject({ type: 'motion', value: '421' });
+		});
+
 		it('parses "2qcf" as 236236', () => {
 			const tokens = parseComboNotation('2qcf');
 			expect(tokens).toHaveLength(1);
@@ -571,6 +577,28 @@ describe('parseComboNotation', () => {
 				type: 'modifier',
 				value: '(whiff)',
 			});
+		});
+
+		it('treats an unclosed paren as unknown text after valid tokens', () => {
+			const tokens = parseComboNotation('236(');
+			expect(tokens).toHaveLength(2);
+			expect(tokens[0]).toMatchObject({ type: 'motion', value: '236' });
+			expect(tokens[1]).toMatchObject({ type: 'unknown', value: '(' });
+		});
+
+		it('parses nested repeat groups recursively', () => {
+			const tokens = parseComboNotation('((L)x2)x3');
+			expect(
+				tokens.filter((token) => token.type === 'repeat-start'),
+			).toHaveLength(2);
+			expect(tokens.filter((token) => token.type === 'button')).toMatchObject([
+				{ value: 'L' },
+			]);
+			expect(
+				tokens
+					.filter((token) => token.type === 'repeat-end')
+					.map((token) => token.repeatCount),
+			).toEqual([2, 3]);
 		});
 	});
 

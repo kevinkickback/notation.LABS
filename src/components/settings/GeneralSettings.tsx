@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UserSettings, FontFamily } from '@/lib/types';
 import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
+import { reportError } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import {
 	Card,
 	CardContent,
@@ -119,8 +120,14 @@ export function GeneralSettings() {
 				return;
 			}
 
+			if (result.data.status === 'error') {
+				setUpdateStatus('error');
+				toast.error(result.data.message || 'Could not check for updates.');
+				return;
+			}
+
 			setUpdateStatus('error');
-			toast.error(result.data.message);
+			toast.error('Update check returned an invalid response.');
 		} catch {
 			setUpdateStatus('error');
 			toast.error('Could not check for updates. Please try again.');
@@ -128,6 +135,69 @@ export function GeneralSettings() {
 			setUpdateChecking(false);
 		}
 	};
+
+	const fetchCurrentChangelogFromWeb = useCallback(async () => {
+		let version = __APP_VERSION__;
+
+		try {
+			const pkgRes = await fetch('/package.json');
+			if (pkgRes.ok) {
+				const pkg = await pkgRes.json();
+				if (typeof pkg.version === 'string' && pkg.version.trim()) {
+					version = pkg.version;
+				}
+			}
+		} catch (err) {
+			reportError('GeneralSettings.fetchPackageVersion', err);
+		}
+
+		const tag = `v${version}`;
+		const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
+		const res = await fetch(apiUrl, {
+			headers: {
+				Accept: 'application/vnd.github.v3+json',
+				'User-Agent': 'notation-labs-web',
+			},
+		});
+
+		if (!res.ok) {
+			throw new Error(`Failed to fetch changelog (${res.status} ${res.statusText})`);
+		}
+
+		const data = await res.json();
+		if (typeof data.body !== 'string') {
+			throw new Error('Changelog is not available in release body');
+		}
+
+		return {
+			version,
+			changelog: data.body,
+		};
+	}, []);
+
+	const handleViewCurrentChangelog = useCallback(async () => {
+		setCurrentChangelog('');
+		setShowCurrentChangelog(true);
+		setChangelogLoading(true);
+
+		try {
+			if (window.electronAPI?.getCurrentChangelog) {
+				const result = await window.electronAPI.getCurrentChangelog();
+				setCurrentChangelog(result.changelog ?? '');
+				setAppVersion(result.version);
+				return;
+			}
+
+			const result = await fetchCurrentChangelogFromWeb();
+			setCurrentChangelog(result.changelog);
+			setAppVersion(result.version);
+		} catch (err) {
+			reportError('GeneralSettings.handleViewCurrentChangelog', err);
+			toast.error('Failed to load changelog');
+		} finally {
+			setChangelogLoading(false);
+		}
+	}, [fetchCurrentChangelogFromWeb]);
 
 	return (
 		<div className="space-y-6">
@@ -324,78 +394,7 @@ export function GeneralSettings() {
 							variant="outline"
 							size="sm"
 							disabled={changelogLoading}
-							onClick={async () => {
-								setCurrentChangelog('');
-								setShowCurrentChangelog(true);
-								setChangelogLoading(true);
-								if (
-									typeof window !== 'undefined' &&
-									window.electronAPI?.getCurrentChangelog
-								) {
-									try {
-										const result =
-											await window.electronAPI.getCurrentChangelog();
-										setCurrentChangelog(result.changelog ?? '');
-									} catch {
-										toast.error('Failed to load changelog');
-									} finally {
-										setChangelogLoading(false);
-									}
-								} else {
-									// Web mode: fetch version from package.json, then fetch changelog from GitHub Releases API
-									try {
-										// Try to get version from package.json (must be exposed as a static asset in public/ or via Vite config)
-										let version = null;
-										try {
-											const pkgRes = await fetch('/package.json');
-											if (pkgRes.ok) {
-												const pkg = await pkgRes.json();
-												version = pkg.version;
-											}
-										} catch (e) {
-											console.warn(
-												'Could not fetch package.json for version:',
-												e,
-											);
-										}
-										if (!version) {
-											version = __APP_VERSION__;
-										}
-										const tag = `v${version}`;
-										const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
-										const res = await fetch(apiUrl, {
-											headers: {
-												Accept: 'application/vnd.github.v3+json',
-												'User-Agent': 'notation-labs-web',
-											},
-										});
-										if (!res.ok) {
-											console.error(
-												'Failed to fetch release from GitHub. Status:',
-												res.status,
-												res.statusText,
-											);
-											throw new Error('Failed to fetch changelog');
-										}
-										const data = await res.json();
-										if (typeof data.body === 'string') {
-											setCurrentChangelog(data.body);
-											setAppVersion(version);
-										} else {
-											throw new Error(
-												'Changelog is not available in release body',
-											);
-										}
-									} catch (err) {
-										console.error('Error loading changelog:', err);
-										toast.error(
-											'Failed to load changelog. See console for details.',
-										);
-									} finally {
-										setChangelogLoading(false);
-									}
-								}
-							}}
+							onClick={handleViewCurrentChangelog}
 						>
 							<Scroll size={16} className="mr-1" /> View
 						</Button>

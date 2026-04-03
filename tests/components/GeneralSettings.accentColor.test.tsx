@@ -1,9 +1,64 @@
+import type { ReactNode } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GeneralSettings } from '@/components/settings/GeneralSettings';
-import { DEFAULT_SETTINGS } from '@/lib/defaults';
+import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const checkForUpdateMock = vi.fn();
+const getCurrentChangelogMock = vi.fn();
+
+vi.mock('@/components/ui/select', async () => {
+	const React = await import('react');
+	const SelectContext = React.createContext<{
+		value: string;
+		onValueChange: (value: string) => void;
+	}>({
+		value: '',
+		onValueChange: () => { },
+	});
+
+	return {
+		Select: ({
+			value,
+			onValueChange,
+			children,
+		}: {
+			value: string;
+			onValueChange: (value: string) => void;
+			children: ReactNode;
+		}) => (
+			<SelectContext.Provider value={{ value, onValueChange }}>
+				{children}
+			</SelectContext.Provider>
+		),
+		SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+		SelectValue: () => {
+			const { value } = React.useContext(SelectContext);
+			return <span>{value}</span>;
+		},
+		SelectContent: ({ children }: { children: ReactNode }) => {
+			const { value, onValueChange } = React.useContext(SelectContext);
+			return (
+				<select
+					aria-label="mock-select"
+					value={value}
+					onChange={(e) => onValueChange(e.target.value)}
+				>
+					{children}
+				</select>
+			);
+		},
+		SelectItem: ({
+			value,
+			children,
+		}: {
+			value: string;
+			children: ReactNode;
+		}) => (
+			<option value={value}>{children}</option>
+		),
+	};
+});
 
 vi.mock('sonner', () => ({
 	toast: {
@@ -25,6 +80,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
 describe('GeneralSettings accent color', () => {
 	beforeEach(() => {
 		checkForUpdateMock.mockReset();
+		getCurrentChangelogMock.mockReset();
 		window.electronAPI = {
 			platform: 'win32',
 			versions: {
@@ -39,7 +95,7 @@ describe('GeneralSettings accent color', () => {
 			getUpdateStatus: vi.fn(),
 			setAutoCheck: vi.fn(),
 			getAppVersion: vi.fn().mockResolvedValue('1.3.0'),
-			getCurrentChangelog: vi.fn().mockResolvedValue({
+			getCurrentChangelog: getCurrentChangelogMock.mockResolvedValue({
 				version: '1.3.0',
 				changelog: 'Notes',
 			}),
@@ -81,5 +137,34 @@ describe('GeneralSettings accent color', () => {
 
 		expect(await screen.findByText(/check failed/i)).not.toBeNull();
 		expect(screen.queryByText(/up to date/i)).toBeNull();
+	});
+
+	it('updates the document theme class when the theme changes', async () => {
+		render(<GeneralSettings />);
+
+		const selects = await screen.findAllByLabelText('mock-select');
+		fireEvent.change(selects[0], { target: { value: 'light' } });
+
+		expect(document.documentElement.classList.contains('dark')).toBe(false);
+	});
+
+	it('updates the app font CSS variable when the font changes', async () => {
+		render(<GeneralSettings />);
+
+		const selects = await screen.findAllByLabelText('mock-select');
+		fireEvent.change(selects[1], { target: { value: 'jetbrains-mono' } });
+
+		expect(
+			document.documentElement.style.getPropertyValue('--app-font-family'),
+		).toBe(getFontFamilyCSS('jetbrains-mono'));
+	});
+
+	it('loads the current changelog in electron mode', async () => {
+		render(<GeneralSettings />);
+
+		fireEvent.click(await screen.findByRole('button', { name: /^view$/i }));
+
+		expect(getCurrentChangelogMock).toHaveBeenCalled();
+		expect(await screen.findByText(/^Notes$/)).not.toBeNull();
 	});
 });

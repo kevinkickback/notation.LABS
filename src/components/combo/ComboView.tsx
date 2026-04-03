@@ -1,6 +1,6 @@
 import type { Game, Character, Combo, DisplayMode } from '@/lib/types';
 import { useState, useEffect, useCallback } from 'react';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
 import { useComboFilters } from '@/hooks/useComboFilters';
 import { useComboSelection } from '@/hooks/useComboSelection';
@@ -81,7 +81,6 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 	const videoPlayer = useVideoPlayer(settings.videoPlayerSize);
 	const deleteState = useComboDelete({
 		confirmBeforeDelete: settings.confirmBeforeDelete ?? false,
-		combos,
 	});
 	const operations = useComboOperations();
 
@@ -132,17 +131,6 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 			await indexedDbStorage.combos.reorder(reordered.map((c) => c.id));
 		},
 		[filters.filteredCombos],
-	);
-
-	const handleEdit = useCallback((combo: Combo) => {
-		operations.handleEdit(combo);
-	}, [operations]);
-
-	const handleDuplicate = useCallback(
-		async (combo: Combo) => {
-			await operations.handleDuplicate(combo);
-		},
-		[operations],
 	);
 
 	const handleDelete = useCallback(
@@ -277,8 +265,8 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 								combo={combo}
 								game={game}
 								displayMode={displayMode}
-								onEdit={handleEdit}
-								onDuplicate={handleDuplicate}
+								onEdit={operations.handleEdit}
+								onDuplicate={operations.handleDuplicate}
 								onDelete={handleDelete}
 								onTagClick={handleTagClick}
 								onWatchDemo={videoPlayer.handleWatchDemo}

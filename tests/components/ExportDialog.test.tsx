@@ -78,6 +78,12 @@ vi.mock('sonner', () => ({
 	},
 }));
 
+const reportErrorMock = vi.fn();
+
+vi.mock('@/lib/errors', () => ({
+	reportError: (...args: unknown[]) => reportErrorMock(...args),
+}));
+
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { toast } from 'sonner';
 
@@ -211,6 +217,10 @@ describe('ExportDialog', () => {
 
 		await waitFor(() => {
 			expect(toast.error).toHaveBeenCalledWith('Failed to load export data');
+			expect(reportErrorMock).toHaveBeenCalledWith(
+				'ExportDialog.loadData',
+				expect.any(Error),
+			);
 		});
 	});
 });

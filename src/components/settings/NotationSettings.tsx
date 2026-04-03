@@ -1,6 +1,6 @@
 import type { DisplayMode, IconStyle, UserSettings } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings } from '@/context/SettingsContext';
 import {
 	Card,
 	CardContent,

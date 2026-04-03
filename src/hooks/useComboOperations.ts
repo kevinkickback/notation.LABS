@@ -1,6 +1,9 @@
 import { useCallback, useState } from 'react';
 import type { Combo } from '@/lib/types';
-import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import {
+	getLocalVideoId,
+	indexedDbStorage,
+} from '@/lib/storage/indexedDbStorage';
 import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
 
@@ -22,9 +25,7 @@ export function useComboOperations() {
 			await indexedDbStorage.combos.add({
 				...rest,
 				name: `${combo.name} (copy)`,
-				demoUrl: combo.demoUrl?.startsWith('local:')
-					? ''
-					: (combo.demoUrl ?? ''),
+				demoUrl: getLocalVideoId(combo.demoUrl) ? undefined : combo.demoUrl,
 			});
 			toast.success('Combo duplicated');
 		} catch (err) {
@@ -37,13 +38,7 @@ export function useComboOperations() {
 		async (selectedIds: Set<string>, outdated: boolean) => {
 			if (selectedIds.size === 0) return;
 			try {
-				await db.transaction('rw', db.combos, async () => {
-					for (const id of selectedIds) {
-						await indexedDbStorage.combos.update(id, {
-							outdated: outdated || undefined,
-						});
-					}
-				});
+				await indexedDbStorage.combos.markOutdated([...selectedIds], outdated);
 				toast.success(
 					`${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
 				);
