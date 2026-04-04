@@ -96,7 +96,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ```bash
 git clone https://github.com/kevinkickback/notation.LABS.git
-cd notation-labs
+cd notation.LABS
 npm install
 npm run dev:web
 ```
