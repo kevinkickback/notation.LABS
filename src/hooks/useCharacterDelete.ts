@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { Character } from '@/lib/types';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
+import { reportError } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { Character } from '@/lib/types';
 
 /**
  * Manages character delete confirmation state and operations.

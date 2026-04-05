@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Game, Character, Combo } from '@/lib/types';
+import type { Character, Combo, Game } from '@/lib/types';
 
 /**
  * Computes game statistics (character counts, combo counts, last modified)

@@ -1,9 +1,9 @@
 import { app, BrowserWindow, net, shell } from 'electron';
 import {
   autoUpdater,
-  type UpdateInfo,
-  type ProgressInfo,
   CancellationToken,
+  type ProgressInfo,
+  type UpdateInfo,
 } from 'electron-updater';
 import { isSafeExternalUrl } from './security';
 

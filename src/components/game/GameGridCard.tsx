@@ -1,8 +1,8 @@
 import { PencilSimpleIcon, TrashIcon, UserIcon } from '@phosphor-icons/react';
+import defaultGameImage from '@/assets/images/defaultGame.jpg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Game } from '@/lib/types';
-import defaultGameImage from '@/assets/images/defaultGame.jpg';
 
 interface GameGridCardProps {
   game: Game;

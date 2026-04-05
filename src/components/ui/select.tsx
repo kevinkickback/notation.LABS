@@ -1,10 +1,10 @@
-import type { ComponentProps } from 'react';
-import * as SelectPrimitive from '@radix-ui/react-select';
 import {
   CheckIcon,
   CaretDownIcon as ChevronDownIcon,
   CaretUpIcon as ChevronUpIcon,
 } from '@phosphor-icons/react';
+import * as SelectPrimitive from '@radix-ui/react-select';
+import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/utils';
 

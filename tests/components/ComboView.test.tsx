@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComboView } from '@/components/combo/ComboView';
@@ -18,6 +18,9 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     },
     settings: {
       update: vi.fn().mockResolvedValue(undefined),
+      getNotesOverrides: vi.fn().mockResolvedValue([]),
+      setNotesOverrides: vi.fn().mockResolvedValue(undefined),
+      removeNotesOverride: vi.fn().mockResolvedValue(undefined),
     },
     demoVideos: {
       delete: vi.fn().mockResolvedValue(undefined),
@@ -109,28 +112,6 @@ const mockCombos: Combo[] = [
 ];
 
 describe('ComboView', () => {
-  beforeAll(() => {
-    // Simple in-memory localStorage mock
-    const store: Record<string, string> = {};
-    global.localStorage = {
-      getItem: (key: string) => (key in store ? store[key] : null),
-      setItem: (key: string, value: string) => {
-        store[key] = value;
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-      clear: () => {
-        Object.keys(store).forEach((k) => {
-          delete store[k];
-        });
-      },
-      key: (i: number) => Object.keys(store)[i] || null,
-      get length() {
-        return Object.keys(store).length;
-      },
-    } as unknown as Storage;
-  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

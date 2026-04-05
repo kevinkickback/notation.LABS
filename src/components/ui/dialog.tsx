@@ -1,6 +1,6 @@
-import type { ComponentProps } from 'react';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from '@phosphor-icons/react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/utils';
 

@@ -1,4 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -6,19 +10,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { CaretRightIcon, CaretDownIcon } from '@phosphor-icons/react';
+import { reportError } from '@/lib/errors';
 import {
   getLocalVideoId,
   indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
-import { reportError } from '@/lib/errors';
-import type { Game, Character, Combo } from '@/lib/types';
-import { toast } from 'sonner';
+import type { Character, Combo, Game } from '@/lib/types';
 
 interface ExportDialogProps {
   open: boolean;
@@ -57,6 +57,7 @@ export function ExportDialog({
   const [includeVideos, setIncludeVideos] = useState(false);
   const [hasLocalVideos, setHasLocalVideos] = useState(false);
   const [loading, setLoading] = useState(true);
+  const includeVideosId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -429,7 +430,7 @@ export function ExportDialog({
         {hasLocalVideos && selectedVideoCount > 0 && (
           <div className="flex items-center justify-between gap-3 pt-1">
             <div>
-              <Label htmlFor="include-videos" className="text-sm">
+              <Label htmlFor={includeVideosId} className="text-sm">
                 Include demo videos
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -439,7 +440,7 @@ export function ExportDialog({
               </p>
             </div>
             <Switch
-              id="include-videos"
+              id={includeVideosId}
               checked={includeVideos}
               onCheckedChange={setIncludeVideos}
             />

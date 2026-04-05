@@ -1,10 +1,10 @@
 import {
-  FunnelIcon,
-  SquaresFourIcon,
-  ListIcon,
-  PlusIcon,
-  PaletteIcon,
   CheckSquareIcon,
+  FunnelIcon,
+  ListIcon,
+  PaletteIcon,
+  PlusIcon,
+  SquaresFourIcon,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';

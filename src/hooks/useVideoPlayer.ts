@@ -1,11 +1,11 @@
-import { useCallback, useState, useEffect } from 'react';
-import type { Combo } from '@/lib/types';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { reportError, toUserMessage } from '@/lib/errors';
 import {
   getLocalVideoId,
   indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
-import { reportError, toUserMessage } from '@/lib/errors';
-import { toast } from 'sonner';
+import type { Combo } from '@/lib/types';
 
 /**
  * Manages video player dialog state and operations

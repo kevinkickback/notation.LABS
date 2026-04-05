@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import type { ComboToken, Game, NotationColors } from '@/lib/types';
-import { getTokenColor } from '@/lib/parser';
 import { useSettings } from '@/context/SettingsContext';
-import { MotionIcon } from './icons/MotionIcon';
+import { getTokenColor } from '@/lib/parser';
+import type { ComboToken, Game, NotationColors } from '@/lib/types';
 import { ButtonIcon } from './icons/ButtonIcon';
 import { CounterHitIcon } from './icons/CounterHitIcon';
+import { MotionIcon } from './icons/MotionIcon';
 
 const REPEAT_PAREN_COLOR = 'oklch(0.65 0.02 265)';
 

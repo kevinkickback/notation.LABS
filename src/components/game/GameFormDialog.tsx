@@ -1,5 +1,12 @@
-import type { Game } from '@/lib/types';
+import {
+  ImageSquareIcon,
+  MagnifyingGlassIcon,
+  XIcon,
+} from '@phosphor-icons/react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
 import {
   Dialog,
   DialogContent,
@@ -9,21 +16,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import {
-  ImageSquareIcon,
-  MagnifyingGlassIcon,
-  XIcon,
-} from '@phosphor-icons/react';
-import { useState, useMemo, useEffect, useId, useRef } from 'react';
-import { CoverSearchDialog } from './CoverSearchDialog';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { toast } from 'sonner';
-import { reportError } from '@/lib/errors';
-import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
+import { Textarea } from '@/components/ui/textarea';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
+import { reportError } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { Game } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
+import { CoverSearchDialog } from './CoverSearchDialog';
 
 interface GameFormDialogProps {
   open: boolean;

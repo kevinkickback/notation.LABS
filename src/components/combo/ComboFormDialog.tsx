@@ -1,14 +1,16 @@
-import type { Game, Character, Combo } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { XIcon, PlayIcon, VideoCameraIcon } from '@phosphor-icons/react';
+import { PlayIcon, VideoCameraIcon, XIcon } from '@phosphor-icons/react';
 import {
-  useState,
-  useEffect,
-  useMemo,
   useCallback,
+  useEffect,
   useId,
+  useMemo,
   useRef,
+  useState,
 } from 'react';
+import { toast } from 'sonner';
+import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +20,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -28,15 +28,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { reportError } from '@/lib/errors';
+import { parseComboNotation } from '@/lib/parser';
 import {
   generateId,
   getLocalVideoId,
   indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
-import { parseComboNotation } from '@/lib/parser';
-import { ComboDisplay } from '@/components/combo/ComboDisplay';
-import { reportError } from '@/lib/errors';
-import { toast } from 'sonner';
+import type { Character, Combo, Game } from '@/lib/types';
 import { extractYouTubeVideoId } from '@/lib/utils';
 
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
@@ -78,6 +78,7 @@ export function ComboFormDialog({
   const [demoVideoTitle, setDemoVideoTitle] = useState('');
   const [outdated, setOutdated] = useState(false);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const outdatedToggleId = useId();
   const isDesktop = !!window.electronAPI;
 
   const comboNameId = useId();
@@ -554,7 +555,7 @@ export function ComboFormDialog({
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div className="space-y-0.5">
-              <Label htmlFor="outdated-toggle" className="text-sm font-medium">
+              <Label htmlFor={outdatedToggleId} className="text-sm font-medium">
                 Mark as outdated
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -562,7 +563,7 @@ export function ComboFormDialog({
               </p>
             </div>
             <Switch
-              id="outdated-toggle"
+              id={outdatedToggleId}
               checked={outdated}
               onCheckedChange={setOutdated}
             />

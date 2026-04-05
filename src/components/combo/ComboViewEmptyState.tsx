@@ -1,7 +1,7 @@
 import { LightningIcon, PlusIcon } from '@phosphor-icons/react';
+import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
 import { Button } from '@/components/ui/button';
 import type { Character, Game } from '@/lib/types';
-import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
 
 interface ComboViewEmptyStateProps {
   game: Game;

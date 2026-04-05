@@ -1,6 +1,9 @@
-import type { DisplayMode, IconStyle, UserSettings } from '@/lib/types';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/context/SettingsContext';
+import { ArrowClockwiseIcon } from '@phosphor-icons/react';
+import { useId } from 'react';
+import { toast } from 'sonner';
+import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { ButtonIcon } from '@/components/combo/icons/ButtonIcon';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -8,15 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { useSettings } from '@/context/SettingsContext';
 import { parseComboNotation } from '@/lib/parser';
-import { ComboDisplay } from '@/components/combo/ComboDisplay';
-import { ButtonIcon } from '@/components/combo/icons/ButtonIcon';
-import { ArrowClockwiseIcon } from '@phosphor-icons/react';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { DisplayMode, IconStyle, UserSettings } from '@/lib/types';
 
 const SAMPLE_COMBO = '5L > 2M > 236H';
 
@@ -29,6 +30,13 @@ const SCALE_LABELS: Record<number, string> = {
 
 export function NotationSettings() {
   const settings = useSettings();
+  const displayModeBaseId = useId();
+  const iconStyleBaseId = useId();
+  const coloredTextId = `${displayModeBaseId}-colored-text`;
+  const visualIconsId = `${displayModeBaseId}-visual-icons`;
+  const roundStyleId = `${iconStyleBaseId}-round`;
+  const squareStyleId = `${iconStyleBaseId}-square`;
+  const hexagonStyleId = `${iconStyleBaseId}-hexagon`;
 
   const updateSetting = async <K extends keyof UserSettings>(
     key: K,
@@ -59,10 +67,10 @@ export function NotationSettings() {
             className="flex gap-4"
           >
             <label
-              htmlFor="colored-text"
+              htmlFor={coloredTextId}
               className="flex-1 flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
             >
-              <RadioGroupItem value="colored-text" id="colored-text" />
+              <RadioGroupItem value="colored-text" id={coloredTextId} />
               <div>
                 <div className="font-medium">Colored Text</div>
                 <p className="text-sm text-muted-foreground">
@@ -71,10 +79,10 @@ export function NotationSettings() {
               </div>
             </label>
             <label
-              htmlFor="visual-icons"
+              htmlFor={visualIconsId}
               className="flex-1 flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
             >
-              <RadioGroupItem value="visual-icons" id="visual-icons" />
+              <RadioGroupItem value="visual-icons" id={visualIconsId} />
               <div>
                 <div className="font-medium">Visual Icons</div>
                 <p className="text-sm text-muted-foreground">
@@ -101,10 +109,10 @@ export function NotationSettings() {
             className="flex gap-4"
           >
             <label
-              htmlFor="style-round"
+              htmlFor={roundStyleId}
               className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
             >
-              <RadioGroupItem value="round" id="style-round" />
+              <RadioGroupItem value="round" id={roundStyleId} />
               <div className="flex gap-1.5">
                 <ButtonIcon
                   button="L"
@@ -128,10 +136,10 @@ export function NotationSettings() {
               <span className="text-sm font-medium">Round</span>
             </label>
             <label
-              htmlFor="style-square"
+              htmlFor={squareStyleId}
               className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
             >
-              <RadioGroupItem value="square" id="style-square" />
+              <RadioGroupItem value="square" id={squareStyleId} />
               <div className="flex gap-1.5">
                 <ButtonIcon
                   button="L"
@@ -155,10 +163,10 @@ export function NotationSettings() {
               <span className="text-sm font-medium">Square</span>
             </label>
             <label
-              htmlFor="style-hexagon"
+              htmlFor={hexagonStyleId}
               className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
             >
-              <RadioGroupItem value="hexagon" id="style-hexagon" />
+              <RadioGroupItem value="hexagon" id={hexagonStyleId} />
               <div className="flex gap-1.5">
                 <ButtonIcon
                   button="L"

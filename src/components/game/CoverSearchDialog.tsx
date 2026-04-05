@@ -1,4 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,12 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { toast } from 'sonner';
+import { type RawIGDBApiResult, searchIGDB } from '@/lib/igdb';
 import type { IGDBSearchResult } from '@/lib/types';
-import { searchIGDB, type RawIGDBApiResult } from '@/lib/igdb';
 import { fetchImageAsBase64 } from '@/lib/utils';
 
 interface CoverSearchDialogProps {

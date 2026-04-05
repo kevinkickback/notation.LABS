@@ -1,10 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ArrowSquareOutIcon,
   GithubLogoIcon,
   GlobeIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const FGC_RESOURCES = [
   {

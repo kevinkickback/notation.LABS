@@ -1,4 +1,4 @@
-import type { UserSettings, FontFamily } from './types';
+import type { FontFamily, UserSettings } from './types';
 
 export const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -63,6 +63,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   gameCardSize: 180,
   characterCardSize: 180,
   notesDefaultOpen: false,
+  notesOverrides: [],
   showChangelogBeforeUpdate: true,
   accentColor: '#3b82f6',
 };

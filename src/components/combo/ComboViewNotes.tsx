@@ -1,4 +1,4 @@
-import { NoteIcon, CaretDownIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, NoteIcon } from '@phosphor-icons/react';
 
 interface ComboViewNotesProps {
   notes: string;

@@ -1,6 +1,6 @@
-import type { ComponentProps } from 'react';
-import { Slot } from '@radix-ui/react-slot';
 import { CaretRightIcon, DotsThreeIcon } from '@phosphor-icons/react';
+import { Slot } from '@radix-ui/react-slot';
+import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -53,8 +53,6 @@ function BreadcrumbPage({ className, ...props }: ComponentProps<'span'>) {
   return (
     <span
       data-slot="breadcrumb-page"
-      role="link"
-      aria-disabled="true"
       aria-current="page"
       className={cn('text-foreground font-normal', className)}
       {...props}

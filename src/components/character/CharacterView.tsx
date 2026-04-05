@@ -1,13 +1,7 @@
-import type { Game, Character } from '@/lib/types';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import { CharacterFormDialog } from './CharacterFormDialog';
-import { CharacterViewHeader } from './CharacterViewHeader';
-import { CharacterViewToolbar } from './CharacterViewToolbar';
-import { CharacterViewNotes } from './CharacterViewNotes';
-import { CharacterViewFilterPanel } from './CharacterViewFilterPanel';
-import { CharacterViewEmptyState } from './CharacterViewEmptyState';
-import { CharacterGridCard } from './CharacterGridCard';
-import { CharacterListCard } from './CharacterListCard';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useMemo, useState } from 'react';
+import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
+import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,19 +12,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/storage/indexedDbStorage';
-import { useAppStore } from '@/lib/store';
 import { useSettings } from '@/context/SettingsContext';
-import { useNotesOverride } from '@/hooks/useNotesOverride';
-import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
-import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
+import { useCharacterDelete } from '@/hooks/useCharacterDelete';
 import { useCharacterFilters } from '@/hooks/useCharacterFilters';
+import { useCharacterOperations } from '@/hooks/useCharacterOperations';
 import { useCharacterSelection } from '@/hooks/useCharacterSelection';
 import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
-import { useCharacterDelete } from '@/hooks/useCharacterDelete';
-import { useCharacterOperations } from '@/hooks/useCharacterOperations';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useNotesOverride } from '@/hooks/useNotesOverride';
+import { db } from '@/lib/storage/indexedDbStorage';
+import { useAppStore } from '@/lib/store';
+import type { Character, Game } from '@/lib/types';
+import { CharacterFormDialog } from './CharacterFormDialog';
+import { CharacterGridCard } from './CharacterGridCard';
+import { CharacterListCard } from './CharacterListCard';
+import { CharacterViewEmptyState } from './CharacterViewEmptyState';
+import { CharacterViewFilterPanel } from './CharacterViewFilterPanel';
+import { CharacterViewHeader } from './CharacterViewHeader';
+import { CharacterViewNotes } from './CharacterViewNotes';
+import { CharacterViewToolbar } from './CharacterViewToolbar';
 
 interface CharacterViewProps {
   game: Game;

@@ -1,19 +1,19 @@
 // All entity types are derived from Zod schemas in schemas.ts.
 // This eliminates manual sync between type definitions and validation schemas.
 export type {
-  ComboToken,
-  TokenType,
-  Game,
   Character,
   Combo,
-  UserSettings,
-  NotationColors,
-  FontFamily,
+  ComboToken,
   DisplayMode,
+  FontFamily,
+  Game,
   IconStyle,
+  NotationColors,
+  TokenType,
+  UserSettings,
 } from './schemas';
 
-import type { Combo, Character, Game } from './schemas';
+import type { Character, Combo, Game } from './schemas';
 
 export type GameSort =
   | 'name-asc'

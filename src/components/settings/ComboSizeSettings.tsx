@@ -1,5 +1,7 @@
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/context/SettingsContext';
+import { ArrowClockwiseIcon } from '@phosphor-icons/react';
+import { toast } from 'sonner';
+import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -7,13 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { Slider } from '@/components/ui/slider';
+import { useSettings } from '@/context/SettingsContext';
 import { parseComboNotation } from '@/lib/parser';
-import { ComboDisplay } from '@/components/combo/ComboDisplay';
-import { ArrowClockwiseIcon } from '@phosphor-icons/react';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 const SAMPLE_COMBO = '5L > 2M > 236H > j.M';
 

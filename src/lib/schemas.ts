@@ -88,6 +88,7 @@ export const settingsSchema = z.object({
   gameCardSize: z.number(),
   characterCardSize: z.number(),
   notesDefaultOpen: z.boolean().default(false),
+  notesOverrides: z.array(z.string()).optional(),
   lastUpdateCheck: z.number().optional(),
   lastSeenVersion: z.string().optional(),
   showChangelogBeforeUpdate: z.boolean(),

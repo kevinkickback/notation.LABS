@@ -7,7 +7,17 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!.github", "!src/data", "!test-results"]
+    "includes": [
+      "**",
+      "!.github",
+      "!build",
+      "!dist",
+      "!dist-electron",
+      "!node_modules",
+      "!release",
+      "!test-results",
+      "!tests"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -18,17 +28,40 @@
     "rules": {
       "recommended": true,
       "complexity": {
-        "noImportantStyles": "off"
+        "noImportantStyles": "off",
+        "noStaticOnlyClass": "on"
+      },
+      "a11y": {
+        "noLabelWithoutControl": "on",
+        "noStaticElementInteractions": "on",
+        "useButtonType": "on",
+        "useKeyWithClickEvents": "on",
+        "useSemanticElements": "on"
+      },
+      "correctness": {
+        "useUniqueElementIds": "on",
+        "noPrecisionLoss": "on"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
       },
       "style": {
+        "noNonNullAssertion": "on",
         "useFilenamingConvention": "off",
-        "noDescendingSpecificity": "off",
         "useConst": "on",
         "useConsistentObjectDefinitions": "on",
-        "useForOf": "on"
+        "useExponentiationOperator": "on",
+        "useFragmentSyntax": "on"
       },
       "suspicious": {
-        "noExplicitAny": "on"
+        "noArrayIndexKey": "on",
+        "noDocumentCookie": "on",
+        "noExplicitAny": "on",
+        "noImplicitAnyLet": "on",
+        "useAwait": "on",
+        "noDebugger": "on",
+        "noDuplicateObjectKeys": "on",
+        "noThenProperty": "on"
       }
     }
   },
@@ -47,11 +80,24 @@
     "enabled": true,
     "actions": {
       "source": {
-        "organizeImports": "off"
+        "organizeImports": "on"
       }
     }
   },
   "overrides": [
+    {
+      "includes": ["**/*.css"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDescendingSpecificity": "off"
+          },
+          "suspicious": {
+            "noUnknownAtRules": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["src/components/ui/**"],
       "linter": {
@@ -61,7 +107,8 @@
             "useSemanticElements": "off"
           },
           "suspicious": {
-            "noArrayIndexKey": "off"
+            "noArrayIndexKey": "off",
+            "noDocumentCookie": "off"
           }
         }
       }

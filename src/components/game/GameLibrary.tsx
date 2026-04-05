@@ -1,5 +1,6 @@
-import type { Game, GameSort } from '@/lib/types';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useMemo, useState } from 'react';
+import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,24 +11,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useMemo, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useSettings } from '@/context/SettingsContext';
+import { useGameDelete } from '@/hooks/useGameDelete';
+import { useGameFilters } from '@/hooks/useGameFilters';
+import { useGameOperations } from '@/hooks/useGameOperations';
+import { useGameStats } from '@/hooks/useGameStats';
+import { useGameViewMode } from '@/hooks/useGameViewMode';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
-import { useSettings } from '@/context/SettingsContext';
-import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
+import type { Game, GameSort } from '@/lib/types';
 import { GameFormDialog } from './GameFormDialog';
+import { GameGridCard } from './GameGridCard';
+import { GameLibraryEmptyState } from './GameLibraryEmptyState';
+import { GameLibraryFilterPanel } from './GameLibraryFilterPanel';
 import { GameLibraryHeader } from './GameLibraryHeader';
 import { GameLibraryToolbar } from './GameLibraryToolbar';
-import { GameLibraryFilterPanel } from './GameLibraryFilterPanel';
-import { GameLibraryEmptyState } from './GameLibraryEmptyState';
-import { GameGridCard } from './GameGridCard';
 import { GameListCard } from './GameListCard';
-import { useGameFilters } from '@/hooks/useGameFilters';
-import { useGameViewMode } from '@/hooks/useGameViewMode';
-import { useGameStats } from '@/hooks/useGameStats';
-import { useGameDelete } from '@/hooks/useGameDelete';
-import { useGameOperations } from '@/hooks/useGameOperations';
 
 interface GameLibraryProps {
   games: Game[];

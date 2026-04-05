@@ -1,6 +1,6 @@
-import type { ComponentProps } from 'react';
-import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
 import { CircleIcon } from '@phosphor-icons/react';
+import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
+import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/utils';
 

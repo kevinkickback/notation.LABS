@@ -1,5 +1,5 @@
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { parseComboNotation } from '@/lib/parser';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 export async function initializeSeedData() {
   const games = await indexedDbStorage.games.getAll();

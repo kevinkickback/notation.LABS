@@ -1,7 +1,7 @@
 import { PlusIcon, UserIcon } from '@phosphor-icons/react';
-import type { Game } from '@/lib/types';
-import { Button } from '@/components/ui/button';
 import defaultGameImage from '@/assets/images/defaultGame.jpg';
+import { Button } from '@/components/ui/button';
+import type { Game } from '@/lib/types';
 
 interface CharacterViewEmptyStateProps {
   game: Game;

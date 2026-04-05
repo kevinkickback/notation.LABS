@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { TrashIcon } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 
 interface ColorPickerRowProps {
   label: string;

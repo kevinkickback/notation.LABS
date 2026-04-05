@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
+import { isSafeExternalUrl } from './security';
 import {
   cancelDownload,
   checkForUpdate,
@@ -13,7 +13,6 @@ import {
   startAutoCheckSchedule,
   stopAutoCheckSchedule,
 } from './updateManager';
-import { isSafeExternalUrl } from './security';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

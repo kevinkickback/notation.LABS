@@ -1,5 +1,5 @@
-import type { Character, Game } from '@/lib/types';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
+import type { Character, Game } from '@/lib/types';
 
 interface ComboViewHeaderProps {
   character: Character;

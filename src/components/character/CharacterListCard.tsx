@@ -1,12 +1,12 @@
-import type { Character } from '@/lib/types';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
-  PencilSimpleIcon,
-  TrashIcon,
   GameControllerIcon,
+  PencilSimpleIcon,
   TimerIcon,
+  TrashIcon,
 } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import type { Character } from '@/lib/types';
 
 interface CharacterListCardProps {
   character: Character;

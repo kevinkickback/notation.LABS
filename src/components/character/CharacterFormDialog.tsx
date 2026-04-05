@@ -1,4 +1,10 @@
-import type { Character, Game } from '@/lib/types';
+import {
+  ImageSquareIcon,
+  MagnifyingGlassIcon,
+  XIcon,
+} from '@phosphor-icons/react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -8,18 +14,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import {
-  ImageSquareIcon,
-  MagnifyingGlassIcon,
-  XIcon,
-} from '@phosphor-icons/react';
-import { useState, useEffect, useId, useRef } from 'react';
+import { Textarea } from '@/components/ui/textarea';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { toast } from 'sonner';
-import { CharacterSearchDialog } from './CharacterSearchDialog';
+import type { Character, Game } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
+import { CharacterSearchDialog } from './CharacterSearchDialog';
 
 interface CharacterFormDialogProps {
   open: boolean;

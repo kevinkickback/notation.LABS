@@ -1,6 +1,7 @@
+import { XIcon } from '@phosphor-icons/react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -8,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { XIcon } from '@phosphor-icons/react';
 
 interface ComboFiltersProps {
   filterSearch: string;

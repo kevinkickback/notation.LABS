@@ -1,12 +1,12 @@
-import type { Character } from '@/lib/types';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
+  GameControllerIcon,
   PencilSimpleIcon,
   TrashIcon,
-  GameControllerIcon,
 } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import type { Character } from '@/lib/types';
 
 interface CharacterGridCardProps {
   character: Character;

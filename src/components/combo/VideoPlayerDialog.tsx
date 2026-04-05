@@ -1,18 +1,18 @@
-import { cn, getYouTubeEmbedUrl } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { useCallback, useRef } from 'react';
+import { ArrowsOutIcon } from '@phosphor-icons/react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useRef } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { ArrowsOutIcon } from '@phosphor-icons/react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { reportError } from '@/lib/errors';
-import { toast } from 'sonner';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { cn, getYouTubeEmbedUrl } from '@/lib/utils';
 
 interface VideoPlayerDialogProps {
   open: boolean;

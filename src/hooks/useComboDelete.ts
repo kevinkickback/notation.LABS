@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { reportError } from '@/lib/errors';
 import { toast } from 'sonner';
+import { reportError } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 interface ComboDeleteOptions {
   confirmBeforeDelete: boolean;

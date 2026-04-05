@@ -1,4 +1,10 @@
 import {
+  GearSixIcon,
+  InfoIcon,
+  PaletteIcon,
+  TextAaIcon,
+} from '@phosphor-icons/react';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -6,16 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  GearSixIcon,
-  PaletteIcon,
-  TextAaIcon,
-  InfoIcon,
-} from '@phosphor-icons/react';
-import { ColorCustomization } from './ColorCustomization';
-import { NotationSettings } from './NotationSettings';
-import { GeneralSettings } from './GeneralSettings';
 import { AboutTab } from './AboutTab';
+import { ColorCustomization } from './ColorCustomization';
+import { GeneralSettings } from './GeneralSettings';
+import { NotationSettings } from './NotationSettings';
 
 const TAB_TRIGGER_CLS =
   'cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors';

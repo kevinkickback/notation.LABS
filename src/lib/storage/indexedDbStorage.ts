@@ -1,15 +1,14 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
-import { removeNotesOverride } from '@/hooks/useNotesOverride';
-import type {
-  Game,
-  Character,
-  Combo,
-  UserSettings,
-  NotationColors,
-} from '../types';
 import { DEFAULT_SETTINGS, MAX_IMPORT_SIZE_BYTES } from '../defaults';
 import { importDataSchema } from '../schemas';
+import type {
+  Character,
+  Combo,
+  Game,
+  NotationColors,
+  UserSettings,
+} from '../types';
 
 const MAX_IMPORT_VIDEOS = 100;
 
@@ -219,10 +218,10 @@ export const indexedDbStorage = {
           await db.games.delete(id);
         },
       );
-      for (const charId of characterIds) {
-        removeNotesOverride(charId);
-      }
-      removeNotesOverride(id);
+      await indexedDbStorage.settings.removeNotesOverrides([
+        ...characterIds,
+        id,
+      ]);
     },
     bulkDelete: async (ids: string[]) => {
       const uniqueIds = toUniqueIds(ids);
@@ -258,12 +257,10 @@ export const indexedDbStorage = {
         },
       );
 
-      for (const charId of characterIds) {
-        removeNotesOverride(charId);
-      }
-      for (const gameId of uniqueIds) {
-        removeNotesOverride(gameId);
-      }
+      await indexedDbStorage.settings.removeNotesOverrides([
+        ...characterIds,
+        ...uniqueIds,
+      ]);
     },
   },
 
@@ -308,7 +305,7 @@ export const indexedDbStorage = {
           await db.characters.delete(id);
         },
       );
-      removeNotesOverride(id);
+      await indexedDbStorage.settings.removeNotesOverride(id);
     },
     bulkDelete: async (ids: string[]) => {
       await db.transaction(
@@ -327,9 +324,7 @@ export const indexedDbStorage = {
           await db.characters.bulkDelete(ids);
         },
       );
-      for (const id of ids) {
-        removeNotesOverride(id);
-      }
+      await indexedDbStorage.settings.removeNotesOverrides(ids);
     },
   },
 
@@ -486,6 +481,35 @@ export const indexedDbStorage = {
         await db.settings.add({ id: 1, ...DEFAULT_SETTINGS, ...updates });
       } else {
         await db.settings.update(1, updates);
+      }
+    },
+    getNotesOverrides: async (): Promise<string[]> => {
+      const settings = await db.settings.get(1);
+      return settings?.notesOverrides ?? [];
+    },
+    setNotesOverrides: async (entityIds: string[]): Promise<void> => {
+      await indexedDbStorage.settings.update({
+        notesOverrides: toUniqueIds(entityIds),
+      });
+    },
+    removeNotesOverride: async (entityId: string): Promise<void> => {
+      await indexedDbStorage.settings.removeNotesOverrides([entityId]);
+    },
+    removeNotesOverrides: async (entityIds: string[]): Promise<void> => {
+      const uniqueIds = toUniqueIds(entityIds);
+      if (uniqueIds.length === 0) {
+        return;
+      }
+
+      const currentOverrides =
+        await indexedDbStorage.settings.getNotesOverrides();
+      const idsToRemove = new Set(uniqueIds);
+      const nextOverrides = currentOverrides.filter(
+        (id) => !idsToRemove.has(id),
+      );
+
+      if (nextOverrides.length !== currentOverrides.length) {
+        await indexedDbStorage.settings.setNotesOverrides(nextOverrides);
       }
     },
   },

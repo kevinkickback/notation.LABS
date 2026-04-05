@@ -1,19 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useAppStore } from '@/lib/store';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { CharacterView } from '@/components/character/CharacterView';
+import { ComboView } from '@/components/combo/ComboView';
+import { GameLibrary } from '@/components/game/GameLibrary';
+import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
+import { Header } from '@/components/header/Header';
+import { Toaster } from '@/components/ui/sonner';
+import { ChangelogModal } from '@/components/updates/ChangelogModal';
+import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings } from '@/context/SettingsContext';
 import { getFontFamilyCSS } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import { GameLibrary } from '@/components/game/GameLibrary';
-import { CharacterView } from '@/components/character/CharacterView';
-import { ComboView } from '@/components/combo/ComboView';
-import { Header } from '@/components/header/Header';
-import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
-import { ChangelogModal } from '@/components/updates/ChangelogModal';
-import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
-import { Toaster } from '@/components/ui/sonner';
-import { toast } from 'sonner';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useAppStore } from '@/lib/store';
 
 function App() {
   const { selectedGameId, selectedCharacterId } = useAppStore();

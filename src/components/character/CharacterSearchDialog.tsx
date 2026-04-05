@@ -1,4 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,13 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { toast } from 'sonner';
-
-import { fetchImageAsBase64, getApiBase } from '@/lib/utils';
 import type { ImageSearchResult } from '@/lib/types';
+import { fetchImageAsBase64, getApiBase } from '@/lib/utils';
 
 interface CharacterSearchDialogProps {
   open: boolean;

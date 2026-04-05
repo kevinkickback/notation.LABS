@@ -1,5 +1,5 @@
-import type { Game } from '@/lib/types';
 import defaultGameImage from '@/assets/images/defaultGame.jpg';
+import type { Game } from '@/lib/types';
 
 interface CharacterViewHeaderProps {
   game: Game;

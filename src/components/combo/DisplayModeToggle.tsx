@@ -1,7 +1,7 @@
-import type { DisplayMode } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { TextAlignLeftIcon, ImagesIcon } from '@phosphor-icons/react';
+import { ImagesIcon, TextAlignLeftIcon } from '@phosphor-icons/react';
 import type { ReactElement } from 'react';
+import { Button } from '@/components/ui/button';
+import type { DisplayMode } from '@/lib/types';
 
 interface DisplayModeToggleProps {
   mode: DisplayMode;

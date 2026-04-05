@@ -1,8 +1,8 @@
+import { resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react-swc';
 import { defineConfig } from 'vite';
 import electron from 'vite-plugin-electron/simple';
-import { resolve } from 'node:path';
 
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname;
 

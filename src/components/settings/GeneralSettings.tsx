@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { UserSettings, FontFamily } from '@/lib/types';
-import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
-import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/context/SettingsContext';
+import {
+  ArrowsClockwiseIcon,
+  CheckCircleIcon,
+  ScrollIcon,
+  SpinnerGapIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -12,7 +16,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -20,18 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import {
-  ArrowsClockwiseIcon,
-  SpinnerGapIcon,
-  CheckCircleIcon,
-  WarningCircleIcon,
-  ScrollIcon,
-} from '@phosphor-icons/react';
-import { toast } from 'sonner';
-
+import { Switch } from '@/components/ui/switch';
 import { ChangelogModal } from '@/components/updates/ChangelogModal';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
+import { useSettings } from '@/context/SettingsContext';
+import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
+import { reportError } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { FontFamily, UserSettings } from '@/lib/types';
 
 export function GeneralSettings() {
   const settings = useSettings();

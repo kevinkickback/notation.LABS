@@ -1,41 +1,11 @@
-import type { Game, Character, Combo, DisplayMode } from '@/lib/types';
-import { useState, useEffect, useCallback } from 'react';
-import { useSettings } from '@/context/SettingsContext';
-import { useNotesOverride } from '@/hooks/useNotesOverride';
-import { useComboFilters } from '@/hooks/useComboFilters';
-import { useComboSelection } from '@/hooks/useComboSelection';
-import { useVideoPlayer } from '@/hooks/useVideoPlayer';
-import { useComboDelete } from '@/hooks/useComboDelete';
-import { useComboOperations } from '@/hooks/useComboOperations';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
-import { VideoPlayerDialog } from '@/components/combo/VideoPlayerDialog';
-import { ComboFilters } from '@/components/combo/ComboFilters';
-import { SortableComboCard } from '@/components/combo/SortableComboCard';
-import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
-import { ComboViewToolbar } from '@/components/combo/ComboViewToolbar';
-import { ComboViewHeader } from '@/components/combo/ComboViewHeader';
-import { ComboViewNotes } from '@/components/combo/ComboViewNotes';
-import { ComboViewEmptyState } from '@/components/combo/ComboViewEmptyState';
-import { ComboSelectionToolbar } from '@/components/combo/ComboSelectionToolbar';
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/components/ui/alert-dialog';
-import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -43,6 +13,36 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { useCallback, useEffect, useState } from 'react';
+import { ComboFilters } from '@/components/combo/ComboFilters';
+import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
+import { ComboSelectionToolbar } from '@/components/combo/ComboSelectionToolbar';
+import { ComboViewEmptyState } from '@/components/combo/ComboViewEmptyState';
+import { ComboViewHeader } from '@/components/combo/ComboViewHeader';
+import { ComboViewNotes } from '@/components/combo/ComboViewNotes';
+import { ComboViewToolbar } from '@/components/combo/ComboViewToolbar';
+import { SortableComboCard } from '@/components/combo/SortableComboCard';
+import { VideoPlayerDialog } from '@/components/combo/VideoPlayerDialog';
+import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useSettings } from '@/context/SettingsContext';
+import { useComboDelete } from '@/hooks/useComboDelete';
+import { useComboFilters } from '@/hooks/useComboFilters';
+import { useComboOperations } from '@/hooks/useComboOperations';
+import { useComboSelection } from '@/hooks/useComboSelection';
+import { useNotesOverride } from '@/hooks/useNotesOverride';
+import { useVideoPlayer } from '@/hooks/useVideoPlayer';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { Character, Combo, DisplayMode, Game } from '@/lib/types';
 
 interface ComboViewProps {
   game: Game;

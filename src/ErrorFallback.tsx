@@ -1,8 +1,7 @@
-import { Alert, AlertTitle, AlertDescription } from './components/ui/alert';
-import { Button } from './components/ui/button';
-
-import { WarningIcon, ArrowClockwiseIcon } from '@phosphor-icons/react';
+import { ArrowClockwiseIcon, WarningIcon } from '@phosphor-icons/react';
 import type { FallbackProps } from 'react-error-boundary';
+import { Alert, AlertDescription, AlertTitle } from './components/ui/alert';
+import { Button } from './components/ui/button';
 
 export const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   if (import.meta.env.DEV) throw error;

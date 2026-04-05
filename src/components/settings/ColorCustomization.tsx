@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { NotationColors, Game } from '@/lib/types';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { useSettings } from '@/context/SettingsContext';
+import { ArrowClockwiseIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
@@ -11,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -19,11 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toast } from 'sonner';
-import { ArrowClockwiseIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
+import { useSettings } from '@/context/SettingsContext';
+import { DEFAULT_BUTTON_PALETTE, DEFAULT_SETTINGS } from '@/lib/defaults';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { Game, NotationColors } from '@/lib/types';
 
-import { DEFAULT_SETTINGS } from '@/lib/defaults';
-import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
 
 export function ColorCustomization() {

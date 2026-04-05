@@ -1,26 +1,26 @@
-import { Button } from '@/components/ui/button';
 import {
-  GearSixIcon,
   DownloadIcon,
-  UploadIcon,
-  NotebookIcon,
+  GearSixIcon,
   ListIcon,
+  NotebookIcon,
+  UploadIcon,
 } from '@phosphor-icons/react';
-import { useEffect, useState, useRef } from 'react';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { MAX_IMPORT_SIZE_BYTES } from '@/lib/defaults';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { toUserMessage, reportError } from '@/lib/errors';
-import { SettingsPanel } from '@/components/settings/SettingsPanel';
-import { NotationGuide } from '@/components/header/NotationGuide';
 import { ExportDialog } from '@/components/header/ExportDialog';
 import { ImportDialog } from '@/components/header/ImportDialog';
+import { NotationGuide } from '@/components/header/NotationGuide';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { MAX_IMPORT_SIZE_BYTES } from '@/lib/defaults';
+import { reportError, toUserMessage } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);

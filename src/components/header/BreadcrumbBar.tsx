@@ -1,15 +1,15 @@
-import { useAppStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 import {
   Breadcrumb,
-  BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbLink,
+  BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import type { Game, Character } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { useAppStore } from '@/lib/store';
+import type { Character, Game } from '@/lib/types';
 
 interface BreadcrumbBarProps {
   selectedGame?: Game;

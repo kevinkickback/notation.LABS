@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
 import { PlusIcon } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { toast } from 'sonner';
 import type { Game } from '@/lib/types';
 
 const DEFAULT_BTN_PALETTE = [

@@ -1,19 +1,19 @@
-import type { Combo, Game, DisplayMode } from '@/lib/types';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import {
-  TrashIcon,
-  PencilIcon,
-  CopyIcon,
-  DotsSixVerticalIcon,
-  PlayIcon,
-  WarningIcon,
-} from '@phosphor-icons/react';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import {
+  CopyIcon,
+  DotsSixVerticalIcon,
+  PencilIcon,
+  PlayIcon,
+  TrashIcon,
+  WarningIcon,
+} from '@phosphor-icons/react';
+import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import type { Combo, DisplayMode, Game } from '@/lib/types';
 
 interface SortableComboCardProps {
   combo: Combo;

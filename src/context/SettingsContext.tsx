@@ -1,11 +1,11 @@
-import { createContext, useContext, useEffect } from 'react';
-import type { ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import { reportError, toUserMessage } from '@/lib/errors';
-import { DEFAULT_SETTINGS } from '@/lib/defaults';
-import type { UserSettings } from '@/lib/types';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
+import { DEFAULT_SETTINGS } from '@/lib/defaults';
+import { reportError, toUserMessage } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import type { UserSettings } from '@/lib/types';
 
 const SettingsContext = createContext<UserSettings>(DEFAULT_SETTINGS);
 

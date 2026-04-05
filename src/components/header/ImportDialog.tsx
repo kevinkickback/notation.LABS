@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 
@@ -23,6 +23,8 @@ export function ImportDialog({
 }: ImportDialogProps) {
   const [includeVideos, setIncludeVideos] = useState(true);
   const [includeSettings, setIncludeSettings] = useState(false);
+  const includeVideosId = useId();
+  const includeSettingsId = useId();
 
   useEffect(() => {
     if (open) {
@@ -44,7 +46,7 @@ export function ImportDialog({
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label htmlFor="import-include-videos" className="text-sm">
+              <Label htmlFor={includeVideosId} className="text-sm">
                 Include demo videos
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -52,7 +54,7 @@ export function ImportDialog({
               </p>
             </div>
             <Switch
-              id="import-include-videos"
+              id={includeVideosId}
               checked={includeVideos}
               onCheckedChange={setIncludeVideos}
             />
@@ -60,7 +62,7 @@ export function ImportDialog({
 
           <div className="flex items-center justify-between gap-3">
             <div>
-              <Label htmlFor="import-include-settings" className="text-sm">
+              <Label htmlFor={includeSettingsId} className="text-sm">
                 Replace settings
               </Label>
               <p className="text-xs text-muted-foreground">
@@ -69,7 +71,7 @@ export function ImportDialog({
               </p>
             </div>
             <Switch
-              id="import-include-settings"
+              id={includeSettingsId}
               checked={includeSettings}
               onCheckedChange={setIncludeSettings}
             />

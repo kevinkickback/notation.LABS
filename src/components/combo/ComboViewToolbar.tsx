@@ -1,11 +1,11 @@
 import {
-  PlusIcon,
-  FunnelIcon,
   CheckSquareIcon,
+  FunnelIcon,
   PaletteIcon,
+  PlusIcon,
 } from '@phosphor-icons/react';
-import { Button } from '@/components/ui/button';
 import { DisplayModeToggle } from '@/components/combo/DisplayModeToggle';
+import { Button } from '@/components/ui/button';
 import type { DisplayMode } from '@/lib/types';
 
 interface ComboViewToolbarProps {
