@@ -1,5 +1,8 @@
 import type { ComboToken } from './types';
 
+// Bump when parser behavior changes and stored combo tokens need refreshing.
+export const COMBO_NOTATION_PARSER_VERSION = 1;
+
 // Ordered from longest to shortest semantic motions so numeric tokens prefer
 // complete motion matches before falling back to individual directions.
 const MOTIONS = [
@@ -241,8 +244,86 @@ export function parseComboNotation(
   customButtons: string[] = [],
 ): ComboToken[] {
   const tokens: ComboToken[] = [];
-  const allButtons = [...COMMON_BUTTONS, ...customButtons];
+  const allButtons =
+    customButtons.length > 0 ? [...customButtons] : [...COMMON_BUTTONS];
   const sortedButtons = [...allButtons].sort((a, b) => b.length - a.length);
+
+  const isAsciiLetter = (value: string | undefined): boolean => {
+    if (!value) {
+      return false;
+    }
+    return /[a-z]/i.test(value);
+  };
+
+  const hasLetterBoundaryForButton = (
+    inputText: string,
+    start: number,
+    buttonLength: number,
+    buttonText: string,
+  ): boolean => {
+    // Only apply boundary checks to plain alphabetic buttons (A, B, C, D, LP, RC, etc.).
+    if (!/^[a-z]+$/i.test(buttonText)) {
+      return true;
+    }
+
+    const prevChar = start > 0 ? inputText[start - 1] : undefined;
+    const nextChar = inputText[start + buttonLength];
+    return !isAsciiLetter(prevChar) && !isAsciiLetter(nextChar);
+  };
+
+  const hasLetterBoundaryForWordToken = (
+    inputText: string,
+    start: number,
+    tokenLength: number,
+    tokenText: string,
+  ): boolean => {
+    if (!/^[a-z]+$/i.test(tokenText)) {
+      return true;
+    }
+
+    const prevChar = start > 0 ? inputText[start - 1] : undefined;
+    const nextChar = inputText[start + tokenLength];
+    return !isAsciiLetter(prevChar) && !isAsciiLetter(nextChar);
+  };
+
+  const consumeUnknownPhrase = (start: number): string => {
+    let end = start;
+
+    while (end < input.length) {
+      const char = input[end];
+
+      // Keep single spaces only when they are between letters.
+      if (char === ' ') {
+        const prevChar = end > start ? input[end - 1] : undefined;
+        const nextChar = end + 1 < input.length ? input[end + 1] : undefined;
+        if (isAsciiLetter(prevChar) && isAsciiLetter(nextChar)) {
+          end++;
+          continue;
+        }
+        break;
+      }
+
+      // Stop phrase before notation delimiters and structural symbols.
+      if ('()[]{}<>+~,/|'.includes(char)) {
+        break;
+      }
+
+      // Stop at motion-friendly digits so inputs like 5A keep parsing correctly.
+      if (/[0-9]/.test(char)) {
+        break;
+      }
+
+      // Keep contiguous letters as a single unknown phrase token.
+      if (isAsciiLetter(char)) {
+        end++;
+        continue;
+      }
+
+      break;
+    }
+
+    return input.substring(start, end);
+  };
 
   const tryInlineRepeat = (pos: number): number => {
     const remaining = input.substring(pos);
@@ -274,6 +355,25 @@ export function parseComboNotation(
       }
 
       if (input[index] === ')') {
+        depth--;
+        if (depth === 0) {
+          return index;
+        }
+      }
+    }
+
+    return -1;
+  };
+
+  const findMatchingBracket = (startIndex: number): number => {
+    let depth = 0;
+
+    for (let index = startIndex; index < input.length; index++) {
+      if (input[index] === '[') {
+        depth++;
+      }
+
+      if (input[index] === ']') {
         depth--;
         if (depth === 0) {
           return index;
@@ -346,9 +446,31 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
+    if (input[i] === '[') {
+      const closeBracketIndex = findMatchingBracket(i);
+      if (closeBracketIndex !== -1) {
+        let tokenEnd = closeBracketIndex + 1;
+        while (tokenEnd < input.length && input[tokenEnd] === ' ') {
+          tokenEnd++;
+        }
+        const fullText = input.substring(i, tokenEnd);
+        tokens.push({
+          type: 'modifier',
+          value: fullText,
+          rawValue: fullText,
+        });
+        i = tokenEnd;
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
     for (const sep of SEPARATORS) {
       const chunk = input.substring(i, i + sep.length);
-      if (chunk === sep || (sep === 'xx' && chunk.toLowerCase() === 'xx')) {
+      if (
+        (chunk === sep || (sep === 'xx' && chunk.toLowerCase() === 'xx')) &&
+        hasLetterBoundaryForWordToken(input, i, sep.length, sep)
+      ) {
         tokens.push({
           type: 'separator',
           value: sep,
@@ -368,7 +490,10 @@ export function parseComboNotation(
         .replace(/\s+/g, '');
       const normalizedModKey = modKey.toLowerCase().replace(/\s+/g, '');
 
-      if (normalizedInput === normalizedModKey) {
+      if (
+        normalizedInput === normalizedModKey &&
+        hasLetterBoundaryForWordToken(input, i, modKey.length, modKey)
+      ) {
         const normalizedValue =
           STANCE_MODIFIERS[modKey] || SPECIAL_MODIFIERS[modKey];
         tokens.push({
@@ -390,7 +515,10 @@ export function parseComboNotation(
         .replace(/\s+/g, '');
       const normalizedAlias = alias.toLowerCase().replace(/\s+/g, '');
 
-      if (normalizedInput === normalizedAlias) {
+      if (
+        normalizedInput === normalizedAlias &&
+        hasLetterBoundaryForWordToken(input, i, alias.length, alias)
+      ) {
         const numpadValue = MOTION_ALIASES[alias];
         let matchLength = alias.length;
         // Auto-consume trailing dot delimiter (e.g. dp.HP → motion "dp." + button "HP")
@@ -440,7 +568,9 @@ export function parseComboNotation(
 
     for (const btn of sortedButtons) {
       if (
-        input.substring(i, i + btn.length).toUpperCase() === btn.toUpperCase()
+        input.substring(i, i + btn.length).toUpperCase() ===
+          btn.toUpperCase() &&
+        hasLetterBoundaryForButton(input, i, btn.length, btn)
       ) {
         tokens.push({
           type: 'button',
@@ -455,13 +585,14 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    const unknownChar = input[i];
+    const unknownPhrase = consumeUnknownPhrase(i);
+    const unknownChar = unknownPhrase || input[i];
     tokens.push({
       type: 'unknown',
       value: unknownChar,
       rawValue: unknownChar,
     });
-    i++;
+    i += unknownChar.length;
   }
 
   // Collapse consecutive identical buttons into repeat groups (e.g. LLL → L×3)
@@ -518,6 +649,20 @@ export function getTokenColor(
       return colors.direction || '#bdceef';
     case 'modifier':
       if (token.value === 'CH') {
+        return colors.separator || '#6c727e';
+      }
+      if (token.value.startsWith('(')) {
+        return colors.separator || '#6c727e';
+      }
+      if (token.value.startsWith('[')) {
+        const trimmed = token.value.trim();
+        if (trimmed.endsWith(']')) {
+          const bracketContent = trimmed.slice(1, -1).trim();
+          const upperContent = bracketContent.toUpperCase();
+          if (buttonColors?.[upperContent]) {
+            return buttonColors[upperContent];
+          }
+        }
         return colors.separator || '#6c727e';
       }
       return colors.direction || '#bdceef';

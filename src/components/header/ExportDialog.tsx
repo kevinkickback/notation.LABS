@@ -1,4 +1,8 @@
-import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  SpinnerGapIcon,
+} from '@phosphor-icons/react';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -19,6 +23,70 @@ import {
   indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
 import type { Character, Combo, Game } from '@/lib/types';
+
+interface ExportProgressModalProps {
+  current: number;
+  /** null = still preparing (DB reads + filtering); number = archiving in progress */
+  total: number | null;
+}
+
+/** Blocking modal shown while backup archive is being built. Cannot be dismissed. */
+export function ExportProgressModal({
+  current,
+  total,
+}: ExportProgressModalProps) {
+  const isFinalizing = total !== null && total > 0 && current >= total;
+  const pct =
+    total !== null && total > 0 ? Math.round((current / total) * 100) : 0;
+  return (
+    <Dialog open>
+      <DialogContent
+        className="max-w-xs sm:max-w-sm"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        hideCloseButton
+      >
+        <DialogHeader>
+          <DialogTitle>Exporting…</DialogTitle>
+          <DialogDescription>
+            {total === null
+              ? 'Preparing export…'
+              : isFinalizing
+                ? 'Finalizing backup archive…'
+                : `Adding video ${current} of ${total} to backup…`}
+          </DialogDescription>
+        </DialogHeader>
+        {total === null ? (
+          <div className="flex justify-center py-2">
+            <SpinnerGapIcon className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-2 pt-1">
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              {isFinalizing ? (
+                <div className="h-full w-full rounded-full bg-primary/70 animate-pulse" />
+              ) : (
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-200"
+                  style={{ width: `${pct}%` }}
+                />
+              )}
+            </div>
+            {isFinalizing && (
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <SpinnerGapIcon className="size-4 animate-spin text-muted-foreground" />
+                <span>This can take a bit for large backups.</span>
+              </div>
+            )}
+            {!isFinalizing && (
+              <p className="text-xs text-muted-foreground text-right">{pct}%</p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 interface ExportDialogProps {
   open: boolean;
@@ -312,8 +380,8 @@ export function ExportDialog({
           </div>
         </div>
 
-        <ScrollArea className="max-h-[40vh] border rounded-md">
-          <div className="p-2">
+        <ScrollArea className="max-h-[40vh] w-full border rounded-md">
+          <div className="w-full p-2">
             {loading ? (
               <p className="text-sm text-muted-foreground p-2">Loading...</p>
             ) : data.games.length === 0 ? (
@@ -329,11 +397,11 @@ export function ExportDialog({
                 return (
                   <div key={game.id}>
                     {/* Game row */}
-                    <div className="flex items-center gap-1.5 py-1 hover:bg-muted/50 rounded px-1">
+                    <div className="flex min-w-0 items-center gap-1.5 py-1 hover:bg-muted/50 rounded px-1">
                       <button
                         type="button"
                         onClick={() => toggleExpandGame(game.id)}
-                        className="p-0.5 text-muted-foreground hover:text-foreground"
+                        className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
                       >
                         {chars.length > 0 ? (
                           isExpanded ? (
@@ -349,10 +417,10 @@ export function ExportDialog({
                         checked={gameState}
                         onCheckedChange={() => toggleGame(game.id)}
                       />
-                      <span className="text-sm font-medium truncate">
+                      <span className="min-w-0 flex-1 truncate pr-2 text-sm font-medium">
                         {game.name}
                       </span>
-                      <span className="text-xs text-muted-foreground ml-auto">
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                         {chars.length} char{chars.length !== 1 && 's'}
                       </span>
                     </div>
@@ -367,11 +435,11 @@ export function ExportDialog({
                         return (
                           <div key={char.id} className="ml-5">
                             {/* Character row */}
-                            <div className="flex items-center gap-1.5 py-1 hover:bg-muted/50 rounded px-1">
+                            <div className="flex min-w-0 items-center gap-1.5 py-1 hover:bg-muted/50 rounded px-1">
                               <button
                                 type="button"
                                 onClick={() => toggleExpandCharacter(char.id)}
-                                className="p-0.5 text-muted-foreground hover:text-foreground"
+                                className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
                               >
                                 {combos.length > 0 ? (
                                   isCharExpanded ? (
@@ -389,10 +457,10 @@ export function ExportDialog({
                                   toggleCharacter(char.id, game.id)
                                 }
                               />
-                              <span className="text-sm truncate">
+                              <span className="min-w-0 flex-1 truncate pr-2 text-sm">
                                 {char.name}
                               </span>
-                              <span className="text-xs text-muted-foreground ml-auto">
+                              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                 {combos.length} combo
                                 {combos.length !== 1 && 's'}
                               </span>
@@ -403,16 +471,16 @@ export function ExportDialog({
                               combos.map((combo) => (
                                 <div
                                   key={combo.id}
-                                  className="ml-5 flex items-center gap-1.5 py-1 hover:bg-muted/50 rounded px-1"
+                                  className="ml-5 flex min-w-0 items-center gap-1.5 py-1 hover:bg-muted/50 rounded px-1"
                                 >
-                                  <span className="size-3.5 inline-block" />
+                                  <span className="size-3.5 inline-block shrink-0" />
                                   <Checkbox
                                     checked={selectedCombos.has(combo.id)}
                                     onCheckedChange={() =>
                                       toggleCombo(combo.id, char.id, game.id)
                                     }
                                   />
-                                  <span className="text-sm truncate text-muted-foreground">
+                                  <span className="min-w-0 flex-1 truncate pr-2 text-sm text-muted-foreground">
                                     {combo.name}
                                   </span>
                                 </div>

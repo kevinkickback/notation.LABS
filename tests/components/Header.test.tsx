@@ -9,6 +9,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     export: vi.fn(),
     import: vi.fn(),
+    importZip: vi.fn(),
   },
 }));
 
@@ -47,19 +48,23 @@ describe('Header', () => {
     const user = userEvent.setup();
     const { container } = render(<Header />);
 
-    const input = container.querySelector('input[type="file"]');
+    const input = container.querySelector(
+      'input[type="file"][accept*="application/json"]',
+    );
     expect(input).toBeTruthy();
 
     const file = new File(['{}'], 'backup.json', {
       type: 'application/json',
     });
     Object.defineProperty(file, 'size', {
-      value: 50 * 1024 * 1024 + 1,
+      value: 500 * 1024 * 1024,
     });
 
     await user.upload(input as HTMLInputElement, file);
 
-    expect(toast.error).toHaveBeenCalledWith('Import file exceeds 50 MB limit');
+    expect(toast.error).toHaveBeenCalledWith(
+      'Backup file is too large for JSON import. Export fewer videos or use filters.',
+    );
     expect(indexedDbStorage.import).not.toHaveBeenCalled();
   });
 
@@ -78,7 +83,9 @@ describe('Header', () => {
       screen.getByRole('button', { name: /choose backup file/i }),
     );
 
-    const input = container.querySelector('input[type="file"]');
+    const input = container.querySelector(
+      'input[type="file"][accept*="application/json"]',
+    );
     expect(input).toBeTruthy();
 
     const file = new File(['{"version":1,"exported":"now"}'], 'backup.json', {
@@ -95,5 +102,45 @@ describe('Header', () => {
     expect(toast.success).toHaveBeenCalledWith(
       'Data imported. Settings were replaced from backup.',
     );
+  });
+
+  it('shows zip import progress while importing a backup archive', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Header />);
+    let resolveImport: (() => void) | undefined;
+
+    vi.mocked(indexedDbStorage.importZip).mockImplementationOnce(
+      async (_file, _includeVideos, _includeSettings, onProgress) => {
+        onProgress?.({ phase: 'loading', current: 0, total: null });
+        onProgress?.({ phase: 'videos', current: 1, total: 2 });
+        await new Promise<void>((resolve) => {
+          resolveImport = resolve;
+        });
+      },
+    );
+
+    await user.click(
+      screen.getAllByRole('button', { name: /import data/i })[0],
+    );
+    await user.click(
+      screen.getByRole('button', { name: /choose backup file/i }),
+    );
+
+    const input = container.querySelector(
+      'input[type="file"][accept*="application/json"]',
+    );
+    expect(input).toBeTruthy();
+
+    const file = new File(['zip-data'], 'backup.zip', {
+      type: 'application/zip',
+    });
+
+    const uploadPromise = user.upload(input as HTMLInputElement, file);
+
+    expect(await screen.findByText('Importing…')).toBeTruthy();
+    expect(await screen.findByText('Importing video 1 of 2…')).toBeTruthy();
+
+    resolveImport?.();
+    await uploadPromise;
   });
 });

@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import JSZip from 'jszip';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
@@ -638,8 +639,8 @@ describe('indexedDbStorage.export', () => {
       tags: ['test'],
     });
 
-    const json = await indexedDbStorage.export();
-    const parsed = JSON.parse(json);
+    const blob = await indexedDbStorage.export();
+    const parsed = JSON.parse(await blob.text());
     expect(parsed.version).toBe(1);
     expect(parsed.exported).toBeDefined();
     expect(parsed.games).toHaveLength(1);
@@ -654,8 +655,8 @@ describe('indexedDbStorage.export', () => {
     });
     await indexedDbStorage.games.add({ name: 'Game 2', buttonLayout: [] });
 
-    const json = await indexedDbStorage.export(false, { gameIds: [g1] });
-    const parsed = JSON.parse(json);
+    const blob = await indexedDbStorage.export(false, { gameIds: [g1] });
+    const parsed = JSON.parse(await blob.text());
     expect(parsed.games).toHaveLength(1);
     expect(parsed.games[0].name).toBe('Game 1');
   });
@@ -671,8 +672,8 @@ describe('indexedDbStorage.export', () => {
     });
     await indexedDbStorage.characters.add({ gameId, name: 'Char 2' });
 
-    const json = await indexedDbStorage.export(false, { characterIds: [c1] });
-    const parsed = JSON.parse(json);
+    const blob = await indexedDbStorage.export(false, { characterIds: [c1] });
+    const parsed = JSON.parse(await blob.text());
     expect(parsed.characters).toHaveLength(1);
     expect(parsed.characters[0].name).toBe('Char 1');
   });
@@ -701,8 +702,8 @@ describe('indexedDbStorage.export', () => {
       tags: [],
     });
 
-    const json = await indexedDbStorage.export(false, { comboIds: [combo1] });
-    const parsed = JSON.parse(json);
+    const blob = await indexedDbStorage.export(false, { comboIds: [combo1] });
+    const parsed = JSON.parse(await blob.text());
     expect(parsed.combos).toHaveLength(1);
     expect(parsed.combos[0].name).toBe('Keep');
   });
@@ -732,13 +733,62 @@ describe('indexedDbStorage.export', () => {
       demoUrl: `local:${videoId}`,
     });
 
-    const json = await indexedDbStorage.export(true);
-    const parsed = JSON.parse(json);
-    expect(parsed.version).toBe(2);
+    const blob = await indexedDbStorage.export(true);
+    expect(blob.type).toBe('application/zip');
+
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+    const backupEntry = zip.file('backup.json');
+    expect(backupEntry).toBeTruthy();
+    const parsed = JSON.parse(await backupEntry!.async('string'));
+
+    expect(parsed.version).toBe(3);
     expect(parsed.demoVideos).toBeDefined();
     expect(parsed.demoVideos).toHaveLength(1);
-    expect(parsed.demoVideos[0].dataBase64).toBeDefined();
+    expect(parsed.demoVideos[0].path).toBeTruthy();
     expect(parsed.demoVideos[0].mimeType).toBe('video/mp4');
+
+    const videoEntry = zip.file(parsed.demoVideos[0].path);
+    expect(videoEntry).toBeTruthy();
+  });
+
+  it('invokes onProgress callback once per video during export', async () => {
+    const gameId = await indexedDbStorage.games.add({
+      name: 'Game',
+      buttonLayout: [],
+    });
+    const charId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Char',
+    });
+    for (let i = 0; i < 3; i++) {
+      await indexedDbStorage.demoVideos.add({
+        id: `prog-vid-${i}`,
+        data: new Uint8Array([i]).buffer,
+        mimeType: 'video/mp4',
+        fileName: `v${i}.mp4`,
+      });
+      await indexedDbStorage.combos.add({
+        characterId: charId,
+        name: `Combo ${i}`,
+        notation: 'A',
+        parsedNotation: [],
+        tags: [],
+        demoUrl: `local:prog-vid-${i}`,
+      });
+    }
+
+    const calls: [number, number][] = [];
+    await indexedDbStorage.export(true, undefined, (current, total) => {
+      calls.push([current, total]);
+    });
+
+    // onProgress(0, 3) then (1,3), (2,3), (3,3)
+    expect(calls).toEqual([
+      [0, 3],
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ]);
   });
 
   it('sanitizes local demo references when videos are excluded from export', async () => {
@@ -767,8 +817,8 @@ describe('indexedDbStorage.export', () => {
       demoVideoTitle: 'Export demo',
     });
 
-    const json = await indexedDbStorage.export(false);
-    const parsed = JSON.parse(json);
+    const blob = await indexedDbStorage.export(false);
+    const parsed = JSON.parse(await blob.text());
 
     expect(parsed.version).toBe(1);
     expect(parsed.combos).toHaveLength(1);
@@ -1037,7 +1087,7 @@ describe('indexedDbStorage.import', () => {
       },
     });
 
-    const exported = await indexedDbStorage.export(true);
+    const exportedBlob = await indexedDbStorage.export(true);
 
     await db.games.clear();
     await db.characters.clear();
@@ -1045,7 +1095,7 @@ describe('indexedDbStorage.import', () => {
     await db.settings.clear();
     await db.demoVideos.clear();
 
-    await indexedDbStorage.import(exported, true, true);
+    await indexedDbStorage.importZip(exportedBlob, true, true);
 
     const importedGames = await indexedDbStorage.games.getAll();
     const importedCharacters = await indexedDbStorage.characters.getAll();
@@ -1068,6 +1118,75 @@ describe('indexedDbStorage.import', () => {
     );
   });
 
+  it('reports progress while importing zip backups with videos', async () => {
+    const gameId = await indexedDbStorage.games.add({
+      name: 'Progress Game',
+      buttonLayout: ['LP'],
+    });
+    const characterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Progress Hero',
+    });
+
+    await indexedDbStorage.demoVideos.add({
+      id: 'video-one',
+      data: new Uint8Array([1, 2, 3]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'one.mp4',
+    });
+    await indexedDbStorage.demoVideos.add({
+      id: 'video-two',
+      data: new Uint8Array([4, 5, 6]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'two.mp4',
+    });
+    await indexedDbStorage.combos.add({
+      characterId,
+      name: 'Combo One',
+      notation: 'LP',
+      parsedNotation: [],
+      tags: [],
+      demoUrl: 'local:video-one',
+      demoFileName: 'one.mp4',
+    });
+    await indexedDbStorage.combos.add({
+      characterId,
+      name: 'Combo Two',
+      notation: 'MP',
+      parsedNotation: [],
+      tags: [],
+      demoUrl: 'local:video-two',
+      demoFileName: 'two.mp4',
+    });
+
+    const exportedBlob = await indexedDbStorage.export(true);
+    const progressEvents: Array<{
+      phase: 'loading' | 'videos' | 'finalizing';
+      current: number;
+      total: number | null;
+    }> = [];
+
+    await db.games.clear();
+    await db.characters.clear();
+    await db.combos.clear();
+    await db.settings.clear();
+    await db.demoVideos.clear();
+
+    await indexedDbStorage.importZip(exportedBlob, true, false, (progress) => {
+      progressEvents.push(progress);
+    });
+
+    expect(progressEvents).toEqual(
+      expect.arrayContaining([
+        { phase: 'loading', current: 0, total: null },
+        { phase: 'videos', current: 0, total: 2 },
+        { phase: 'videos', current: 1, total: 2 },
+        { phase: 'videos', current: 2, total: 2 },
+        { phase: 'finalizing', current: 2, total: 2 },
+      ]),
+    );
+  });
+
   it('rejects invalid import data before writing records', async () => {
     const invalidData = JSON.stringify({
       version: 2,
@@ -1081,8 +1200,8 @@ describe('indexedDbStorage.import', () => {
     await expect(indexedDbStorage.combos.getAll()).resolves.toHaveLength(0);
   });
 
-  it('rejects imports that exceed the max number of videos', async () => {
-    const demoVideos = Array.from({ length: 101 }, (_, idx) => ({
+  it('imports backups with more than 100 videos', async () => {
+    const demoVideos = Array.from({ length: 126 }, (_, idx) => ({
       id: `video-${idx}`,
       fileName: `video-${idx}.mp4`,
       mimeType: 'video/mp4',
@@ -1095,8 +1214,32 @@ describe('indexedDbStorage.import', () => {
       demoVideos,
     });
 
+    await indexedDbStorage.import(data, true);
+    await expect(indexedDbStorage.demoVideos.getAll()).resolves.toHaveLength(
+      126,
+    );
+  });
+
+  it('rejects a video that exceeds the 50 MB per-video limit', async () => {
+    // Simulate a base64 payload whose decoded size exceeds 50 MB.
+    // base64 length needed: ceil(50MB + 1) / 0.75 chars.
+    const overLimitBase64Length = Math.ceil((50 * 1024 * 1024 + 1) / 0.75);
+    const data = JSON.stringify({
+      version: 2,
+      exported: new Date().toISOString(),
+      demoVideos: [
+        {
+          id: 'big-vid',
+          fileName: 'big.mp4',
+          mimeType: 'video/mp4',
+          // Use a string of the right length (content doesn\'t matter for size check).
+          dataBase64: 'A'.repeat(overLimitBase64Length),
+        },
+      ],
+    });
+
     await expect(indexedDbStorage.import(data, true)).rejects.toThrow(
-      'Import contains 101 videos; max is 100',
+      'exceeds the 50 MB per-video limit',
     );
     await expect(indexedDbStorage.demoVideos.getAll()).resolves.toHaveLength(0);
   });

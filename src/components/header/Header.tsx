@@ -5,10 +5,17 @@ import {
   NotebookIcon,
   UploadIcon,
 } from '@phosphor-icons/react';
+import type { ChangeEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ExportDialog } from '@/components/header/ExportDialog';
-import { ImportDialog } from '@/components/header/ImportDialog';
+import {
+  ExportDialog,
+  ExportProgressModal,
+} from '@/components/header/ExportDialog';
+import {
+  ImportDialog,
+  ImportProgressModal,
+} from '@/components/header/ImportDialog';
 import { NotationGuide } from '@/components/header/NotationGuide';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { Button } from '@/components/ui/button';
@@ -18,16 +25,128 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MAX_IMPORT_SIZE_BYTES } from '@/lib/defaults';
+import { MAX_JSON_BACKUP_BYTES } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import {
+  indexedDbStorage,
+  type ZipImportProgress,
+} from '@/lib/storage/indexedDbStorage';
+
+type SavePickerWindow = Window & {
+  showSaveFilePicker?: (options?: {
+    suggestedName?: string;
+    types?: Array<{
+      description?: string;
+      accept: Record<string, string[]>;
+    }>;
+  }) => Promise<{
+    createWritable: () => Promise<{
+      write: (data: Blob) => Promise<void>;
+      close: () => Promise<void>;
+    }>;
+  }>;
+};
+
+type ExportSaveResult = 'saved' | 'cancelled' | 'unavailable';
+
+function getExportSuccessMessage(includeVideos: boolean): string {
+  return includeVideos ? 'Data exported with demo videos' : 'Data exported';
+}
+
+function triggerBlobDownload(blob: Blob, suggestedName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = suggestedName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Do not revoke immediately — large Blob downloads can be truncated.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+async function saveExportBlob(
+  blob: Blob,
+  suggestedName: string,
+  mimeType: string,
+  isDesktop: boolean,
+): Promise<ExportSaveResult> {
+  if (isDesktop) {
+    const buffer = new Uint8Array(await blob.arrayBuffer());
+    const result = await window.electronAPI.saveFile(
+      buffer,
+      suggestedName,
+      mimeType,
+    );
+
+    if (result.success) {
+      return 'saved';
+    }
+
+    if (result.error === 'User cancelled') {
+      return 'cancelled';
+    }
+
+    throw new Error(result.error ?? 'Failed to save exported file');
+  }
+
+  if (mimeType === 'application/json') {
+    return saveBlobWithPicker(blob, suggestedName, mimeType);
+  }
+
+  return 'unavailable';
+}
+
+async function saveBlobWithPicker(
+  blob: Blob,
+  suggestedName: string,
+  mimeType: string,
+): Promise<'saved' | 'cancelled' | 'unavailable'> {
+  const picker = (window as SavePickerWindow).showSaveFilePicker;
+  if (!picker) {
+    return 'unavailable';
+  }
+
+  try {
+    const handle = await picker({
+      suggestedName,
+      types: [
+        {
+          description: 'Notation Labs Backup',
+          accept: {
+            [mimeType]: [suggestedName.endsWith('.zip') ? '.zip' : '.json'],
+          },
+        },
+      ],
+    });
+
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return 'saved';
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return 'cancelled';
+    }
+
+    // Any other error (SecurityError, file system errors, etc.) falls back to download
+    return 'unavailable';
+  }
+}
 
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [notationGuideOpen, setNotationGuideOpen] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{
+    current: number;
+    total: number | null;
+  } | null>(null);
+  const [importProgress, setImportProgress] =
+    useState<ZipImportProgress | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
+  const isDesktop = !!window.electronAPI;
   const [importOptions, setImportOptions] = useState({
     includeVideos: true,
     includeSettings: false,
@@ -48,21 +167,45 @@ export function Header() {
     filter: { gameIds: string[]; characterIds: string[]; comboIds: string[] },
   ) => {
     setExportDialogOpen(false);
+    // Show the modal immediately with a spinner so there is no gap before archive building begins.
+    if (includeVideos) {
+      setExportProgress({ current: 0, total: null });
+    }
     try {
-      const data = await indexedDbStorage.export(includeVideos, filter);
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `notation-labs-backup-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(
-        includeVideos ? 'Data exported with demo videos' : 'Data exported',
+      const extension = includeVideos ? 'zip' : 'json';
+      const suggestedName = `notation-labs-backup-${Date.now()}.${extension}`;
+      const mimeType = includeVideos ? 'application/zip' : 'application/json';
+      const successMessage = getExportSuccessMessage(includeVideos);
+
+      const data = await indexedDbStorage.export(
+        includeVideos,
+        filter,
+        includeVideos
+          ? (current, total) => setExportProgress({ current, total })
+          : undefined,
       );
+
+      const saveResult = await saveExportBlob(
+        data,
+        suggestedName,
+        mimeType,
+        isDesktop,
+      );
+      if (saveResult === 'saved') {
+        toast.success(successMessage);
+        return;
+      }
+      if (saveResult === 'cancelled') {
+        return;
+      }
+
+      triggerBlobDownload(data, suggestedName);
+      toast.success(successMessage);
     } catch (error) {
       reportError('Header.handleExport', error);
       toast.error('Failed to export data');
+    } finally {
+      setExportProgress(null);
     }
   };
 
@@ -77,21 +220,37 @@ export function Header() {
     importInputRef.current?.click();
   };
 
-  const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_IMPORT_SIZE_BYTES) {
-      toast.error('Import file exceeds 50 MB limit');
+    const isZipBackup =
+      file.name.toLowerCase().endsWith('.zip') ||
+      file.type === 'application/zip';
+
+    if (!isZipBackup && file.size > MAX_JSON_BACKUP_BYTES) {
+      toast.error(
+        'Backup file is too large for JSON import. Export fewer videos or use filters.',
+      );
       e.target.value = '';
       return;
     }
     try {
-      const text = await file.text();
-      await indexedDbStorage.import(
-        text,
-        importOptions.includeVideos,
-        importOptions.includeSettings,
-      );
+      if (isZipBackup) {
+        setImportProgress({ phase: 'loading', current: 0, total: null });
+        await indexedDbStorage.importZip(
+          file,
+          importOptions.includeVideos,
+          importOptions.includeSettings,
+          setImportProgress,
+        );
+      } else {
+        const text = await file.text();
+        await indexedDbStorage.import(
+          text,
+          importOptions.includeVideos,
+          importOptions.includeSettings,
+        );
+      }
       toast.success(
         importOptions.includeSettings
           ? 'Data imported. Settings were replaced from backup.'
@@ -99,6 +258,8 @@ export function Header() {
       );
     } catch (err) {
       toast.error(`Failed to import data: ${toUserMessage(err)}`);
+    } finally {
+      setImportProgress(null);
     }
     setImportOptions({ includeVideos: true, includeSettings: false });
     e.target.value = '';
@@ -229,6 +390,19 @@ export function Header() {
         onOpenChange={setExportDialogOpen}
         onExport={handleExport}
       />
+      {exportProgress && (
+        <ExportProgressModal
+          current={exportProgress.current}
+          total={exportProgress.total}
+        />
+      )}
+      {importProgress && (
+        <ImportProgressModal
+          phase={importProgress.phase}
+          current={importProgress.current}
+          total={importProgress.total}
+        />
+      )}
       <ImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
@@ -237,7 +411,7 @@ export function Header() {
       <input
         ref={importInputRef}
         type="file"
-        accept="application/json"
+        accept="application/json,.json,application/zip,.zip"
         className="hidden"
         onChange={handleImportChange}
       />

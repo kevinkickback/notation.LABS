@@ -69,6 +69,16 @@ function groupTokensWithButtons(
     } else if (token.type === 'button') {
       pendingButton = token;
       currentGroup.push(token);
+    } else if (token.type === 'modifier') {
+      const bracketContent = getBracketContent(token.value);
+      if (bracketContent && buttonColors?.[bracketContent.toUpperCase()]) {
+        pendingButton = {
+          type: 'button',
+          value: bracketContent.toUpperCase(),
+          rawValue: token.rawValue,
+        };
+      }
+      currentGroup.push(token);
     } else {
       currentGroup.push(token);
     }
@@ -84,6 +94,26 @@ function groupTokensWithButtons(
   }
 
   return groups;
+}
+
+function getBracketContent(tokenValue: string): string | null {
+  const trimmed = tokenValue.trim();
+  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
+    return null;
+  }
+  return trimmed.slice(1, -1).trim();
+}
+
+function isDescriptiveBracketAnnotation(token: ComboToken): boolean {
+  if (token.type !== 'modifier') {
+    return false;
+  }
+  const content = getBracketContent(token.value);
+  if (content === null) {
+    return false;
+  }
+  // Treat bracket labels with spaces as descriptive annotations, not charge-style tokens.
+  return content.includes(' ');
 }
 
 interface ComboDisplayProps {
@@ -125,8 +155,11 @@ export function ComboDisplay({
     idx: number,
     groupColor?: string,
   ) => {
+    const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
     const color =
-      groupColor || getTokenColor(token, colors, game?.buttonColors);
+      !isDescriptiveBracket && groupColor
+        ? groupColor
+        : getTokenColor(token, colors, game?.buttonColors);
 
     if (token.type === 'repeat-start') {
       if (!repeatParenIndices.has(idx)) return null;
@@ -176,7 +209,9 @@ export function ComboDisplay({
             ? 'font-medium tracking-tight mx-1'
             : isCH || isParenAnnotation
               ? 'font-medium tracking-tight mx-1'
-              : 'font-medium tracking-tight'
+              : isDescriptiveBracket
+                ? 'font-medium tracking-tight mr-1'
+                : 'font-medium tracking-tight'
         }
       >
         {token.type === 'motion' ? token.rawValue : token.value}
@@ -189,8 +224,11 @@ export function ComboDisplay({
     idx: number,
     groupColor?: string,
   ) => {
+    const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
     const color =
-      groupColor || getTokenColor(token, colors, game?.buttonColors);
+      !isDescriptiveBracket && groupColor
+        ? groupColor
+        : getTokenColor(token, colors, game?.buttonColors);
 
     if (token.type === 'repeat-start') {
       if (!repeatParenIndices.has(idx)) return null;
@@ -284,7 +322,7 @@ export function ComboDisplay({
         return (
           <span
             key={idx}
-            className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : ''}`}
+            className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : isDescriptiveBracketAnnotation(token) ? ' mr-1' : ''}`}
             style={{ color, fontSize: `${1.25 * comboScale}rem` }}
           >
             {token.value}

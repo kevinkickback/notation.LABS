@@ -1,6 +1,8 @@
 import Dexie, { type EntityTable } from 'dexie';
+import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
-import { DEFAULT_SETTINGS, MAX_IMPORT_SIZE_BYTES } from '../defaults';
+import { DEFAULT_SETTINGS, MAX_VIDEO_SIZE_BYTES } from '../defaults';
+import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '../parser';
 import { importDataSchema } from '../schemas';
 import type {
   Character,
@@ -10,13 +12,20 @@ import type {
   UserSettings,
 } from '../types';
 
-const MAX_IMPORT_VIDEOS = 100;
+const ZIP_BACKUP_METADATA_FILE = 'backup.json';
+const ZIP_BACKUP_VIDEO_DIR = 'videos';
 
 export interface DemoVideo {
   id: string;
   data: ArrayBuffer;
   mimeType: string;
   fileName: string;
+}
+
+export interface ZipImportProgress {
+  phase: 'loading' | 'videos' | 'finalizing';
+  current: number;
+  total: number | null;
 }
 
 const db = new Dexie('FightingGameComboTracker') as Dexie & {
@@ -168,6 +177,40 @@ function migrateNotationColors(colors: Record<string, string>): {
     }
   }
   return { colors: migrated, changed };
+}
+
+async function reparseStoredCombos(): Promise<void> {
+  const [games, characters, combos] = await Promise.all([
+    db.games.toArray(),
+    db.characters.toArray(),
+    db.combos.toArray(),
+  ]);
+
+  if (combos.length === 0) {
+    return;
+  }
+
+  const gameButtonsById = new Map<string, string[]>();
+  for (const game of games) {
+    gameButtonsById.set(game.id, game.buttonLayout);
+  }
+
+  const characterGameById = new Map<string, string>();
+  for (const character of characters) {
+    characterGameById.set(character.id, character.gameId);
+  }
+
+  const reparsedCombos = combos.map((combo) => {
+    const gameId = characterGameById.get(combo.characterId);
+    const customButtons = gameId ? gameButtonsById.get(gameId) : undefined;
+
+    return {
+      ...combo,
+      parsedNotation: parseComboNotation(combo.notation, customButtons),
+    };
+  });
+
+  await db.combos.bulkPut(reparsedCombos);
 }
 
 export const indexedDbStorage = {
@@ -460,19 +503,40 @@ export const indexedDbStorage = {
      * Initialises the settings row on first launch and applies
      * any pending data migrations (e.g. oklch → hex colour values).
      */
-    init: async (): Promise<void> => {
+    init: async (options?: {
+      onReparseStart?: () => void;
+      onReparseEnd?: () => void;
+    }): Promise<void> => {
       const settings = await db.settings.get(1);
       if (!settings) {
         await db.settings.add({ id: 1, ...DEFAULT_SETTINGS });
         return;
       }
+
+      const pendingSettingsUpdates: Partial<UserSettings> = {};
+
       const { colors: migratedColors, changed } = migrateNotationColors(
         settings.notationColors,
       );
       if (changed) {
-        await db.settings.update(1, {
-          notationColors: migratedColors as NotationColors,
-        });
+        pendingSettingsUpdates.notationColors =
+          migratedColors as NotationColors;
+      }
+
+      const storedParserVersion = settings.parsedNotationVersion ?? 0;
+      if (storedParserVersion < COMBO_NOTATION_PARSER_VERSION) {
+        options?.onReparseStart?.();
+        try {
+          await reparseStoredCombos();
+        } finally {
+          options?.onReparseEnd?.();
+        }
+        pendingSettingsUpdates.parsedNotationVersion =
+          COMBO_NOTATION_PARSER_VERSION;
+      }
+
+      if (Object.keys(pendingSettingsUpdates).length > 0) {
+        await db.settings.update(1, pendingSettingsUpdates);
       }
     },
     update: async (updates: Partial<UserSettings>) => {
@@ -549,6 +613,7 @@ export const indexedDbStorage = {
       characterIds?: string[];
       comboIds?: string[];
     },
+    onProgress?: (current: number, total: number) => void,
   ) => {
     let [games, characters, combos, settings] = await db.transaction(
       'r',
@@ -579,45 +644,80 @@ export const indexedDbStorage = {
 
     let sanitizedCombos = combos;
 
-    let videos:
-      | Array<{
-          id: string;
-          fileName: string;
-          mimeType: string;
-          dataBase64: string;
-        }>
-      | undefined;
     if (includeVideos) {
       const localVideoIds = new Set(collectLocalVideoIds(combos));
       const allVideos = await db.demoVideos.toArray();
-      videos = allVideos
-        .filter((v) => localVideoIds.has(v.id))
-        .map((v) => ({
-          id: v.id,
-          fileName: v.fileName,
-          mimeType: v.mimeType,
-          dataBase64: arrayBufferToBase64(v.data),
-        }));
+      const filteredVideos = allVideos.filter((v) => localVideoIds.has(v.id));
+
       sanitizedCombos = sanitizeCombosLocalVideos(
         combos,
-        new Set(videos.map((video) => video.id)),
+        new Set(filteredVideos.map((v) => v.id)),
       );
-    } else {
-      sanitizedCombos = sanitizeCombosLocalVideos(combos, new Set());
+
+      const zip = new JSZip();
+      const demoVideos = filteredVideos.map((video) => {
+        const extMatch = /\.[^.]+$/.exec(video.fileName);
+        const ext = extMatch?.[0] ?? '';
+        return {
+          id: video.id,
+          fileName: video.fileName,
+          mimeType: video.mimeType,
+          path: `${ZIP_BACKUP_VIDEO_DIR}/${video.id}${ext}`,
+        };
+      });
+
+      onProgress?.(0, filteredVideos.length);
+      for (let i = 0; i < filteredVideos.length; i++) {
+        const video = filteredVideos[i];
+        const entry = demoVideos[i];
+        zip.file(entry.path, new Uint8Array(video.data));
+        onProgress?.(i + 1, filteredVideos.length);
+        if (i < filteredVideos.length - 1) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      zip.file(
+        ZIP_BACKUP_METADATA_FILE,
+        JSON.stringify(
+          {
+            version: 3,
+            exported: new Date().toISOString(),
+            games,
+            characters,
+            combos: sanitizedCombos,
+            settings,
+            demoVideos,
+          },
+          null,
+          2,
+        ),
+      );
+
+      return zip.generateAsync({
+        type: 'blob',
+        // Demo videos are already compressed; STORE avoids costly recompression.
+        compression: 'STORE',
+      });
     }
 
-    return JSON.stringify(
-      {
-        version: includeVideos ? 2 : 1,
-        exported: new Date().toISOString(),
-        games,
-        characters,
-        combos: sanitizedCombos,
-        settings,
-        ...(videos ? { demoVideos: videos } : {}),
-      },
-      null,
-      2,
+    sanitizedCombos = sanitizeCombosLocalVideos(combos, new Set());
+    return new Blob(
+      [
+        JSON.stringify(
+          {
+            version: 1,
+            exported: new Date().toISOString(),
+            games,
+            characters,
+            combos: sanitizedCombos,
+            settings,
+          },
+          null,
+          2,
+        ),
+      ],
+      { type: 'application/json' },
     );
   },
 
@@ -626,17 +726,39 @@ export const indexedDbStorage = {
     includeVideos = false,
     includeSettings = false,
   ) => {
-    const importSizeBytes = new Blob([data]).size;
-    if (importSizeBytes > MAX_IMPORT_SIZE_BYTES) {
-      throw new Error('Import file exceeds 50 MB limit');
+    let json: unknown;
+    try {
+      json = JSON.parse(data);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          'Backup JSON is incomplete or too large to parse. Re-export with fewer videos.',
+        );
+      }
+      throw error;
     }
-
-    const json = JSON.parse(data);
     const parsed = importDataSchema.parse(json);
-    if (parsed.demoVideos && parsed.demoVideos.length > MAX_IMPORT_VIDEOS) {
+    if (parsed.version === 3) {
       throw new Error(
-        `Import contains ${parsed.demoVideos.length} videos; max is ${MAX_IMPORT_VIDEOS}`,
+        'Version 3 backups with videos must be imported from zip.',
       );
+    }
+    // Validate individual video sizes. base64 encodes 3 bytes as 4 chars, so
+    // decoded byte length ≈ base64Length * 0.75.
+    if (parsed.demoVideos) {
+      for (const v of parsed.demoVideos) {
+        if (!v.dataBase64) {
+          throw new Error(
+            `Video "${v.fileName}" is missing embedded dataBase64 payload`,
+          );
+        }
+        const decodedBytes = Math.ceil(v.dataBase64.length * 0.75);
+        if (decodedBytes > MAX_VIDEO_SIZE_BYTES) {
+          throw new Error(
+            `Video "${v.fileName}" exceeds the 50 MB per-video limit`,
+          );
+        }
+      }
     }
 
     const availableVideoIds = includeVideos
@@ -689,6 +811,11 @@ export const indexedDbStorage = {
         }
         if (includeVideos && parsed.demoVideos) {
           for (const v of parsed.demoVideos) {
+            if (!v.dataBase64) {
+              throw new Error(
+                `Video "${v.fileName}" is missing embedded dataBase64 payload`,
+              );
+            }
             await db.demoVideos.put({
               id: v.id,
               fileName: v.fileName,
@@ -700,17 +827,149 @@ export const indexedDbStorage = {
       },
     );
   },
-};
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const CHUNK = 8192;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
+  importZip: async (
+    file: Blob,
+    includeVideos = false,
+    includeSettings = false,
+    onProgress?: (progress: ZipImportProgress) => void,
+  ) => {
+    onProgress?.({ phase: 'loading', current: 0, total: null });
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const metadataFile = zip.file(ZIP_BACKUP_METADATA_FILE);
+    if (!metadataFile) {
+      throw new Error('Invalid backup zip: missing backup.json');
+    }
+
+    const metadataText = await metadataFile.async('string');
+    let json: unknown;
+    try {
+      json = JSON.parse(metadataText);
+    } catch {
+      throw new Error('Invalid backup zip: backup.json is not valid JSON');
+    }
+
+    const parsed = importDataSchema.parse(json);
+    if (parsed.version !== 3) {
+      // Backward-compatible: if someone zipped an old JSON backup, import it.
+      await indexedDbStorage.import(
+        metadataText,
+        includeVideos,
+        includeSettings,
+      );
+      return;
+    }
+
+    const videosToImport: DemoVideo[] = [];
+    if (includeVideos && parsed.demoVideos) {
+      onProgress?.({
+        phase: 'videos',
+        current: 0,
+        total: parsed.demoVideos.length,
+      });
+
+      for (const v of parsed.demoVideos) {
+        let buffer: ArrayBuffer;
+        if (v.path) {
+          const zipEntry = zip.file(v.path);
+          if (!zipEntry) {
+            throw new Error(
+              `Video "${v.fileName}" is missing from the backup zip`,
+            );
+          }
+          buffer = await zipEntry.async('arraybuffer');
+        } else if (v.dataBase64) {
+          buffer = base64ToArrayBuffer(v.dataBase64);
+        } else {
+          throw new Error(
+            `Video "${v.fileName}" is missing path and data payload`,
+          );
+        }
+
+        if (buffer.byteLength > MAX_VIDEO_SIZE_BYTES) {
+          throw new Error(
+            `Video "${v.fileName}" exceeds the 50 MB per-video limit`,
+          );
+        }
+
+        videosToImport.push({
+          id: v.id,
+          fileName: v.fileName,
+          mimeType: v.mimeType,
+          data: buffer,
+        });
+
+        onProgress?.({
+          phase: 'videos',
+          current: videosToImport.length,
+          total: parsed.demoVideos.length,
+        });
+      }
+    }
+
+    onProgress?.({
+      phase: 'finalizing',
+      current: videosToImport.length,
+      total: includeVideos ? (parsed.demoVideos?.length ?? 0) : null,
+    });
+
+    const availableVideoIds = includeVideos
+      ? new Set(videosToImport.map((video) => video.id))
+      : new Set<string>();
+    const sanitizedCombos = parsed.combos
+      ? sanitizeCombosLocalVideos(parsed.combos, availableVideoIds)
+      : undefined;
+
+    const gameIds = new Set((parsed.games ?? []).map((game) => game.id));
+    const characterIds = new Set(
+      (parsed.characters ?? []).map((character) => character.id),
+    );
+    const orphanedCharacters = (parsed.characters ?? []).filter(
+      (character) => !gameIds.has(character.gameId),
+    );
+    const orphanedCombos = (sanitizedCombos ?? []).filter(
+      (combo) => !characterIds.has(combo.characterId),
+    );
+    if (orphanedCharacters.length > 0 || orphanedCombos.length > 0) {
+      throw new Error(
+        `Import has referential integrity issues: ${orphanedCharacters.length} orphaned characters, ${orphanedCombos.length} orphaned combos`,
+      );
+    }
+
+    await db.transaction(
+      'rw',
+      [db.games, db.characters, db.combos, db.settings, db.demoVideos],
+      async () => {
+        if (parsed.games) {
+          for (const game of parsed.games) {
+            await db.games.put(game);
+          }
+        }
+        if (parsed.characters) {
+          for (const character of parsed.characters) {
+            await db.characters.put(character);
+          }
+        }
+        if (sanitizedCombos) {
+          for (const combo of sanitizedCombos) {
+            await db.combos.put(combo);
+          }
+        }
+        if (includeSettings && parsed.settings) {
+          await db.settings.put({
+            id: 1,
+            ...parsed.settings,
+          });
+        }
+        if (includeVideos) {
+          for (const video of videosToImport) {
+            await db.demoVideos.put(video);
+          }
+        }
+      },
+    );
+  },
+};
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);

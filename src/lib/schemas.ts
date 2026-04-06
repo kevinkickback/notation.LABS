@@ -89,21 +89,27 @@ export const settingsSchema = z.object({
   characterCardSize: z.number(),
   notesDefaultOpen: z.boolean().default(false),
   notesOverrides: z.array(z.string()).optional(),
+  parsedNotationVersion: z.number().int().nonnegative().default(0),
   lastUpdateCheck: z.number().optional(),
   lastSeenVersion: z.string().optional(),
   showChangelogBeforeUpdate: z.boolean(),
   accentColor: z.string().optional(),
 });
 
-const demoVideoSchema = z.object({
-  id: z.string(),
-  fileName: z.string(),
-  mimeType: z.string(),
-  dataBase64: z.string(),
-});
+const demoVideoSchema = z
+  .object({
+    id: z.string(),
+    fileName: z.string(),
+    mimeType: z.string(),
+    dataBase64: z.string().optional(),
+    path: z.string().optional(),
+  })
+  .refine((video) => Boolean(video.dataBase64 || video.path), {
+    message: 'Each demo video must include either dataBase64 or path',
+  });
 
 export const importDataSchema = z.object({
-  version: z.number().int().min(1).max(2),
+  version: z.number().int().min(1).max(3),
   exported: z.string(),
   games: z.array(gameSchema).optional(),
   characters: z.array(characterSchema).optional(),

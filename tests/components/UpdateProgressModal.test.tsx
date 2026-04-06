@@ -23,16 +23,17 @@ describe('UpdateProgressModal', () => {
       setAutoCheck: vi.fn(),
       getAppVersion: vi.fn(),
       getCurrentChangelog: vi.fn(),
-      onUpdateChecking: vi.fn(() => () => {}),
-      onUpdateAvailable: vi.fn(() => () => {}),
-      onUpdateNotAvailable: vi.fn(() => () => {}),
-      onUpdateError: vi.fn(() => () => {}),
-      onDownloadProgress: vi.fn(() => () => {}),
-      onUpdateDownloaded: vi.fn(() => () => {}),
+      onUpdateChecking: vi.fn(() => () => { }),
+      onUpdateAvailable: vi.fn(() => () => { }),
+      onUpdateNotAvailable: vi.fn(() => () => { }),
+      onUpdateError: vi.fn(() => () => { }),
+      onDownloadProgress: vi.fn(() => () => { }),
+      onUpdateDownloaded: vi.fn(() => () => { }),
       onUpdateCancelled: vi.fn((callback: () => void) => {
         onUpdateCancelledCallback = callback;
-        return () => {};
+        return () => { };
       }),
+      saveFile: vi.fn(),
     };
   });
 
@@ -42,7 +43,7 @@ describe('UpdateProgressModal', () => {
     render(
       <UpdateProgressModal
         open={true}
-        version="1.4.0"
+        version="1.5.0"
         onOpenChange={onOpenChange}
       />,
     );

@@ -64,6 +64,12 @@ const mockCombos: Combo[] = [
 ];
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
+  // Inline the real implementation so ExportDialog's selectedVideoCount works.
+  getLocalVideoId: (demoUrl?: string) => {
+    if (!demoUrl?.startsWith('local:')) return null;
+    const id = demoUrl.slice('local:'.length);
+    return id || null;
+  },
   indexedDbStorage: {
     games: { getAll: vi.fn() },
     characters: { getAll: vi.fn() },
@@ -222,5 +228,46 @@ describe('ExportDialog', () => {
         expect.any(Error),
       );
     });
+  });
+
+  it('shows the include demo videos toggle when selected combos have local videos', async () => {
+    vi.mocked(indexedDbStorage.demoVideos.getAll).mockResolvedValueOnce([
+      { id: 'vid-1', fileName: 'test.mp4', mimeType: 'video/mp4', data: new ArrayBuffer(0) },
+    ]);
+    vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([
+      { ...mockCombos[0], demoUrl: 'local:vid-1' },
+    ]);
+
+    await renderDialog();
+
+    await waitFor(() => {
+      expect(screen.getByText('Include demo videos')).toBeTruthy();
+    });
+  });
+
+  it('calls onExport with includeVideos true when the video toggle is enabled', async () => {
+    const user = userEvent.setup();
+    vi.mocked(indexedDbStorage.demoVideos.getAll).mockResolvedValueOnce([
+      { id: 'vid-1', fileName: 'test.mp4', mimeType: 'video/mp4', data: new ArrayBuffer(0) },
+    ]);
+    vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([
+      { ...mockCombos[0], demoUrl: 'local:vid-1' },
+    ]);
+
+    await renderDialog();
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch')).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole('switch'));
+    await user.click(screen.getByRole('button', { name: /^export$/i }));
+
+    expect(onExport).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        comboIds: expect.arrayContaining([mockCombos[0].id]),
+      }),
+    );
   });
 });

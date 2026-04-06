@@ -66,6 +66,11 @@ declare global {
         callback: (data: { version: string }) => void,
       ) => () => void;
       onUpdateCancelled: (callback: () => void) => () => void;
+      saveFile: (
+        buffer: Uint8Array,
+        filename: string,
+        mimeType: string,
+      ) => Promise<{ success: boolean; error?: string; path?: string }>;
     };
   }
 }

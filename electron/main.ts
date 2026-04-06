@@ -1,6 +1,7 @@
+import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, ipcMain, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
 import { isSafeExternalUrl } from './security';
 import {
   cancelDownload,
@@ -219,6 +220,50 @@ app.on('ready', async () => {
     const changelog = await fetchChangelog(version);
     return { version, changelog };
   });
+
+  ipcMain.handle(
+    'file:save',
+    async (
+      _event,
+      buffer: Uint8Array,
+      filename: string,
+      mimeType: string,
+    ): Promise<{ success: boolean; error?: string; path?: string }> => {
+      if (!mainWindow) {
+        return { success: false, error: 'Main window not available' };
+      }
+
+      if (!(buffer instanceof Uint8Array)) {
+        return { success: false, error: 'Invalid buffer' };
+      }
+
+      const filters =
+        mimeType === 'application/json'
+          ? [{ name: 'JSON Backup', extensions: ['json'] }]
+          : mimeType === 'application/zip'
+            ? [{ name: 'ZIP Backup', extensions: ['zip'] }]
+            : [];
+
+      try {
+        const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+          defaultPath: filename,
+          filters: [...filters, { name: 'All Files', extensions: ['*'] }],
+        });
+
+        if (canceled || !filePath) {
+          return { success: false, error: 'User cancelled' };
+        }
+
+        await writeFile(filePath, Buffer.from(buffer));
+        return { success: true, path: filePath };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    },
+  );
 });
 
 // macOS: re-create window when dock icon clicked

@@ -118,6 +118,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('update-cancelled', listener);
     };
   },
+  saveFile: (
+    buffer: Uint8Array,
+    filename: string,
+    mimeType: string,
+  ): Promise<{ success: boolean; error?: string; path?: string }> =>
+    ipcRenderer.invoke('file:save', buffer, filename, mimeType),
 });
 
 // Type declarations for the exposed API live in src/types/electron.d.ts.

@@ -273,6 +273,15 @@ describe('parseComboNotation', () => {
       expect(tokens).toHaveLength(1);
       expect(tokens[0]).toMatchObject({ type: 'motion', value: '360' });
     });
+
+    it('does not parse alias prefixes inside words', () => {
+      const tokens = parseComboNotation('dragonpuncher');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({
+        type: 'unknown',
+        value: 'dragonpuncher',
+      });
+    });
   });
 
   describe('buttons', () => {
@@ -320,6 +329,47 @@ describe('parseComboNotation', () => {
         expect(tokens).toHaveLength(1);
         expect(tokens[0]).toMatchObject({ type: 'button', value: btn });
       }
+    });
+
+    it('uses custom buttons as authoritative when provided', () => {
+      const tokens = parseComboNotation('H', ['A', 'B', 'C', 'D', 'RC']);
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ type: 'unknown', value: 'H' });
+    });
+
+    it('still parses configured custom buttons', () => {
+      const tokens = parseComboNotation('RC', ['A', 'B', 'C', 'D', 'RC']);
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ type: 'button', value: 'RC' });
+    });
+
+    it('does not parse embedded single-letter buttons inside words', () => {
+      const tokens = parseComboNotation('ENDER', ['A', 'B', 'C', 'D', 'RC']);
+      expect(tokens.some((t) => t.type === 'button')).toBe(false);
+    });
+
+    it('does not colorize ENDER as D in mixed notation with custom buttons', () => {
+      const tokens = parseComboNotation(
+        '2A(3) > 2B > 5B > 5C > 2C > 4D > 5B > 6A > 5B > 5C > 236A > 66 > 5C > 236A > ENDER > j.4C',
+        ['A', 'B', 'C', 'D', 'RC'],
+      );
+
+      const dButtons = tokens.filter(
+        (t) => t.type === 'button' && t.value === 'D',
+      );
+      expect(dButtons).toHaveLength(1);
+    });
+
+    it('preserves spaces in unknown phrases like Lighting Hit', () => {
+      const tokens = parseComboNotation(
+        'Lighting Hit > 6[A] > 6C > ENDER',
+        ['A', 'B', 'C', 'D', 'RC'],
+      );
+
+      expect(tokens[0]).toMatchObject({
+        type: 'unknown',
+        value: 'Lighting Hit',
+      });
     });
   });
 
@@ -380,6 +430,12 @@ describe('parseComboNotation', () => {
       expect(tokens[2]).toMatchObject({ type: 'separator', value: '/' });
       expect(tokens[3]).toMatchObject({ type: 'motion', value: '236' });
       expect(tokens[4]).toMatchObject({ type: 'button', value: 'LP' });
+    });
+
+    it('does not parse "link" separator inside normal words', () => {
+      const tokens = parseComboNotation('blink');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ type: 'unknown', value: 'blink' });
     });
   });
 
@@ -525,6 +581,15 @@ describe('parseComboNotation', () => {
     });
   });
 
+    it('does not parse modifier prefixes inside words', () => {
+      const tokens = parseComboNotation('standingreset');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({
+        type: 'unknown',
+        value: 'standingreset',
+      });
+    });
+
   describe('repeat notation', () => {
     it('parses (L M)x3 repeat notation', () => {
       const tokens = parseComboNotation('(L M)x3');
@@ -599,6 +664,29 @@ describe('parseComboNotation', () => {
           .filter((token) => token.type === 'repeat-end')
           .map((token) => token.repeatCount),
       ).toEqual([2, 3]);
+    });
+
+    it('treats [ Lightning Hits ] as a single modifier token', () => {
+      const tokens = parseComboNotation('[ Lightning Hits ]');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({
+        type: 'modifier',
+        value: '[ Lightning Hits ]',
+      });
+    });
+
+    it('parses [ Lightning Hits ] 5A > 2B with label preserved', () => {
+      const tokens = parseComboNotation('[ Lightning Hits ] 5A > 2B');
+      expect(tokens).toHaveLength(6);
+      expect(tokens[0]).toMatchObject({
+        type: 'modifier',
+        value: '[ Lightning Hits ] ',
+      });
+      expect(tokens[1]).toMatchObject({ type: 'direction', value: '5' });
+      expect(tokens[2]).toMatchObject({ type: 'button', value: 'A' });
+      expect(tokens[3]).toMatchObject({ type: 'separator', value: '>' });
+      expect(tokens[4]).toMatchObject({ type: 'direction', value: '2' });
+      expect(tokens[5]).toMatchObject({ type: 'button', value: 'B' });
     });
   });
 
@@ -712,6 +800,25 @@ describe('getTokenColor', () => {
   it('returns direction color for modifier tokens', () => {
     const token = { type: 'modifier' as const, value: 'cr.', rawValue: 'cr.' };
     expect(getTokenColor(token, colors)).toBe('#ff0000');
+  });
+
+  it('returns separator color for bracket annotations', () => {
+    const token = {
+      type: 'modifier' as const,
+      value: '[Lightning Hits]',
+      rawValue: '[Lightning Hits]',
+    };
+    expect(getTokenColor(token, colors)).toBe('#00ff00');
+  });
+
+  it('uses button color for bracketed button modifiers', () => {
+    const token = {
+      type: 'modifier' as const,
+      value: '[D]',
+      rawValue: '[D]',
+    };
+    const buttonColors = { D: '#123456' };
+    expect(getTokenColor(token, colors, buttonColors)).toBe('#123456');
   });
 
   it('returns separator color for CH modifier', () => {

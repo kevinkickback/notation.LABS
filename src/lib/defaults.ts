@@ -1,6 +1,9 @@
 import type { FontFamily, UserSettings } from './types';
 
-export const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024;
+export const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
+// Practical ceiling for JSON backups in the renderer process.
+// Larger files are likely to fail during text decode / JSON.parse.
+export const MAX_JSON_BACKUP_BYTES = 450 * 1024 * 1024;
 
 export const DEFAULT_BUTTON_PALETTE = [
   '#e53e3e',
@@ -64,6 +67,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   characterCardSize: 180,
   notesDefaultOpen: false,
   notesOverrides: [],
+  parsedNotationVersion: 0,
   showChangelogBeforeUpdate: true,
   accentColor: '#3b82f6',
 };

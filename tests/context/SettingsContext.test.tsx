@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsProvider } from '@/context/SettingsContext';
@@ -38,6 +38,69 @@ describe('SettingsContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getMock.mockResolvedValue(DEFAULT_SETTINGS);
+    initMock.mockResolvedValue(undefined);
+  });
+
+  it('passes reparse lifecycle callbacks to settings init', async () => {
+    render(
+      <SettingsProvider>
+        <div>child</div>
+      </SettingsProvider>,
+    );
+
+    await waitFor(() => {
+      expect(initMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          onReparseStart: expect.any(Function),
+          onReparseEnd: expect.any(Function),
+        }),
+      );
+    });
+  });
+
+  it('shows and hides the reparse progress modal using init callbacks', async () => {
+    let reparseControls:
+      | {
+        onReparseStart: () => void;
+        onReparseEnd: () => void;
+      }
+      | undefined;
+
+    initMock.mockImplementationOnce(async (options) => {
+      reparseControls = options as {
+        onReparseStart: () => void;
+        onReparseEnd: () => void;
+      };
+    });
+
+    const { queryByText } = render(
+      <SettingsProvider>
+        <div>child</div>
+      </SettingsProvider>,
+    );
+
+    await waitFor(() => {
+      expect(reparseControls).toBeDefined();
+    });
+
+    expect(queryByText('Updating Combo Parsing...')).toBeNull();
+
+    act(() => {
+      reparseControls?.onReparseStart();
+    });
+    await waitFor(() => {
+      expect(queryByText('Updating Combo Parsing...')).toBeTruthy();
+      expect(
+        queryByText('Editing is temporarily disabled during this update.'),
+      ).toBeTruthy();
+    });
+
+    act(() => {
+      reparseControls?.onReparseEnd();
+    });
+    await waitFor(() => {
+      expect(queryByText('Updating Combo Parsing...')).toBeNull();
+    });
   });
 
   it('shows a toast when settings initialization fails', async () => {

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const writeFileMock = vi.fn();
+
 async function loadMainModule() {
   vi.resetModules();
 
@@ -46,6 +48,14 @@ async function loadMainModule() {
       setPermissionCheckHandler: vi.fn(),
     },
   };
+  const dialogMock = {
+    showSaveDialog: vi.fn<
+      () => Promise<{ filePath?: string; canceled: boolean }>
+    >(async () => ({
+      filePath: 'C:/Exports/backup.json',
+      canceled: false,
+    })),
+  };
   const ipcMainMock = {
     handle: vi.fn(
       (channel: string, handler: (...args: unknown[]) => unknown) => {
@@ -69,9 +79,16 @@ async function loadMainModule() {
   vi.doMock('electron', () => ({
     app: appMock,
     BrowserWindow: BrowserWindowMock,
+    dialog: dialogMock,
     ipcMain: ipcMainMock,
     session: sessionMock,
     shell: shellMock,
+  }));
+
+  vi.doMock('node:fs/promises', () => ({
+    __esModule: true,
+    default: { writeFile: writeFileMock },
+    writeFile: writeFileMock,
   }));
 
   vi.doMock('../../electron/updateManager', () => updateManagerMock);
@@ -82,6 +99,7 @@ async function loadMainModule() {
     appEvents,
     ipcHandlers,
     browserWindows,
+    dialogMock,
     sessionMock,
     shellMock,
     updateManagerMock,
@@ -91,6 +109,7 @@ async function loadMainModule() {
 afterEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  writeFileMock.mockReset();
 });
 
 describe('electron main process wiring', () => {
@@ -112,6 +131,7 @@ describe('electron main process wiring', () => {
     expect(context.updateManagerMock.initAutoUpdater).toHaveBeenCalled();
     expect(Object.keys(context.ipcHandlers)).toEqual(
       expect.arrayContaining([
+        'file:save',
         'update:check',
         'update:download',
         'update:cancel',
@@ -146,6 +166,28 @@ describe('electron main process wiring', () => {
       version: '1.3.0',
       changelog: 'Current changelog',
     });
+
+    await expect(
+      context.ipcHandlers['file:save'](
+        {},
+        new Uint8Array([1, 2, 3]),
+        'backup.json',
+        'application/json',
+      ),
+    ).resolves.toEqual({
+      success: true,
+      path: 'C:/Exports/backup.json',
+    });
+    expect(context.dialogMock.showSaveDialog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        defaultPath: 'backup.json',
+      }),
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(
+      'C:/Exports/backup.json',
+      expect.any(Buffer),
+    );
   });
 
   it('wraps updater errors and toggles the auto-check scheduler', async () => {
@@ -206,5 +248,28 @@ describe('electron main process wiring', () => {
       action: 'deny',
     });
     expect(context.shellMock.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('returns a cancelled result when the user dismisses the save dialog', async () => {
+    const context = await loadMainModule();
+    context.dialogMock.showSaveDialog.mockResolvedValueOnce({
+      filePath: undefined,
+      canceled: true,
+    });
+
+    await context.appEvents.ready();
+
+    await expect(
+      context.ipcHandlers['file:save'](
+        {},
+        new Uint8Array([1]),
+        'backup.zip',
+        'application/zip',
+      ),
+    ).resolves.toEqual({
+      success: false,
+      error: 'User cancelled',
+    });
+    expect(writeFileMock).not.toHaveBeenCalled();
   });
 });

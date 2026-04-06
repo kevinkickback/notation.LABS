@@ -14,7 +14,7 @@ vi.mock('@/components/ui/select', async () => {
     onValueChange: (value: string) => void;
   }>({
     value: '',
-    onValueChange: () => {},
+    onValueChange: () => { },
   });
 
   return {
@@ -72,7 +72,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     settings: {
       get: vi.fn(async () => ({ ...DEFAULT_SETTINGS })),
-      update: vi.fn(async () => {}),
+      update: vi.fn(async () => { }),
     },
   },
 }));
@@ -99,13 +99,14 @@ describe('GeneralSettings accent color', () => {
         version: '1.3.0',
         changelog: 'Notes',
       }),
-      onUpdateChecking: vi.fn(() => () => {}),
-      onUpdateAvailable: vi.fn(() => () => {}),
-      onUpdateNotAvailable: vi.fn(() => () => {}),
-      onUpdateError: vi.fn(() => () => {}),
-      onDownloadProgress: vi.fn(() => () => {}),
-      onUpdateDownloaded: vi.fn(() => () => {}),
-      onUpdateCancelled: vi.fn(() => () => {}),
+      onUpdateChecking: vi.fn(() => () => { }),
+      onUpdateAvailable: vi.fn(() => () => { }),
+      onUpdateNotAvailable: vi.fn(() => () => { }),
+      onUpdateError: vi.fn(() => () => { }),
+      onDownloadProgress: vi.fn(() => () => { }),
+      onUpdateDownloaded: vi.fn(() => () => { }),
+      onUpdateCancelled: vi.fn(() => () => { }),
+      saveFile: vi.fn(),
     };
   });
 

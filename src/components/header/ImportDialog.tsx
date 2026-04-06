@@ -1,3 +1,4 @@
+import { SpinnerGapIcon } from '@phosphor-icons/react';
 import { useEffect, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +15,59 @@ interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChooseFile: (includeVideos: boolean, includeSettings: boolean) => void;
+}
+
+interface ImportProgressModalProps {
+  phase: 'loading' | 'videos' | 'finalizing';
+  current: number;
+  total: number | null;
+}
+
+export function ImportProgressModal({
+  phase,
+  current,
+  total,
+}: ImportProgressModalProps) {
+  const isVideoPhase = phase === 'videos' && total !== null && total > 0;
+  const pct = isVideoPhase ? Math.round((current / total) * 100) : 0;
+
+  return (
+    <Dialog open>
+      <DialogContent
+        className="max-w-xs sm:max-w-sm"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        hideCloseButton
+      >
+        <DialogHeader>
+          <DialogTitle>Importing…</DialogTitle>
+          <DialogDescription>
+            {phase === 'loading'
+              ? 'Reading backup archive…'
+              : phase === 'finalizing'
+                ? 'Finalizing imported data…'
+                : `Importing video ${current} of ${total}…`}
+          </DialogDescription>
+        </DialogHeader>
+        {isVideoPhase ? (
+          <div className="space-y-2 pt-1">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-200"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="text-right text-xs text-muted-foreground">{pct}%</p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+            <SpinnerGapIcon className="size-5 animate-spin" />
+            <span>This can take a bit for large backups.</span>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function ImportDialog({
