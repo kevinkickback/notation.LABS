@@ -936,6 +936,55 @@ describe('indexedDbStorage.import', () => {
     expect(settings.comboScale).toBe(1);
   });
 
+  it('marks parser version stale when importing combos without settings', async () => {
+    await indexedDbStorage.settings.update({
+      parsedNotationVersion: 999,
+      colorTheme: 'light',
+    });
+
+    const data = JSON.stringify({
+      version: 1,
+      exported: new Date().toISOString(),
+      games: [
+        {
+          id: 'g1',
+          name: 'Imported Game',
+          buttonLayout: ['A'],
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+      ],
+      characters: [
+        {
+          id: 'c1',
+          gameId: 'g1',
+          name: 'Imported Char',
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+      ],
+      combos: [
+        {
+          id: 'combo1',
+          characterId: 'c1',
+          name: 'Imported Combo',
+          notation: 'A',
+          parsedNotation: [],
+          tags: [],
+          sortOrder: 0,
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+      ],
+    });
+
+    await indexedDbStorage.import(data, false, false);
+
+    const settings = await indexedDbStorage.settings.get();
+    expect(settings.parsedNotationVersion).toBe(0);
+    expect(settings.colorTheme).toBe('light');
+  });
+
   it('imports demo videos when includeVideos is true', async () => {
     // Base64 of [10, 20, 30]
     const base64Data = btoa(String.fromCharCode(10, 20, 30));
@@ -1116,6 +1165,41 @@ describe('indexedDbStorage.import', () => {
     expect(Array.from(new Uint8Array(importedVideo.data))).toEqual(
       Array.from(videoBytes),
     );
+  });
+
+  it('marks parser version stale when importing zip combos without settings', async () => {
+    await indexedDbStorage.settings.update({
+      parsedNotationVersion: 999,
+      colorTheme: 'light',
+    });
+
+    const gameId = await indexedDbStorage.games.add({
+      name: 'Zip Import Game',
+      buttonLayout: ['LP'],
+    });
+    const characterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Zip Import Hero',
+    });
+    await indexedDbStorage.combos.add({
+      characterId,
+      name: 'Zip Combo',
+      notation: 'LP',
+      parsedNotation: [],
+      tags: [],
+    });
+
+    const exportedBlob = await indexedDbStorage.export(true);
+
+    await db.games.clear();
+    await db.characters.clear();
+    await db.combos.clear();
+
+    await indexedDbStorage.importZip(exportedBlob, true, false);
+
+    const settings = await indexedDbStorage.settings.get();
+    expect(settings.parsedNotationVersion).toBe(0);
+    expect(settings.colorTheme).toBe('light');
   });
 
   it('reports progress while importing zip backups with videos', async () => {

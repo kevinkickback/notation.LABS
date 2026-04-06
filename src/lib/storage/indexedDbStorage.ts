@@ -213,6 +213,21 @@ async function reparseStoredCombos(): Promise<void> {
   await db.combos.bulkPut(reparsedCombos);
 }
 
+async function markImportedCombosForReparse(): Promise<void> {
+  const settings = await db.settings.get(1);
+
+  if (!settings) {
+    await db.settings.put({
+      id: 1,
+      ...DEFAULT_SETTINGS,
+      parsedNotationVersion: 0,
+    });
+    return;
+  }
+
+  await db.settings.update(1, { parsedNotationVersion: 0 });
+}
+
 export const indexedDbStorage = {
   games: {
     getAll: () => db.games.toArray(),
@@ -802,6 +817,9 @@ export const indexedDbStorage = {
           for (const combo of sanitizedCombos) {
             await db.combos.put(combo);
           }
+          if (!includeSettings) {
+            await markImportedCombosForReparse();
+          }
         }
         if (includeSettings && parsed.settings) {
           await db.settings.put({
@@ -953,6 +971,9 @@ export const indexedDbStorage = {
         if (sanitizedCombos) {
           for (const combo of sanitizedCombos) {
             await db.combos.put(combo);
+          }
+          if (!includeSettings) {
+            await markImportedCombosForReparse();
           }
         }
         if (includeSettings && parsed.settings) {
