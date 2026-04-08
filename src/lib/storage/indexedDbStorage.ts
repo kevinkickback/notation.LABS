@@ -179,6 +179,50 @@ function migrateNotationColors(colors: Record<string, string>): {
   return { colors: migrated, changed };
 }
 
+function areStringArraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function reparseCombosForGame(
+  gameId: string,
+  buttonLayout: string[],
+): Promise<void> {
+  const characters = await db.characters
+    .where('gameId')
+    .equals(gameId)
+    .toArray();
+  const characterIds = characters.map((character) => character.id);
+
+  if (characterIds.length === 0) {
+    return;
+  }
+
+  const combos = await db.combos
+    .where('characterId')
+    .anyOf(characterIds)
+    .toArray();
+  if (combos.length === 0) {
+    return;
+  }
+
+  const reparsedCombos = combos.map((combo) => ({
+    ...combo,
+    parsedNotation: parseComboNotation(combo.notation, buttonLayout),
+  }));
+
+  await db.combos.bulkPut(reparsedCombos);
+}
+
 async function reparseStoredCombos(): Promise<void> {
   const [games, characters, combos] = await Promise.all([
     db.games.toArray(),
@@ -244,10 +288,27 @@ export const indexedDbStorage = {
       return id;
     },
     update: async (id: string, updates: Partial<Game>) => {
-      await db.games.update(id, {
-        ...updates,
-        updatedAt: Date.now(),
-      });
+      await db.transaction(
+        'rw',
+        [db.games, db.characters, db.combos],
+        async () => {
+          const currentGame = await db.games.get(id);
+          const nextButtonLayout = updates.buttonLayout;
+          const shouldReparseCombos =
+            currentGame !== undefined &&
+            nextButtonLayout !== undefined &&
+            !areStringArraysEqual(currentGame.buttonLayout, nextButtonLayout);
+
+          await db.games.update(id, {
+            ...updates,
+            updatedAt: Date.now(),
+          });
+
+          if (shouldReparseCombos) {
+            await reparseCombosForGame(id, nextButtonLayout);
+          }
+        },
+      );
     },
     delete: async (id: string) => {
       let characterIds: string[] = [];

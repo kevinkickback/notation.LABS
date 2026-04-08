@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseComboNotation } from '@/lib/parser';
+import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
@@ -88,17 +88,25 @@ describe('indexedDbStorage.games', () => {
     const comboId = await indexedDbStorage.combos.add({
       characterId,
       name: 'Drive Combo',
-      notation: 'EX > LP',
-      parsedNotation: parseComboNotation('EX > LP', ['LP', 'MP']),
+      notation: 'EX1 > LP',
+      parsedNotation: parseComboNotation('EX1 > LP', ['LP', 'MP']),
       tags: [],
     });
 
+    const staleCombo = await indexedDbStorage.combos.get(comboId);
+    assertDefined(staleCombo);
+    expect(
+      staleCombo.parsedNotation.some(
+        (token) => token.type === 'button' && token.value === 'EX1',
+      ),
+    ).toBe(false);
+
     await indexedDbStorage.games.update(gameId, {
-      buttonLayout: ['LP', 'MP', 'EX'],
+      buttonLayout: ['LP', 'MP', 'EX1'],
       buttonColors: {
         LP: '#111111',
         MP: '#222222',
-        EX: '#333333',
+        EX1: '#333333',
       },
     });
 
@@ -107,7 +115,7 @@ describe('indexedDbStorage.games', () => {
 
     expect(
       updatedCombo.parsedNotation.some(
-        (token) => token.type === 'button' && token.value === 'EX',
+        (token) => token.type === 'button' && token.value === 'EX1',
       ),
     ).toBe(true);
   });
@@ -609,6 +617,44 @@ describe('indexedDbStorage.settings', () => {
     const settings = await indexedDbStorage.settings.get();
     expect(settings.notationColors.direction).toBe('#bdceef');
     expect(settings.notationColors.separator).toBe('#6c727e');
+  });
+
+  it('reparses stored combos when parser version is behind', async () => {
+    const gameId = await indexedDbStorage.games.add({
+      name: 'Parser Migration Game',
+      buttonLayout: ['LP', 'MP'],
+    });
+    const characterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Migration Char',
+    });
+    const comboId = await indexedDbStorage.combos.add({
+      characterId,
+      name: 'Stale Parsed Combo',
+      notation: 'LP > MP',
+      parsedNotation: [],
+      tags: [],
+    });
+
+    await db.settings.put({
+      id: 1,
+      ...DEFAULT_SETTINGS,
+      parsedNotationVersion: Math.max(0, COMBO_NOTATION_PARSER_VERSION - 1),
+    });
+
+    await indexedDbStorage.settings.init();
+
+    const combo = await indexedDbStorage.combos.get(comboId);
+    assertDefined(combo);
+    expect(combo.parsedNotation.length).toBeGreaterThan(0);
+    expect(
+      combo.parsedNotation.some(
+        (token) => token.type === 'button' && token.value === 'LP',
+      ),
+    ).toBe(true);
+
+    const settings = await indexedDbStorage.settings.get();
+    expect(settings.parsedNotationVersion).toBe(COMBO_NOTATION_PARSER_VERSION);
   });
 
 });
