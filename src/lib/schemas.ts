@@ -14,6 +14,7 @@ export const comboTokenSchema = z.object({
   value: z.string(),
   rawValue: z.string(),
   repeatCount: z.number().optional(),
+  repeatLabel: z.string().optional(),
 });
 
 export const gameSchema = z.object({

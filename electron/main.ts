@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
-import { isSafeExternalUrl } from './security';
+import { isPromptableExternalUrl, isSafeExternalUrl } from './security';
 import {
   cancelDownload,
   checkForUpdate,
@@ -97,8 +97,42 @@ function createWindow(): void {
   // Restrict new window creation: open external links in default browser, block others
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isSafeExternalUrl(url)) {
-      shell.openExternal(url);
+      void shell.openExternal(url);
+      return { action: 'deny' };
     }
+
+    if (isPromptableExternalUrl(url)) {
+      const currentWindow = mainWindow;
+      if (currentWindow && !currentWindow.isDestroyed()) {
+        let hostname = 'this site';
+        try {
+          hostname = new URL(url).hostname;
+        } catch {
+          // Keep fallback label for malformed URLs.
+        }
+
+        void dialog
+          .showMessageBox(currentWindow, {
+            type: 'question',
+            buttons: ['Open Link', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+            noLink: true,
+            title: 'Open External Link?',
+            message: `Open external link to ${hostname}?`,
+            detail: url,
+          })
+          .then(({ response }) => {
+            if (response === 0) {
+              void shell.openExternal(url);
+            }
+          })
+          .catch(() => {
+            // Swallow dialog errors and keep navigation blocked.
+          });
+      }
+    }
+
     return { action: 'deny' };
   });
 

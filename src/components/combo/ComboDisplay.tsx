@@ -21,6 +21,12 @@ const DIRECTION_MODIFIERS: Record<string, string> = {
   dash: '66',
 };
 
+function isLiteralParenUnknown(token: ComboToken): boolean {
+  return (
+    token.type === 'unknown' && (token.value === '(' || token.value === ')')
+  );
+}
+
 function getRepeatParenIndices(tokens: ComboToken[]): Set<number> {
   const showParens = new Set<number>();
   for (let i = 0; i < tokens.length; i++) {
@@ -56,6 +62,17 @@ function groupTokensWithButtons(
 
   for (const token of tokens) {
     if (token.type === 'separator') {
+      if (pendingButton) {
+        const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
+        groups.push({ tokens: currentGroup, buttonColor });
+        currentGroup = [];
+        pendingButton = null;
+      } else if (currentGroup.length > 0) {
+        groups.push({ tokens: currentGroup });
+        currentGroup = [];
+      }
+      groups.push({ tokens: [token] });
+    } else if (isLiteralParenUnknown(token)) {
       if (pendingButton) {
         const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
         groups.push({ tokens: currentGroup, buttonColor });
@@ -156,8 +173,9 @@ export function ComboDisplay({
     groupColor?: string,
   ) => {
     const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
+    const isParenUnknown = isLiteralParenUnknown(token);
     const color =
-      !isDescriptiveBracket && groupColor
+      !isDescriptiveBracket && !isParenUnknown && groupColor
         ? groupColor
         : getTokenColor(token, colors, game?.buttonColors);
 
@@ -166,7 +184,10 @@ export function ComboDisplay({
       return (
         <span
           key={idx}
-          style={{ color: REPEAT_PAREN_COLOR }}
+          style={{
+            color: REPEAT_PAREN_COLOR,
+            fontSize: `${1.125 * comboScale}rem`,
+          }}
           className="font-medium tracking-tight"
         >
           (
@@ -176,21 +197,28 @@ export function ComboDisplay({
 
     if (token.type === 'repeat-end') {
       const showParen = repeatParenIndices.has(idx);
+      const repeatDisplayValue = token.repeatLabel ?? token.repeatCount;
       return (
         <span key={idx} className="inline-flex items-baseline">
           {showParen && (
             <span
-              style={{ color: REPEAT_PAREN_COLOR }}
+              style={{
+                color: REPEAT_PAREN_COLOR,
+                fontSize: `${1.125 * comboScale}rem`,
+              }}
               className="font-medium tracking-tight"
             >
               )
             </span>
           )}
           <sup
-            style={{ color: REPEAT_PAREN_COLOR }}
-            className="font-medium text-xs ml-0.5"
+            style={{
+              color: REPEAT_PAREN_COLOR,
+              fontSize: `${0.75 * comboScale}rem`,
+            }}
+            className="font-medium ml-0.5"
           >
-            ×{token.repeatCount}
+            ×{repeatDisplayValue}
           </sup>
         </span>
       );
@@ -225,8 +253,9 @@ export function ComboDisplay({
     groupColor?: string,
   ) => {
     const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
+    const isParenUnknown = isLiteralParenUnknown(token);
     const color =
-      !isDescriptiveBracket && groupColor
+      !isDescriptiveBracket && !isParenUnknown && groupColor
         ? groupColor
         : getTokenColor(token, colors, game?.buttonColors);
 
@@ -235,8 +264,11 @@ export function ComboDisplay({
       return (
         <span
           key={idx}
-          style={{ color: REPEAT_PAREN_COLOR }}
-          className="font-medium text-lg"
+          style={{
+            color: REPEAT_PAREN_COLOR,
+            fontSize: `${1.125 * comboScale}rem`,
+          }}
+          className="font-medium"
         >
           (
         </span>
@@ -245,21 +277,28 @@ export function ComboDisplay({
 
     if (token.type === 'repeat-end') {
       const showParen = repeatParenIndices.has(idx);
+      const repeatDisplayValue = token.repeatLabel ?? token.repeatCount;
       return (
         <span key={idx} className="inline-flex items-baseline">
           {showParen && (
             <span
-              style={{ color: REPEAT_PAREN_COLOR }}
-              className="font-medium text-lg"
+              style={{
+                color: REPEAT_PAREN_COLOR,
+                fontSize: `${1.125 * comboScale}rem`,
+              }}
+              className="font-medium"
             >
               )
             </span>
           )}
           <sup
-            style={{ color: REPEAT_PAREN_COLOR }}
-            className="font-medium text-xs ml-0.5"
+            style={{
+              color: REPEAT_PAREN_COLOR,
+              fontSize: `${0.75 * comboScale}rem`,
+            }}
+            className="font-medium ml-0.5"
           >
-            ×{token.repeatCount}
+            ×{repeatDisplayValue}
           </sup>
         </span>
       );

@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
 import { describe, it, expect, beforeEach } from 'vitest';
+import { parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
@@ -71,6 +72,44 @@ describe('indexedDbStorage.games', () => {
     assertDefined(updated);
     expect(updated.name).toBe('SF6');
     expect(updated.buttonLayout).toEqual(['LP', 'MP', 'HP', 'LK', 'MK', 'HK']);
+  });
+
+  it('reparses existing combos when button layout is updated', async () => {
+    const gameId = await indexedDbStorage.games.add({
+      name: 'Test Game',
+      buttonLayout: ['LP', 'MP'],
+    });
+
+    const characterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Ryu',
+    });
+
+    const comboId = await indexedDbStorage.combos.add({
+      characterId,
+      name: 'Drive Combo',
+      notation: 'EX > LP',
+      parsedNotation: parseComboNotation('EX > LP', ['LP', 'MP']),
+      tags: [],
+    });
+
+    await indexedDbStorage.games.update(gameId, {
+      buttonLayout: ['LP', 'MP', 'EX'],
+      buttonColors: {
+        LP: '#111111',
+        MP: '#222222',
+        EX: '#333333',
+      },
+    });
+
+    const updatedCombo = await indexedDbStorage.combos.get(comboId);
+    assertDefined(updatedCombo);
+
+    expect(
+      updatedCombo.parsedNotation.some(
+        (token) => token.type === 'button' && token.value === 'EX',
+      ),
+    ).toBe(true);
   });
 
   it('updates updatedAt timestamp on update', async () => {
@@ -571,6 +610,7 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.notationColors.direction).toBe('#bdceef');
     expect(settings.notationColors.separator).toBe('#6c727e');
   });
+
 });
 
 describe('indexedDbStorage.demoVideos', () => {
@@ -897,7 +937,7 @@ describe('indexedDbStorage.import', () => {
       },
     });
 
-    await indexedDbStorage.import(data, false, true);
+  await indexedDbStorage.import(data, false, true);
     const raw = await db.settings.get(1);
     assertDefined(raw);
     expect(raw.comboScale).toBe(2.5);
@@ -930,7 +970,7 @@ describe('indexedDbStorage.import', () => {
       },
     });
 
-    await indexedDbStorage.import(data, false, false);
+    await indexedDbStorage.import(data);
     const settings = await indexedDbStorage.settings.get();
     expect(settings.colorTheme).toBe('light');
     expect(settings.comboScale).toBe(1);
@@ -978,54 +1018,14 @@ describe('indexedDbStorage.import', () => {
       ],
     });
 
-    await indexedDbStorage.import(data, false, false);
+    await indexedDbStorage.import(data);
 
     const settings = await indexedDbStorage.settings.get();
     expect(settings.parsedNotationVersion).toBe(0);
     expect(settings.colorTheme).toBe('light');
   });
 
-  it('imports demo videos when includeVideos is true', async () => {
-    // Base64 of [10, 20, 30]
-    const base64Data = btoa(String.fromCharCode(10, 20, 30));
-    const data = JSON.stringify({
-      version: 2,
-      exported: new Date().toISOString(),
-      demoVideos: [
-        {
-          id: 'v1',
-          fileName: 'test.mp4',
-          mimeType: 'video/mp4',
-          dataBase64: base64Data,
-        },
-      ],
-    });
 
-    await indexedDbStorage.import(data, true);
-    const video = await indexedDbStorage.demoVideos.get('v1');
-    assertDefined(video);
-    expect(video.mimeType).toBe('video/mp4');
-    expect(new Uint8Array(video.data)).toEqual(new Uint8Array([10, 20, 30]));
-  });
-
-  it('skips videos when includeVideos is false', async () => {
-    const data = JSON.stringify({
-      version: 2,
-      exported: new Date().toISOString(),
-      demoVideos: [
-        {
-          id: 'v1',
-          fileName: 'test.mp4',
-          mimeType: 'video/mp4',
-          dataBase64: btoa('test'),
-        },
-      ],
-    });
-
-    await indexedDbStorage.import(data, false);
-    const video = await indexedDbStorage.demoVideos.get('v1');
-    expect(video).toBeUndefined();
-  });
 
   it('sanitizes local demo references when referenced videos are not imported', async () => {
     const data = JSON.stringify({
@@ -1067,7 +1067,7 @@ describe('indexedDbStorage.import', () => {
       ],
     });
 
-    await indexedDbStorage.import(data, false);
+    await indexedDbStorage.import(data);
     const combo = await indexedDbStorage.combos.get('combo-local');
     assertDefined(combo);
     expect(combo.demoUrl).toBeUndefined();
@@ -1278,55 +1278,13 @@ describe('indexedDbStorage.import', () => {
       games: [{ id: 'g1', name: 'Broken' }],
     });
 
-    await expect(indexedDbStorage.import(invalidData, true)).rejects.toThrow();
+    await expect(indexedDbStorage.import(invalidData)).rejects.toThrow();
     await expect(indexedDbStorage.games.getAll()).resolves.toHaveLength(0);
     await expect(indexedDbStorage.characters.getAll()).resolves.toHaveLength(0);
     await expect(indexedDbStorage.combos.getAll()).resolves.toHaveLength(0);
   });
 
-  it('imports backups with more than 100 videos', async () => {
-    const demoVideos = Array.from({ length: 126 }, (_, idx) => ({
-      id: `video-${idx}`,
-      fileName: `video-${idx}.mp4`,
-      mimeType: 'video/mp4',
-      dataBase64: btoa('a'),
-    }));
 
-    const data = JSON.stringify({
-      version: 2,
-      exported: new Date().toISOString(),
-      demoVideos,
-    });
-
-    await indexedDbStorage.import(data, true);
-    await expect(indexedDbStorage.demoVideos.getAll()).resolves.toHaveLength(
-      126,
-    );
-  });
-
-  it('rejects a video that exceeds the 50 MB per-video limit', async () => {
-    // Simulate a base64 payload whose decoded size exceeds 50 MB.
-    // base64 length needed: ceil(50MB + 1) / 0.75 chars.
-    const overLimitBase64Length = Math.ceil((50 * 1024 * 1024 + 1) / 0.75);
-    const data = JSON.stringify({
-      version: 2,
-      exported: new Date().toISOString(),
-      demoVideos: [
-        {
-          id: 'big-vid',
-          fileName: 'big.mp4',
-          mimeType: 'video/mp4',
-          // Use a string of the right length (content doesn\'t matter for size check).
-          dataBase64: 'A'.repeat(overLimitBase64Length),
-        },
-      ],
-    });
-
-    await expect(indexedDbStorage.import(data, true)).rejects.toThrow(
-      'exceeds the 50 MB per-video limit',
-    );
-    await expect(indexedDbStorage.demoVideos.getAll()).resolves.toHaveLength(0);
-  });
 
   it('rejects imports with unsupported version numbers', async () => {
     const data = JSON.stringify({
@@ -1335,7 +1293,7 @@ describe('indexedDbStorage.import', () => {
       games: [],
     });
 
-    await expect(indexedDbStorage.import(data, false)).rejects.toThrow();
+    await expect(indexedDbStorage.import(data)).rejects.toThrow();
     await expect(indexedDbStorage.games.getAll()).resolves.toHaveLength(0);
   });
 

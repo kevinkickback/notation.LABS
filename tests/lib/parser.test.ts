@@ -371,6 +371,18 @@ describe('parseComboNotation', () => {
         value: 'Lighting Hit',
       });
     });
+
+    it('parses buttons inside parenthesized groups with xN suffix', () => {
+      const tokens = parseComboNotation('(6A > jc.A > j.B > j.C |>)xN');
+
+      const buttonValues = tokens
+        .filter((token) => token.type === 'button')
+        .map((token) => token.value);
+
+      expect(tokens[0]).toMatchObject({ type: 'repeat-start', value: '(' });
+      expect(tokens.some((token) => token.type === 'repeat-end')).toBe(true);
+      expect(buttonValues).toEqual(['A', 'A', 'B', 'C']);
+    });
   });
 
   describe('separators', () => {
@@ -605,9 +617,39 @@ describe('parseComboNotation', () => {
       expect(endToken).toBeDefined();
       expect(endToken?.repeatCount).toBe(2);
     });
+
+    it('treats xN as symbolic repeat notation', () => {
+      const tokens = parseComboNotation('(L > M)xN');
+      expect(tokens[0]).toMatchObject({ type: 'repeat-start', value: '(' });
+      const endToken = tokens.find((t) => t.type === 'repeat-end');
+      expect(endToken).toBeDefined();
+      expect(endToken).toMatchObject({ repeatLabel: 'N' });
+    });
   });
 
   describe('parenthesized annotations', () => {
+    it('normalizes (Land) to the landing separator token', () => {
+      const tokens = parseComboNotation('(Land)');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({
+        type: 'separator',
+        value: '|>',
+        rawValue: '(Land)',
+      });
+    });
+
+    it('normalizes parenthesized land markers with spacing and case variants', () => {
+      const tokens = parseComboNotation('j.H > (  lAnD  ) > 2M');
+      expect(tokens).toHaveLength(7);
+      expect(tokens[0]).toMatchObject({ type: 'modifier', value: 'j.' });
+      expect(tokens[1]).toMatchObject({ type: 'button', value: 'H' });
+      expect(tokens[2]).toMatchObject({ type: 'separator', value: '>' });
+      expect(tokens[3]).toMatchObject({ type: 'separator', value: '|>' });
+      expect(tokens[4]).toMatchObject({ type: 'separator', value: '>' });
+      expect(tokens[5]).toMatchObject({ type: 'direction', value: '2' });
+      expect(tokens[6]).toMatchObject({ type: 'button', value: 'M' });
+    });
+
     it('treats (wallsplat) as a single modifier token', () => {
       const tokens = parseComboNotation('(wallsplat)');
       expect(tokens).toHaveLength(1);

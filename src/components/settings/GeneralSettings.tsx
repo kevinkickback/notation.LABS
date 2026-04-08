@@ -128,7 +128,7 @@ export function GeneralSettings() {
 
       if (result.data.status === 'error') {
         setUpdateStatus('error');
-        toast.error(result.data.message || 'Could not check for updates.');
+        toast.error(result.data.error || 'Could not check for updates.');
         return;
       }
 
@@ -143,20 +143,7 @@ export function GeneralSettings() {
   };
 
   const fetchCurrentChangelogFromWeb = useCallback(async () => {
-    let version = __APP_VERSION__;
-
-    try {
-      const pkgRes = await fetch('/package.json');
-      if (pkgRes.ok) {
-        const pkg = await pkgRes.json();
-        if (typeof pkg.version === 'string' && pkg.version.trim()) {
-          version = pkg.version;
-        }
-      }
-    } catch (err) {
-      reportError('GeneralSettings.fetchPackageVersion', err);
-    }
-
+    const version = __APP_VERSION__;
     const tag = `v${version}`;
     const apiUrl = `https://api.github.com/repos/kevinkickback/notation.LABS/releases/tags/${tag}`;
     const res = await fetch(apiUrl, {

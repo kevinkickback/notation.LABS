@@ -18,7 +18,7 @@ export type UpdateCheckResult =
       changelog: string | null;
     }
   | { status: 'not-available' }
-  | { status: 'error'; message: string };
+  | { status: 'error'; error: string };
 
 declare global {
   interface Window {

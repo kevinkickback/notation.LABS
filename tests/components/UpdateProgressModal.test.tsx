@@ -43,7 +43,7 @@ describe('UpdateProgressModal', () => {
     render(
       <UpdateProgressModal
         open={true}
-        version="1.4.1"
+        version="1.4.2"
         onOpenChange={onOpenChange}
       />,
     );

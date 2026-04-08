@@ -1,4 +1,4 @@
-import { LightningIcon, PlusIcon } from '@phosphor-icons/react';
+import { LightningIcon, NotePencilIcon, PlusIcon } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
 import { Button } from '@/components/ui/button';
 import type { Character, Game } from '@/lib/types';
@@ -7,12 +7,14 @@ interface ComboViewEmptyStateProps {
   game: Game;
   character: Character;
   onAddCombo: () => void;
+  onEditNote: () => void;
 }
 
 export function ComboViewEmptyState({
   game,
   character,
   onAddCombo,
+  onEditNote,
 }: ComboViewEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
@@ -40,6 +42,15 @@ export function ComboViewEmptyState({
           No combos yet. Add your first combo for this character.
         </p>
         <div className="flex gap-3 justify-center">
+          <Button
+            variant="outline"
+            onClick={onEditNote}
+            size="lg"
+            className="gap-2"
+          >
+            <NotePencilIcon weight="bold" />
+            Edit Note
+          </Button>
           <Button onClick={onAddCombo} size="lg" className="gap-2">
             <PlusIcon weight="bold" />
             Add Combo

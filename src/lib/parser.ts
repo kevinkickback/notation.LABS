@@ -1,7 +1,7 @@
 import type { ComboToken } from './types';
 
 // Bump when parser behavior changes and stored combo tokens need refreshing.
-export const COMBO_NOTATION_PARSER_VERSION = 1;
+export const COMBO_NOTATION_PARSER_VERSION = 2;
 
 // Ordered from longest to shortest semantic motions so numeric tokens prefer
 // complete motion matches before falling back to individual directions.
@@ -327,9 +327,12 @@ export function parseComboNotation(
 
   const tryInlineRepeat = (pos: number): number => {
     const remaining = input.substring(pos);
-    const match = remaining.match(/^[xX*](\d+)/);
+    const match = remaining.match(/^[xX*](\d+|N)/i);
     if (match) {
-      const repeatCount = parseInt(match[1], 10);
+      const repeatValue = match[1];
+      const repeatTokenFields = /^\d+$/.test(repeatValue)
+        ? { repeatCount: parseInt(repeatValue, 10) }
+        : { repeatLabel: repeatValue.toUpperCase() };
       const lastToken = tokens.pop();
       if (lastToken) {
         tokens.push({ type: 'repeat-start', value: '(', rawValue: '(' });
@@ -338,7 +341,7 @@ export function parseComboNotation(
           type: 'repeat-end',
           value: ')',
           rawValue: ')',
-          repeatCount,
+          ...repeatTokenFields,
         });
       }
       return match[0].length;
@@ -384,6 +387,16 @@ export function parseComboNotation(
     return -1;
   };
 
+  const isNotationLikeParenthetical = (content: string): boolean => {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    // Treat grouped expressions as notation if they include common combo syntax.
+    return /[0-9><+~,/|.]/.test(trimmed);
+  };
+
   let i = 0;
   const input = notation.trim();
 
@@ -399,10 +412,13 @@ export function parseComboNotation(
       const closeParenIndex = findMatchingParen(i);
       if (closeParenIndex !== -1) {
         const afterParen = input.substring(closeParenIndex + 1).trimStart();
-        const repeatMatch = afterParen.match(/^[xX*](\d+)/);
+        const repeatMatch = afterParen.match(/^[xX*](\d+|N)/i);
 
         if (repeatMatch) {
-          const repeatCount = parseInt(repeatMatch[1], 10);
+          const repeatValue = repeatMatch[1];
+          const repeatTokenFields = /^\d+$/.test(repeatValue)
+            ? { repeatCount: parseInt(repeatValue, 10) }
+            : { repeatLabel: repeatValue.toUpperCase() };
           const contentStart = i + 1;
           const contentEnd = closeParenIndex;
           const content = input.substring(contentStart, contentEnd);
@@ -426,20 +442,52 @@ export function parseComboNotation(
             type: 'repeat-end',
             value: ')',
             rawValue: ')',
-            repeatCount,
+            ...repeatTokenFields,
           });
 
           i += fullMatchLength;
           matched = true;
         } else {
-          // No repeat suffix — treat entire (content) as descriptive text
-          const fullText = input.substring(i, closeParenIndex + 1);
-          tokens.push({
-            type: 'modifier',
-            value: fullText,
-            rawValue: fullText,
-          });
-          i = closeParenIndex + 1;
+          const contentStart = i + 1;
+          const contentEnd = closeParenIndex;
+          const content = input.substring(contentStart, contentEnd);
+          const normalizedParenthetical = content
+            .toLowerCase()
+            .replace(/\s+/g, '');
+
+          if (isNotationLikeParenthetical(content)) {
+            tokens.push({
+              type: 'unknown',
+              value: '(',
+              rawValue: '(',
+            });
+            const nestedTokens = parseComboNotation(content, customButtons);
+            tokens.push(...nestedTokens);
+            tokens.push({
+              type: 'unknown',
+              value: ')',
+              rawValue: ')',
+            });
+            i = closeParenIndex + 1;
+          } else if (normalizedParenthetical === 'land') {
+            const fullText = input.substring(i, closeParenIndex + 1);
+            tokens.push({
+              type: 'separator',
+              value: '|>',
+              rawValue: fullText,
+            });
+            i = closeParenIndex + 1;
+          } else {
+            // Keep descriptive parenthetical notes as a single modifier token.
+            const fullText = input.substring(i, closeParenIndex + 1);
+            tokens.push({
+              type: 'modifier',
+              value: fullText,
+              rawValue: fullText,
+            });
+            i = closeParenIndex + 1;
+          }
+
           matched = true;
         }
       }

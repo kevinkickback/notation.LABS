@@ -55,6 +55,9 @@ async function loadMainModule() {
       filePath: 'C:/Exports/backup.json',
       canceled: false,
     })),
+    showMessageBox: vi.fn<() => Promise<{ response: number }>>(async () => ({
+      response: 1,
+    })),
   };
   const ipcMainMock = {
     handle: vi.fn(
@@ -227,7 +230,7 @@ describe('electron main process wiring', () => {
     ).toHaveBeenCalledTimes(1);
   });
 
-  it('only opens validated https links externally', async () => {
+  it('opens allowlisted links and prompts for unknown https domains', async () => {
     const context = await loadMainModule();
 
     await context.appEvents.ready();
@@ -236,18 +239,52 @@ describe('electron main process wiring', () => {
     const windowOpenHandler = mainWindow.webContents.setWindowOpenHandler.mock
       .calls[0][0] as ({ url }: { url: string }) => { action: 'deny' };
 
-    expect(windowOpenHandler({ url: 'https://example.com' })).toEqual({
+    expect(windowOpenHandler({ url: 'https://github.com' })).toEqual({
       action: 'deny',
     });
     expect(context.shellMock.openExternal).toHaveBeenCalledWith(
-      'https://example.com',
+      'https://github.com',
     );
 
     context.shellMock.openExternal.mockClear();
+    expect(windowOpenHandler({ url: 'https://example.com' })).toEqual({
+      action: 'deny',
+    });
+    await Promise.resolve();
+    expect(context.dialogMock.showMessageBox).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        title: 'Open External Link?',
+        detail: 'https://example.com',
+      }),
+    );
+    expect(context.shellMock.openExternal).not.toHaveBeenCalled();
+
+    context.dialogMock.showMessageBox.mockClear();
     expect(windowOpenHandler({ url: 'http://example.com' })).toEqual({
       action: 'deny',
     });
+    expect(context.dialogMock.showMessageBox).not.toHaveBeenCalled();
     expect(context.shellMock.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('opens unknown https links when the user confirms the prompt', async () => {
+    const context = await loadMainModule();
+    context.dialogMock.showMessageBox.mockResolvedValueOnce({ response: 0 });
+
+    await context.appEvents.ready();
+
+    const mainWindow = context.browserWindows[1];
+    const windowOpenHandler = mainWindow.webContents.setWindowOpenHandler.mock
+      .calls[0][0] as ({ url }: { url: string }) => { action: 'deny' };
+
+    expect(windowOpenHandler({ url: 'https://example.com/docs' })).toEqual({
+      action: 'deny',
+    });
+    await Promise.resolve();
+    expect(context.shellMock.openExternal).toHaveBeenCalledWith(
+      'https://example.com/docs',
+    );
   });
 
   it('returns a cancelled result when the user dismisses the save dialog', async () => {

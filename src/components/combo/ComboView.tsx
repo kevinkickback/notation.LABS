@@ -13,7 +13,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
+import { toast } from 'sonner';
 import { ComboFilters } from '@/components/combo/ComboFilters';
 import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
 import { ComboSelectionToolbar } from '@/components/combo/ComboSelectionToolbar';
@@ -34,6 +35,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import { useComboDelete } from '@/hooks/useComboDelete';
 import { useComboFilters } from '@/hooks/useComboFilters';
@@ -52,8 +64,11 @@ interface ComboViewProps {
 
 export function ComboView({ game, character, combos }: ComboViewProps) {
   const settings = useSettings();
+  const characterNoteEditorId = useId();
   const displayMode = settings.displayMode;
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(character.notes || '');
 
   const filters = useComboFilters(combos);
   const selection = useComboSelection();
@@ -127,6 +142,27 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
     selection.clearSelection();
   }, [operations, selection]);
 
+  useEffect(() => {
+    setNoteDraft(character.notes || '');
+  }, [character.notes]);
+
+  const openNoteDialog = useCallback(() => {
+    setNoteDraft(character.notes || '');
+    setNoteDialogOpen(true);
+  }, [character.notes]);
+
+  const handleSaveNote = useCallback(async () => {
+    try {
+      await indexedDbStorage.characters.update(character.id, {
+        notes: noteDraft.trim(),
+      });
+      toast.success('Note updated');
+      setNoteDialogOpen(false);
+    } catch {
+      toast.error('Failed to update note');
+    }
+  }, [character.id, noteDraft]);
+
   if (combos.length === 0) {
     return (
       <div>
@@ -134,6 +170,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
           game={game}
           character={character}
           onAddCombo={() => operations.setDialogOpen(true)}
+          onEditNote={openNoteDialog}
         />
         <ComboFormDialog
           open={operations.dialogOpen}
@@ -146,6 +183,34 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
           editingCombo={operations.editingCombo}
           allTags={filters.allTags}
         />
+        <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Note</DialogTitle>
+              <DialogDescription>
+                Update notes for {character.name}. Markdown is supported.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor={characterNoteEditorId}>Note</Label>
+              <Textarea
+                id={characterNoteEditorId}
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                rows={8}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setNoteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSaveNote()}>Save Note</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -180,6 +245,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
         notes={character.notes || ''}
         isOpen={showNotes}
         onToggle={handleToggleNotes}
+        onEditNote={openNoteDialog}
       />
 
       {/* Filter panel */}
@@ -267,6 +333,32 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
         editingCombo={operations.editingCombo}
         allTags={filters.allTags}
       />
+
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Note</DialogTitle>
+            <DialogDescription>
+              Update notes for {character.name}. Markdown is supported.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor={characterNoteEditorId}>Note</Label>
+            <Textarea
+              id={characterNoteEditorId}
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              rows={8}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSaveNote()}>Save Note</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ButtonColorDialog
         open={colorDialogOpen}

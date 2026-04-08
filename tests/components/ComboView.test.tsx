@@ -10,6 +10,9 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     return demoUrl.slice('local:'.length) || null;
   },
   indexedDbStorage: {
+    characters: {
+      update: vi.fn().mockResolvedValue(undefined),
+    },
     combos: {
       add: vi.fn().mockResolvedValue('new-combo-id'),
       update: vi.fn().mockResolvedValue(undefined),
@@ -123,6 +126,14 @@ describe('ComboView', () => {
     expect(screen.getByRole('button', { name: /add combo/i })).not.toBeNull();
   });
 
+  it('opens edit note dialog from empty combo view', async () => {
+    const user = userEvent.setup();
+    render(<ComboView game={mockGame} character={mockCharacter} combos={[]} />);
+
+    await user.click(screen.getByRole('button', { name: /edit note/i }));
+    expect(screen.getByRole('heading', { name: 'Edit Note' })).not.toBeNull();
+  });
+
   it('renders character name and game info', () => {
     render(
       <ComboView
@@ -190,6 +201,25 @@ describe('ComboView', () => {
 
     await user.click(screen.getByRole('button', { name: /add combo/i }));
     expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
+  });
+
+  it('opens edit note dialog from combo view', async () => {
+    const user = userEvent.setup();
+    const characterWithNotes: Character = {
+      ...mockCharacter,
+      notes: 'Safe jump setup details',
+    };
+
+    render(
+      <ComboView
+        game={mockGame}
+        character={characterWithNotes}
+        combos={mockCombos}
+      />,
+    );
+
+    await user.click(screen.getByTitle('Edit note'));
+    expect(screen.getByRole('heading', { name: 'Edit Note' })).not.toBeNull();
   });
 
   it('shows empty filter result message', async () => {

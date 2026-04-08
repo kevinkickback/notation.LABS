@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import {
@@ -12,6 +13,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import { useCharacterDelete } from '@/hooks/useCharacterDelete';
 import { useCharacterFilters } from '@/hooks/useCharacterFilters';
@@ -20,7 +32,7 @@ import { useCharacterSelection } from '@/hooks/useCharacterSelection';
 import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
-import { db } from '@/lib/storage/indexedDbStorage';
+import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 import { CharacterFormDialog } from './CharacterFormDialog';
@@ -42,8 +54,11 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
   const { setSelectedCharacter } = useAppStore();
   const settings = useSettings();
 
+  const gameNoteEditorId = useId();
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(game.notes || '');
 
   const selection = useCharacterSelection();
   const viewMode = useCharacterViewMode(settings.characterCardSize);
@@ -132,6 +147,23 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     selection.clearSelection();
   };
 
+  const openNoteDialog = useCallback(() => {
+    setNoteDraft(game.notes || '');
+    setNoteDialogOpen(true);
+  }, [game.notes]);
+
+  const handleSaveNote = useCallback(async () => {
+    try {
+      await indexedDbStorage.games.update(game.id, {
+        notes: noteDraft.trim(),
+      });
+      toast.success('Note updated');
+      setNoteDialogOpen(false);
+    } catch {
+      toast.error('Failed to update note');
+    }
+  }, [game.id, noteDraft]);
+
   if (characters.length === 0) {
     return (
       <>
@@ -172,6 +204,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         notes={game.notes || ''}
         isOpen={showNotes}
         onToggle={handleToggleNotes}
+        onEditNote={openNoteDialog}
       />
 
       {filters.showFilters && (
@@ -340,6 +373,32 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         onOpenChange={setColorDialogOpen}
         game={game}
       />
+
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Note</DialogTitle>
+            <DialogDescription>
+              Update notes for {game.name}. Markdown is supported.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor={gameNoteEditorId}>Note</Label>
+            <Textarea
+              id={gameNoteEditorId}
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              rows={8}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSaveNote()}>Save Note</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

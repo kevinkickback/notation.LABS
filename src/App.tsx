@@ -92,7 +92,7 @@ function App() {
       selectedCharacterId
         ? indexedDbStorage.combos.getByCharacter(selectedCharacterId)
         : [],
-    [selectedCharacterId],
+    [selectedCharacterId, settings.parsedNotationVersion],
   );
 
   const selectedGame = useMemo(
