@@ -118,6 +118,31 @@ describe('updateManager', () => {
     );
   });
 
+  it('returns available even if update-available event finishes after checkForUpdates resolves', async () => {
+    const context = await loadUpdateManager({
+      isPackaged: true,
+      fetchImpl: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ body: 'Delayed changelog' }),
+      }),
+    });
+
+    context.autoUpdaterMock.checkForUpdates.mockImplementation(async () => {
+      // Simulate electron-updater resolving before async listeners finish.
+      queueMicrotask(() => {
+        void context.emit('update-available', { version: '2.0.0' });
+      });
+
+      return { updateInfo: { version: '2.0.0' } };
+    });
+
+    context.module.initAutoUpdater();
+    const status = await context.module.checkForUpdate();
+
+    expect(status.status).toBe('available');
+    expect(status.version).toBe('2.0.0');
+  });
+
   it('uses the GitHub releases API for portable builds and opens the matching release page', async () => {
     process.env.PORTABLE_EXECUTABLE_DIR = 'C:/portable';
     const context = await loadUpdateManager({

@@ -243,8 +243,34 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
 
   try {
     setStatus({ status: 'checking' });
-    await autoUpdater.checkForUpdates();
-    return currentStatus;
+    const checkResult = await autoUpdater.checkForUpdates();
+    const nextVersion = checkResult?.updateInfo?.version;
+
+    if (nextVersion && compareSemver(nextVersion, app.getVersion()) > 0) {
+      const status: UpdateStatus = {
+        status: 'available',
+        version: nextVersion,
+        changelog:
+          currentStatus.status === 'available' &&
+          currentStatus.version === nextVersion
+            ? currentStatus.changelog
+            : undefined,
+      };
+      setStatus(status);
+      return status;
+    }
+
+    if (currentStatus.status === 'error') {
+      return currentStatus;
+    }
+
+    if (currentStatus.status === 'available') {
+      return currentStatus;
+    }
+
+    const status: UpdateStatus = { status: 'not-available' };
+    setStatus(status);
+    return status;
   } catch (err) {
     const status: UpdateStatus = {
       status: 'error',
