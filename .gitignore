@@ -29,6 +29,7 @@ test-results/
 
 # Copilot instructions
 .github/copilot-instructions.md
+docs/cicd-workflow.md
 
 # Misc
 *.local
