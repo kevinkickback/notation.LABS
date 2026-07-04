@@ -35,12 +35,27 @@ export function CoverSearchDialog({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const didAutoSearch = useRef(false);
+  const prevOpenRef = useRef(false);
+  const resultsCacheRef = useRef<
+    Map<
+      string,
+      { results: IGDBSearchResult[]; thumbnails: Record<string, string> }
+    >
+  >(new Map());
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSearch = useCallback(async (query?: string) => {
     const q = (query ?? searchQueryRef.current).trim();
     if (!q) return;
+
+    const cached = resultsCacheRef.current.get(q);
+    if (cached) {
+      setError(null);
+      setResults(cached.results);
+      setThumbnails(cached.thumbnails);
+      setHasSearched(true);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -62,8 +77,6 @@ export function CoverSearchDialog({
           };
         },
       );
-      setResults(data);
-
       const thumbs: Record<string, string> = {};
       for (const g of data) {
         if (g.coverImageId) {
@@ -71,6 +84,9 @@ export function CoverSearchDialog({
             `https://images.igdb.com/igdb/image/upload/t_cover_big/${g.coverImageId}.jpg`;
         }
       }
+      resultsCacheRef.current.set(q, { results: data, thumbnails: thumbs });
+      setError(null);
+      setResults(data);
       setThumbnails(thumbs);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Search failed';
@@ -94,20 +110,30 @@ export function CoverSearchDialog({
   );
 
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       setSearchQuery(defaultQuery);
       searchQueryRef.current = defaultQuery;
-      setResults([]);
-      setThumbnails({});
-      setError(null);
-      setHasSearched(false);
-      didAutoSearch.current = false;
 
-      if (defaultQuery.trim()) {
-        didAutoSearch.current = true;
-        handleSearch(defaultQuery);
+      const trimmed = defaultQuery.trim();
+      if (resultsCacheRef.current.has(trimmed)) {
+        const cached = resultsCacheRef.current.get(trimmed);
+        if (cached) {
+          setError(null);
+          setResults(cached.results);
+          setThumbnails(cached.thumbnails);
+          setHasSearched(true);
+        }
+      } else {
+        setResults([]);
+        setThumbnails({});
+        setError(null);
+        setHasSearched(false);
+        if (trimmed) {
+          handleSearch(defaultQuery);
+        }
       }
     }
+    prevOpenRef.current = open;
   }, [open, defaultQuery, handleSearch]);
 
   const handleCoverSelect = async (result: IGDBSearchResult) => {

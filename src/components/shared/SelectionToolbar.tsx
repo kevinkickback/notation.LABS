@@ -6,6 +6,7 @@ interface SelectionToolbarProps {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onDelete: () => void;
+  onCancel: () => void;
 }
 
 export function SelectionToolbar({
@@ -13,29 +14,38 @@ export function SelectionToolbar({
   onSelectAll,
   onDeselectAll,
   onDelete,
+  onCancel,
 }: SelectionToolbarProps) {
   return (
-    <div className="flex items-center justify-between mb-4 p-3 bg-secondary rounded-lg">
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">{selectedCount} selected</span>
-        <Button variant="ghost" size="sm" onClick={onSelectAll}>
-          Select All
+    <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
+      <span className="text-sm font-medium text-muted-foreground">
+        {selectedCount} selected
+      </span>
+      <Button variant="ghost" size="sm" className="h-9" onClick={onSelectAll}>
+        Select All
+      </Button>
+      {selectedCount > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-9"
+          onClick={onDeselectAll}
+        >
+          Deselect All
         </Button>
-        {selectedCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={onDeselectAll}>
-            Deselect All
-          </Button>
-        )}
-      </div>
+      )}
       <Button
         variant="destructive"
         size="sm"
-        className="gap-1.5"
+        className="gap-1.5 h-9"
         disabled={selectedCount === 0}
         onClick={onDelete}
       >
         <TrashIcon className="w-4 h-4" />
-        Delete ({selectedCount})
+        Delete
+      </Button>
+      <Button variant="outline" size="sm" className="h-9" onClick={onCancel}>
+        Cancel
       </Button>
     </div>
   );

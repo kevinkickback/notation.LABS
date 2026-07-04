@@ -300,6 +300,16 @@ export function parseComboNotation(
           end++;
           continue;
         }
+        // Also include a space + lone trailing digit when the digit is not
+        // followed by more alphanumerics (e.g. "SUPER 1" stays as one label,
+        // but "ENDER 5B" still parses as unknown + direction + button).
+        if (isAsciiLetter(prevChar) && nextChar && /[0-9]/.test(nextChar)) {
+          const charAfterDigit = end + 2 < input.length ? input[end + 2] : '';
+          if (!charAfterDigit || /[^a-zA-Z0-9]/.test(charAfterDigit)) {
+            end += 2;
+            continue;
+          }
+        }
         break;
       }
 
@@ -390,6 +400,11 @@ export function parseComboNotation(
   const isNotationLikeParenthetical = (content: string): boolean => {
     const trimmed = content.trim();
     if (!trimmed) {
+      return false;
+    }
+
+    // A lone single digit is a descriptive note (e.g. "2A(3)"), not embedded notation.
+    if (/^[1-9]$/.test(trimmed)) {
       return false;
     }
 

@@ -39,7 +39,6 @@ import { CharacterFormDialog } from './CharacterFormDialog';
 import { CharacterGridCard } from './CharacterGridCard';
 import { CharacterListCard } from './CharacterListCard';
 import { CharacterViewEmptyState } from './CharacterViewEmptyState';
-import { CharacterViewFilterPanel } from './CharacterViewFilterPanel';
 import { CharacterViewHeader } from './CharacterViewHeader';
 import { CharacterViewNotes } from './CharacterViewNotes';
 import { CharacterViewToolbar } from './CharacterViewToolbar';
@@ -185,19 +184,33 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
         <CharacterViewHeader game={game} />
-        <CharacterViewToolbar
-          viewMode={viewMode.viewMode}
-          onViewModeChange={viewMode.setViewMode}
-          cardSize={viewMode.cardSize}
-          onCardSizeChange={viewMode.handleCardSizeChange}
-          showFilters={filters.showFilters}
-          onToggleFilters={filters.toggleFilters}
-          activeFilterCount={filters.activeFilterCount}
-          isSelecting={selection.isSelecting}
-          onToggleSelect={selection.toggleSelectionMode}
-          onOpenColorDialog={() => setColorDialogOpen(true)}
-          onAddCharacter={operations.openAddDialog}
-        />
+        {selection.isSelecting ? (
+          <SelectionToolbar
+            selectedCount={selection.selectedIds.size}
+            onSelectAll={() =>
+              selection.selectAll(filters.filteredAndSorted.map((c) => c.id))
+            }
+            onDeselectAll={selection.deselectAll}
+            onDelete={() => {
+              void handleBulkDelete();
+            }}
+            onCancel={selection.clearSelection}
+          />
+        ) : (
+          <CharacterViewToolbar
+            filterSearch={filters.filterSearch}
+            onFilterSearchChange={filters.setFilterSearch}
+            sortBy={filters.sortBy}
+            onSortByChange={filters.setSortBy}
+            viewMode={viewMode.viewMode}
+            onViewModeChange={viewMode.setViewMode}
+            cardSize={viewMode.cardSize}
+            onCardSizeChange={viewMode.handleCardSizeChange}
+            onToggleSelect={selection.toggleSelectionMode}
+            onOpenColorDialog={() => setColorDialogOpen(true)}
+            onAddCharacter={operations.openAddDialog}
+          />
+        )}
       </div>
 
       <CharacterViewNotes
@@ -206,32 +219,6 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         onToggle={handleToggleNotes}
         onEditNote={openNoteDialog}
       />
-
-      {filters.showFilters && (
-        <CharacterViewFilterPanel
-          filterSearch={filters.filterSearch}
-          onFilterSearchChange={filters.setFilterSearch}
-          sortBy={filters.sortBy}
-          onSortByChange={filters.setSortBy}
-          hasActiveFilters={filters.hasActiveFilters}
-          onClearFilters={filters.clearFilters}
-          filteredCount={filters.filteredAndSorted.length}
-          totalCount={characters.length}
-        />
-      )}
-
-      {selection.isSelecting && (
-        <SelectionToolbar
-          selectedCount={selection.selectedIds.size}
-          onSelectAll={() =>
-            selection.selectAll(filters.filteredAndSorted.map((c) => c.id))
-          }
-          onDeselectAll={selection.deselectAll}
-          onDelete={() => {
-            void handleBulkDelete();
-          }}
-        />
-      )}
 
       <div
         className={

@@ -33,11 +33,22 @@ export function CharacterSearchDialog({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const prevOpenRef = useRef(false);
+  const resultsCacheRef = useRef<Map<string, ImageSearchResult[]>>(new Map());
 
   const handleSearch = useCallback(
     async (query?: string) => {
       const q = (typeof query === 'string' ? query : inputValue).trim();
       if (!q) return;
+
+      const cached = resultsCacheRef.current.get(q);
+      if (cached) {
+        setError(null);
+        setResults(cached);
+        setHasSearched(true);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       setResults([]);
@@ -50,10 +61,10 @@ export function CharacterSearchDialog({
         });
         if (!res.ok) {
           setError('Search failed');
-          setLoading(false);
           return;
         }
         const data: ImageSearchResult[] = await res.json();
+        resultsCacheRef.current.set(q, data);
         setResults(data);
       } catch {
         setError('Image search failed. Check your internet connection.');
@@ -64,16 +75,23 @@ export function CharacterSearchDialog({
     [ddgApiBase, inputValue],
   );
 
-  // Only reset inputValue from searchQuery when dialog is opened (not on every prop change)
-  const prevOpenRef = useRef(false);
+  // Only reset and re-search when dialog opens with a changed or uncached query
   useEffect(() => {
     if (open && !prevOpenRef.current) {
       setInputValue(searchQuery);
-      setResults([]);
-      setError(null);
-      setHasSearched(false);
-      if (searchQuery.trim()) {
-        handleSearch(searchQuery);
+      const trimmed = searchQuery.trim();
+      const cached = resultsCacheRef.current.get(trimmed);
+      if (cached) {
+        setError(null);
+        setResults(cached);
+        setHasSearched(true);
+      } else {
+        setResults([]);
+        setError(null);
+        setHasSearched(false);
+        if (trimmed) {
+          handleSearch(searchQuery);
+        }
       }
     }
     prevOpenRef.current = open;
