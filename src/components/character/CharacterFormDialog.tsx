@@ -150,103 +150,121 @@ export function CharacterFormDialog({
           <div className="space-y-4">
             <div>
               <Label>Character Image (optional)</Label>
-              <div className="flex items-start gap-3 mt-1">
+              <div className="flex gap-3 mt-1">
                 <div className="w-44 h-28 shrink-0 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-border relative">
                   {portraitImage ? (
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        backgroundImage: `url(${portraitImage})`,
-                        backgroundSize: `${portraitZoom}%`,
-                        backgroundPosition: `${portraitPanX}% ${portraitPanY}%`,
-                        backgroundRepeat: 'no-repeat',
-                      }}
-                    />
+                    <>
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          backgroundImage: `url(${portraitImage})`,
+                          backgroundSize: `${portraitZoom}%`,
+                          backgroundPosition: `${portraitPanX}% ${portraitPanY}%`,
+                          backgroundRepeat: 'no-repeat',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Remove image"
+                        onClick={() => setPortraitImage('')}
+                        className="absolute top-1 right-1 z-10 rounded-full bg-red-600/80 hover:bg-red-600 text-white w-5 h-5 flex items-center justify-center transition-colors cursor-pointer"
+                      >
+                        <XIcon className="w-3 h-3" />
+                      </button>
+                    </>
                   ) : (
                     <ImageSquareIcon className="w-8 h-8 text-muted-foreground" />
                   )}
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleImageSelect}
-                  >
-                    <ImageSquareIcon className="w-4 h-4 mr-2 shrink-0" />
-                    Upload Image
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setImageSearchOpen(true)}
-                  >
-                    <MagnifyingGlassIcon className="w-4 h-4 mr-2 shrink-0" />
-                    Search Images
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={!portraitImage}
-                    onClick={() => setPortraitImage('')}
-                    className="text-xs h-6 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 disabled:opacity-40 disabled:pointer-events-none"
-                  >
-                    <XIcon className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-                    Remove
-                  </Button>
-                  <div
-                    className={`flex items-center gap-2 mt-1 ${!portraitImage ? 'opacity-40 pointer-events-none' : ''}`}
-                  >
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      Zoom
-                    </span>
-                    <Slider
-                      min={100}
-                      max={200}
-                      step={5}
-                      value={[portraitZoom]}
-                      onValueChange={([v]) => setPortraitZoom(v)}
-                      className="flex-1"
-                      disabled={!portraitImage}
-                    />
-                    <span className="text-xs text-muted-foreground w-8 text-right">
-                      {portraitZoom}%
-                    </span>
-                  </div>
-                  <div
-                    className={`flex items-center gap-2 ${!portraitImage ? 'opacity-40 pointer-events-none' : ''}`}
-                  >
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      Pan X
-                    </span>
-                    <Slider
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={[portraitPanX]}
-                      onValueChange={([v]) => setPortraitPanX(v)}
-                      className="flex-1"
-                      disabled={!portraitImage}
-                    />
-                  </div>
-                  <div
-                    className={`flex items-center gap-2 ${!portraitImage ? 'opacity-40 pointer-events-none' : ''}`}
-                  >
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      Pan Y
-                    </span>
-                    <Slider
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={[portraitPanY]}
-                      onValueChange={([v]) => setPortraitPanY(v)}
-                      className="flex-1"
-                      disabled={!portraitImage}
-                    />
-                  </div>
+                <div className="flex-1 flex flex-col">
+                  {portraitImage ? (
+                    <div className="flex-1 flex flex-col bg-card rounded-lg border border-border p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                        Adjust
+                      </p>
+                      <div className="flex-1 flex flex-col">
+                        <div className="flex-1" />
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground shrink-0 w-12">
+                            Zoom
+                          </span>
+                          <Slider
+                            min={100}
+                            max={200}
+                            step={5}
+                            value={[portraitZoom]}
+                            onValueChange={([v]) => setPortraitZoom(v)}
+                            className="flex-1"
+                          />
+                          <span className="text-sm text-muted-foreground w-10 text-right">
+                            {portraitZoom}%
+                          </span>
+                        </div>
+                        <div className="flex-1" />
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground shrink-0 w-12">
+                            Pan X
+                          </span>
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[portraitPanX]}
+                            onValueChange={([v]) => setPortraitPanX(v)}
+                            className="flex-1"
+                          />
+                          <span className="text-sm text-muted-foreground w-10 text-right">
+                            {(portraitPanX - 50) * 2}%
+                          </span>
+                        </div>
+                        <div className="flex-1" />
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground shrink-0 w-12">
+                            Pan Y
+                          </span>
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[portraitPanY]}
+                            onValueChange={([v]) => setPortraitPanY(v)}
+                            className="flex-1"
+                          />
+                          <span className="text-sm text-muted-foreground w-10 text-right">
+                            {(portraitPanY - 50) * 2}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col justify-center gap-1.5 h-full">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleImageSelect}
+                      >
+                        <ImageSquareIcon className="w-4 h-4 mr-2 shrink-0" />
+                        Upload Image
+                      </Button>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="text-xs text-muted-foreground">
+                          or
+                        </span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setImageSearchOpen(true)}
+                      >
+                        <MagnifyingGlassIcon className="w-4 h-4 mr-2 shrink-0" />
+                        Search Online
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -107,9 +107,10 @@ describe('CharacterView', () => {
     const user = userEvent.setup();
     render(<CharacterView game={mockGame} characters={mockCharacters} />);
 
-    await user.click(screen.getByTitle('Multi-select characters'));
+    await user.click(screen.getByRole('button', { name: /more options/i }));
+    await user.click(screen.getByText('Select Characters'));
     await user.click(screen.getByRole('button', { name: /select all/i }));
-    await user.click(screen.getByRole('button', { name: /delete \(2\)/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
     await user.click(
       screen.getByRole('button', { name: /delete selected \(2\)/i }),
     );

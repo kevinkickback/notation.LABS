@@ -224,20 +224,33 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
           game={game}
           comboCount={combos.length}
         />
-        <ComboViewToolbar
-          displayMode={displayMode}
-          onDisplayModeChange={handleDisplayModeChange}
-          showFilters={filters.showFilters}
-          onToggleFilters={() => filters.setShowFilters(!filters.showFilters)}
-          activeFilterCount={filters.activeFilterCount}
-          isSelecting={selection.isSelecting}
-          onToggleSelect={() => {
-            selection.setIsSelecting(!selection.isSelecting);
-            if (selection.isSelecting) selection.deselectAll();
-          }}
-          onAddCombo={() => operations.setDialogOpen(true)}
-          onOpenColorDialog={() => setColorDialogOpen(true)}
-        />
+        {selection.isSelecting ? (
+          <ComboSelectionToolbar
+            selectedCount={selection.selectedIds.size}
+            onSelectAll={() =>
+              selection.selectAll(filters.filteredCombos.map((c) => c.id))
+            }
+            onDeselectAll={selection.deselectAll}
+            onMarkOutdated={handleBulkMarkOutdated}
+            onDelete={handleBulkDelete}
+            onCancel={selection.clearSelection}
+          />
+        ) : (
+          <ComboViewToolbar
+            displayMode={displayMode}
+            onDisplayModeChange={handleDisplayModeChange}
+            showFilters={filters.showFilters}
+            onToggleFilters={() => filters.setShowFilters(!filters.showFilters)}
+            activeFilterCount={filters.activeFilterCount}
+            isSelecting={selection.isSelecting}
+            onToggleSelect={() => {
+              selection.setIsSelecting(!selection.isSelecting);
+              if (selection.isSelecting) selection.deselectAll();
+            }}
+            onAddCombo={() => operations.setDialogOpen(true)}
+            onOpenColorDialog={() => setColorDialogOpen(true)}
+          />
+        )}
       </div>
 
       {/* Notes section */}
@@ -267,18 +280,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
         />
       )}
 
-      {/* Multi-select toolbar */}
-      {selection.isSelecting && (
-        <ComboSelectionToolbar
-          selectedCount={selection.selectedIds.size}
-          onSelectAll={() =>
-            selection.selectAll(filters.filteredCombos.map((c) => c.id))
-          }
-          onDeselectAll={selection.deselectAll}
-          onMarkOutdated={handleBulkMarkOutdated}
-          onDelete={handleBulkDelete}
-        />
-      )}
+      {/* Multi-select toolbar is now inline in the header row */}
 
       {/* Combo list with DnD */}
       <DndContext

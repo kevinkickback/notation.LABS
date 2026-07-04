@@ -372,6 +372,25 @@ describe('parseComboNotation', () => {
       });
     });
 
+    it('keeps unknown label with trailing digit as one phrase (e.g. "SUPER 1")', () => {
+      const tokens = parseComboNotation('SUPER 1', ['L', 'M', 'H', 'S1', 'S2']);
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ type: 'unknown', value: 'SUPER 1' });
+    });
+
+    it('keeps unknown label with trailing digit before separator as one phrase', () => {
+      const tokens = parseComboNotation('SUPER 1 > 2H', ['L', 'M', 'H', 'S1', 'S2']);
+      expect(tokens[0]).toMatchObject({ type: 'unknown', value: 'SUPER 1' });
+    });
+
+    it('still parses direction+button when digit is followed by alnum (e.g. "ENDER 5B")', () => {
+      const tokens = parseComboNotation('ENDER 5B', ['A', 'B', 'C', 'D']);
+      const dirToken = tokens.find((t) => t.type === 'direction' && t.value === '5');
+      const btnToken = tokens.find((t) => t.type === 'button' && t.value === 'B');
+      expect(dirToken).toBeDefined();
+      expect(btnToken).toBeDefined();
+    });
+
     it('parses buttons inside parenthesized groups with xN suffix', () => {
       const tokens = parseComboNotation('(6A > jc.A > j.B > j.C |>)xN');
 
@@ -568,6 +587,19 @@ describe('parseComboNotation', () => {
       const tokens = parseComboNotation('whiff');
       expect(tokens).toHaveLength(1);
       expect(tokens[0]).toMatchObject({ type: 'modifier', value: '(whiff)' });
+    });
+
+    it('treats lone digit in parentheses as a modifier note, not a direction', () => {
+      // e.g. "2A(3)" — the (3) is an annotation, not the down-forward direction icon
+      const tokens = parseComboNotation('2A(3)', ['A', 'B', 'C', 'D']);
+      const parenToken = tokens.find((t) => t.value === '(3)');
+      expect(parenToken).toBeDefined();
+      expect(parenToken).toMatchObject({ type: 'modifier', value: '(3)' });
+      // No direction token for the lone 3 inside parens
+      const directionTokens = tokens.filter(
+        (t) => t.type === 'direction' && t.value === '3',
+      );
+      expect(directionTokens).toHaveLength(0);
     });
 
     it('parses hold and release modifiers', () => {

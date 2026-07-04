@@ -142,11 +142,7 @@ describe('GameLibrary', () => {
   });
 
   it('toggles filter panel visibility', async () => {
-    const user = userEvent.setup();
     render(<GameLibrary games={mockGames} />);
-
-    const filterButton = screen.getByTitle('Sort & Filter');
-    await user.click(filterButton);
 
     expect(screen.getByPlaceholderText('Search games...')).not.toBeNull();
   });
@@ -154,9 +150,6 @@ describe('GameLibrary', () => {
   it('filters games by search text', async () => {
     const user = userEvent.setup();
     render(<GameLibrary games={mockGames} />);
-
-    // Open filters
-    await user.click(screen.getByTitle('Sort & Filter'));
 
     const searchInput = screen.getByPlaceholderText('Search games...');
     await user.type(searchInput, 'tekken');
@@ -170,21 +163,22 @@ describe('GameLibrary', () => {
     const user = userEvent.setup();
     render(<GameLibrary games={mockGames} />);
 
-    await user.click(screen.getByTitle('Sort & Filter'));
-
     const searchInput = screen.getByPlaceholderText('Search games...');
     await user.type(searchInput, 'street');
 
-    expect(screen.getByText(/1 of 3 games/)).not.toBeNull();
+    expect(screen.getByText('Street Fighter 6')).not.toBeNull();
+    expect(screen.queryByText('Tekken 8')).toBeNull();
+    expect(screen.queryByText('Guilty Gear Strive')).toBeNull();
   });
 
   it('supports multi-select bulk delete for games', async () => {
     const user = userEvent.setup();
     render(<GameLibrary games={mockGames} />);
 
-    await user.click(screen.getByTitle('Multi-select games'));
+    await user.click(screen.getByRole('button', { name: /more options/i }));
+    await user.click(screen.getByText('Select Games'));
     await user.click(screen.getByRole('button', { name: /select all/i }));
-    await user.click(screen.getByRole('button', { name: /delete \(3\)/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
     await user.click(
       screen.getByRole('button', { name: /delete selected \(3\)/i }),
     );

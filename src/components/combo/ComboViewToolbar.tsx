@@ -1,11 +1,18 @@
 import {
   CheckSquareIcon,
+  DotsThreeIcon,
   FunnelIcon,
   PaletteIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
 import { DisplayModeToggle } from '@/components/combo/DisplayModeToggle';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { DisplayMode } from '@/lib/types';
 
 interface ComboViewToolbarProps {
@@ -52,28 +59,36 @@ export function ComboViewToolbar({
           )}
         </Button>
       </div>
-      <div className="bg-muted rounded-md">
-        <Button
-          variant={isSelecting ? 'secondary' : 'ghost'}
-          onClick={onToggleSelect}
-          title="Multi-select combos"
-          className="flex items-center gap-1.5"
-        >
-          <CheckSquareIcon className="w-5 h-5" />
-          <span className="text-xs leading-tight">Select</span>
-        </Button>
-      </div>
-      <div className="bg-muted rounded-md">
-        <Button
-          variant="ghost"
-          onClick={onOpenColorDialog}
-          title="Edit button colors"
-          className="flex items-center gap-1.5"
-        >
-          <PaletteIcon className="w-5 h-5" />
-          <span className="text-xs leading-tight">Colors</span>
-        </Button>
-      </div>
+
+      {/* Overflow */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant={isSelecting ? 'secondary' : 'ghost'}
+            className="bg-muted h-9 px-2.5"
+            aria-label="More options"
+          >
+            <DotsThreeIcon className="w-5 h-5" weight="bold" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={onToggleSelect}
+            className="flex items-center gap-2"
+          >
+            <CheckSquareIcon className="w-4 h-4" />
+            Select Combos
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={onOpenColorDialog}
+            className="flex items-center gap-2"
+          >
+            <PaletteIcon className="w-4 h-4" />
+            Edit Game Buttons
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <Button onClick={onAddCombo} className="gap-2">
         <PlusIcon weight="bold" />
         Add Combo

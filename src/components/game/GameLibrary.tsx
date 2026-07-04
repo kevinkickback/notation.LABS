@@ -20,11 +20,10 @@ import { useGameViewMode } from '@/hooks/useGameViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
-import type { Game, GameSort } from '@/lib/types';
+import type { Game } from '@/lib/types';
 import { GameFormDialog } from './GameFormDialog';
 import { GameGridCard } from './GameGridCard';
 import { GameLibraryEmptyState } from './GameLibraryEmptyState';
-import { GameLibraryFilterPanel } from './GameLibraryFilterPanel';
 import { GameLibraryHeader } from './GameLibraryHeader';
 import { GameLibraryToolbar } from './GameLibraryToolbar';
 import { GameListCard } from './GameListCard';
@@ -176,55 +175,36 @@ export function GameLibrary({ games }: GameLibraryProps) {
       {/* Header + Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
         <GameLibraryHeader gameCount={games.length} />
-        <GameLibraryToolbar
-          viewMode={viewMode.viewMode}
-          cardSize={viewMode.cardSize}
-          showFilters={filters.showFilters}
-          activeFilterCount={filters.activeFilterCount}
-          isSelecting={isSelecting}
-          onViewModeChange={viewMode.setViewMode}
-          onCardSizeChange={viewMode.handleCardSizeChange}
-          onToggleFilters={() => filters.toggleFilters()}
-          onToggleSelect={() => {
-            setIsSelecting((prev) => {
-              if (prev) {
-                setSelectedIds(new Set());
-              }
-              return !prev;
-            });
-          }}
-          onAddGame={() => operations.openAddDialog()}
-        />
+        {isSelecting ? (
+          <SelectionToolbar
+            selectedCount={selectedIds.size}
+            onSelectAll={() =>
+              setSelectedIds(new Set(filteredAndSorted.map((g) => g.id)))
+            }
+            onDeselectAll={() => setSelectedIds(new Set())}
+            onDelete={() => {
+              void handleBulkDelete();
+            }}
+            onCancel={() => {
+              setIsSelecting(false);
+              setSelectedIds(new Set());
+            }}
+          />
+        ) : (
+          <GameLibraryToolbar
+            filterSearch={filters.filterSearch}
+            onFilterSearchChange={filters.setFilterSearch}
+            sortBy={filters.sortBy}
+            onSortByChange={filters.setSortBy}
+            viewMode={viewMode.viewMode}
+            onViewModeChange={viewMode.setViewMode}
+            cardSize={viewMode.cardSize}
+            onCardSizeChange={viewMode.handleCardSizeChange}
+            onToggleSelect={() => setIsSelecting(true)}
+            onAddGame={() => operations.openAddDialog()}
+          />
+        )}
       </div>
-
-      {isSelecting && (
-        <SelectionToolbar
-          selectedCount={selectedIds.size}
-          onSelectAll={() =>
-            setSelectedIds(new Set(filteredAndSorted.map((g) => g.id)))
-          }
-          onDeselectAll={() => setSelectedIds(new Set())}
-          onDelete={() => {
-            void handleBulkDelete();
-          }}
-        />
-      )}
-
-      {/* Filter Panel */}
-      {filters.showFilters && (
-        <GameLibraryFilterPanel
-          filterSearch={filters.filterSearch}
-          onFilterSearchChange={(value: string) =>
-            filters.setFilterSearch(value)
-          }
-          sortBy={filters.sortBy}
-          onSortByChange={(value: GameSort) => filters.setSortBy(value)}
-          hasActiveFilters={filters.hasActiveFilters}
-          onClearFilters={() => filters.clearFilters()}
-          filteredCount={filteredAndSorted.length}
-          totalCount={games.length}
-        />
-      )}
 
       {/* Games Grid/List */}
       <div
