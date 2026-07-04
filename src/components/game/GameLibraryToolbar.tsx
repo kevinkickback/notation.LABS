@@ -154,7 +154,11 @@ export function GameLibraryToolbar({
       {/* Overflow */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="bg-muted h-9 px-2.5">
+          <Button
+            variant="ghost"
+            className="bg-muted h-9 px-2.5"
+            aria-label="More options"
+          >
             <DotsThreeIcon className="w-5 h-5" weight="bold" />
           </Button>
         </DropdownMenuTrigger>

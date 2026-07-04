@@ -184,7 +184,8 @@ describe('ComboView', () => {
       />,
     );
 
-    await user.click(screen.getByTitle('Multi-select combos'));
+    await user.click(screen.getByRole('button', { name: /more options/i }));
+    await user.click(screen.getByText('Select Combos'));
     expect(screen.getByText('0 selected')).not.toBeNull();
     expect(screen.getByRole('button', { name: /select all/i })).not.toBeNull();
   });

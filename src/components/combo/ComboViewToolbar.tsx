@@ -66,6 +66,7 @@ export function ComboViewToolbar({
           <Button
             variant={isSelecting ? 'secondary' : 'ghost'}
             className="bg-muted h-9 px-2.5"
+            aria-label="More options"
           >
             <DotsThreeIcon className="w-5 h-5" weight="bold" />
           </Button>
