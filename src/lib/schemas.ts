@@ -31,6 +31,12 @@ export const gameSchema = z.object({
   updatedAt: z.number(),
 });
 
+export const characterLinkSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  label: z.string(),
+});
+
 export const characterSchema = z.object({
   id: z.string(),
   gameId: z.string(),
@@ -40,6 +46,7 @@ export const characterSchema = z.object({
   portraitPanX: z.number().optional(),
   portraitPanY: z.number().optional(),
   notes: z.string().optional(),
+  links: z.array(characterLinkSchema).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -123,6 +130,7 @@ export const importDataSchema = z.object({
 export type ComboToken = z.infer<typeof comboTokenSchema>;
 export type TokenType = ComboToken['type'];
 export type Game = z.infer<typeof gameSchema>;
+export type CharacterLink = z.infer<typeof characterLinkSchema>;
 export type Character = z.infer<typeof characterSchema>;
 export type Combo = z.infer<typeof comboSchema>;
 export type UserSettings = z.infer<typeof settingsSchema>;

@@ -2,6 +2,7 @@
 // This eliminates manual sync between type definitions and validation schemas.
 export type {
   Character,
+  CharacterLink,
   Combo,
   ComboToken,
   DisplayMode,

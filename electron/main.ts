@@ -171,7 +171,7 @@ app.on('ready', async () => {
             isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https://images.igdb.com/ https://i.ytimg.com/ https://tse1.mm.bing.net/ https://tse2.mm.bing.net/ https://tse3.mm.bing.net/ https://tse4.mm.bing.net/",
+            "img-src 'self' data: blob: https://images.igdb.com/ https://i.ytimg.com/ https://tse1.mm.bing.net/ https://tse2.mm.bing.net/ https://tse3.mm.bing.net/ https://tse4.mm.bing.net/ https://www.google.com/ https://t0.gstatic.com/ https://t1.gstatic.com/ https://t2.gstatic.com/ https://t3.gstatic.com/",
             "media-src 'self' blob:",
             'frame-src https://www.youtube-nocookie.com',
             isDev
