@@ -219,6 +219,8 @@ describe('ComboView', () => {
       />,
     );
 
+    // Card is collapsed by default — expand it to reveal the Edit note button
+    await user.click(screen.getByRole('button', { name: /character info/i }));
     await user.click(screen.getByTitle('Edit note'));
     expect(screen.getByRole('heading', { name: 'Edit Note' })).not.toBeNull();
   });

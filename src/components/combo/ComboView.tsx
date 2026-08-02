@@ -13,14 +13,15 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import type { CharacterInfoCardRef } from '@/components/combo/CharacterInfoCard';
+import { CharacterInfoCard } from '@/components/combo/CharacterInfoCard';
 import { ComboFilters } from '@/components/combo/ComboFilters';
 import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
 import { ComboSelectionToolbar } from '@/components/combo/ComboSelectionToolbar';
 import { ComboViewEmptyState } from '@/components/combo/ComboViewEmptyState';
 import { ComboViewHeader } from '@/components/combo/ComboViewHeader';
-import { ComboViewNotes } from '@/components/combo/ComboViewNotes';
 import { ComboViewToolbar } from '@/components/combo/ComboViewToolbar';
 import { SortableComboCard } from '@/components/combo/SortableComboCard';
 import { VideoPlayerDialog } from '@/components/combo/VideoPlayerDialog';
@@ -78,10 +79,16 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
   });
   const operations = useComboOperations();
 
-  const [showNotes, handleToggleNotes] = useNotesOverride(
+  const [showInfo, handleToggleInfo] = useNotesOverride(
     character.id,
     settings.notesDefaultOpen ?? false,
   );
+  const infoCardRef = useRef<CharacterInfoCardRef>(null);
+
+  const handleAddResourceLink = useCallback(() => {
+    if (!showInfo) handleToggleInfo();
+    infoCardRef.current?.openAddLinkForm();
+  }, [showInfo, handleToggleInfo]);
 
   // Sync video size from settings
   useEffect(() => {
@@ -249,15 +256,24 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
             }}
             onAddCombo={() => operations.setDialogOpen(true)}
             onOpenColorDialog={() => setColorDialogOpen(true)}
+            onAddResourceLink={handleAddResourceLink}
+            onEditNote={openNoteDialog}
+            showInfoCard={
+              Boolean(character.notes?.trim()) ||
+              (character.links?.length ?? 0) > 0
+            }
           />
         )}
       </div>
 
-      {/* Notes section */}
-      <ComboViewNotes
+      {/* Character info: notes + resource links */}
+      <CharacterInfoCard
+        ref={infoCardRef}
+        characterId={character.id}
         notes={character.notes || ''}
-        isOpen={showNotes}
-        onToggle={handleToggleNotes}
+        links={character.links ?? []}
+        isOpen={showInfo}
+        onToggle={handleToggleInfo}
         onEditNote={openNoteDialog}
       />
 
