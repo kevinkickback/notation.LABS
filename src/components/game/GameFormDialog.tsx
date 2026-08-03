@@ -46,6 +46,9 @@ export function GameFormDialog({
   const [dialogButtonColors, setDialogButtonColors] = useState<
     Record<string, string>
   >({});
+  const [inputType, setInputType] = useState<'numpad' | 'button-numbers'>(
+    'numpad',
+  );
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +75,7 @@ export function GameFormDialog({
       setCoverZoom(editingGame.coverZoom || 100);
       setCoverPanX(editingGame.coverPanX ?? 50);
       setCoverPanY(editingGame.coverPanY ?? 50);
+      setInputType(editingGame.inputType ?? 'numpad');
       const existingColors = editingGame.buttonColors || {};
       const initialColors: Record<string, string> = {};
       for (let i = 0; i < editingGame.buttonLayout.length; i++) {
@@ -90,6 +94,7 @@ export function GameFormDialog({
       setCoverPanX(50);
       setCoverPanY(50);
       setDialogButtonColors({});
+      setInputType('numpad');
       setCoverSearchOpen(false);
     }
   }, [open, editingGame]);
@@ -126,6 +131,7 @@ export function GameFormDialog({
         buttonLayout: buttons,
         buttonColors: { ...dialogButtonColors },
         notes: notes.trim(),
+        inputType: inputType === 'numpad' ? undefined : inputType,
         logoImage: logoImage || undefined,
         coverZoom: coverZoom !== 100 ? coverZoom : undefined,
         coverPanX: coverPanX !== 50 ? coverPanX : undefined,
@@ -155,6 +161,7 @@ export function GameFormDialog({
         buttonLayout: buttons,
         buttonColors: { ...dialogButtonColors },
         notes: notes.trim(),
+        inputType: inputType === 'numpad' ? undefined : inputType,
         logoImage: logoImage || undefined,
         coverZoom: coverZoom !== 100 ? coverZoom : undefined,
         coverPanX: coverPanX !== 50 ? coverPanX : undefined,
@@ -355,8 +362,54 @@ export function GameFormDialog({
                 id={buttonsInputId}
                 value={buttonLayout}
                 onChange={(e) => setButtonLayout(e.target.value)}
-                placeholder="L, M, H, S"
+                placeholder={
+                  inputType === 'button-numbers' ? '1, 2, 3, 4' : 'L, M, H, S'
+                }
               />
+            </div>
+
+            <div>
+              <Label>Input Type</Label>
+              <div className="inline-flex rounded-md border border-border bg-muted p-0.5 gap-0.5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setInputType('numpad')}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    inputType === 'numpad'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Standard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputType('button-numbers')}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    inputType === 'button-numbers'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  NRS / Tekken
+                </button>
+              </div>
+              <div className="mt-2 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/70">
+                    Standard
+                  </span>{' '}
+                  — Supports traditional (dash, qcf, dp) AND numpad (66, 236,
+                  623) notation
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/70">
+                    NRS / Tekken
+                  </span>{' '}
+                  — Numbers represent attack buttons instead of directional
+                  inputs
+                </p>
+              </div>
             </div>
 
             {parsedButtons.length > 0 && (

@@ -1,7 +1,7 @@
 import type { ComboToken } from './types';
 
 // Bump when parser behavior changes and stored combo tokens need refreshing.
-export const COMBO_NOTATION_PARSER_VERSION = 2;
+export const COMBO_NOTATION_PARSER_VERSION = 3;
 
 // Ordered from longest to shortest semantic motions so numeric tokens prefer
 // complete motion matches before falling back to individual directions.
@@ -210,15 +210,23 @@ const SPECIAL_MODIFIERS: Record<string, string> = {
   hold: '[hold]',
   holding: '[hold]',
   release: '[release]',
+  // Tekken 8 game-state prefixes
+  'h.': 'H.',
+  'r.': 'R.',
 };
 
 const SEPARATORS = [
+  '►',
   '|>',
   '>',
   '→',
   ',',
   '+',
   '~',
+  ':',
+  '=',
+  '_',
+  '<',
   '»',
   'xx',
   'link',
@@ -226,14 +234,64 @@ const SEPARATORS = [
   '/',
 ];
 
+// Sorted longest-first so 'd/f' is tried before 'd' (greedy match).
+const LETTER_DIR_COMPOUNDS = [
+  'u/f',
+  'd/f',
+  'u/b',
+  'd/b',
+  'uf',
+  'df',
+  'ub',
+  'db',
+];
+const LETTER_DIR_CARDINALS = ['n', 'f', 'b', 'u', 'd'];
+// Common Tekken stance/state tokens mapped to their canonical display form.
+const LETTER_DIR_STANCES: Record<string, string> = {
+  swl: 'SWL',
+  swr: 'SWR',
+  ssl: 'SSL',
+  ssr: 'SSR',
+  ss: 'SS',
+  ws: 'WS',
+  fc: 'FC',
+  wr: 'WR',
+  bt: 'BT',
+};
+const SORTED_LETTER_DIR_STANCES = Object.keys(LETTER_DIR_STANCES).sort(
+  (a, b) => b.length - a.length,
+);
+
 // Pre-sorted lookup tables keep the parser's hot path allocation-free.
 const SORTED_ALL_MODIFIERS = Object.keys({
   ...STANCE_MODIFIERS,
   ...SPECIAL_MODIFIERS,
 }).sort((a, b) => b.length - a.length);
-const SORTED_ALIASES = Object.keys(MOTION_ALIASES).sort(
-  (a, b) => b.length - a.length,
-);
+const MULTI_STEP_ALIASES: Record<
+  string,
+  Array<{ type: 'motion' | 'direction'; value: string }>
+> = {
+  hcbf: [
+    { type: 'motion', value: '63214' },
+    { type: 'direction', value: '6' },
+  ],
+  halfcirclebackforward: [
+    { type: 'motion', value: '63214' },
+    { type: 'direction', value: '6' },
+  ],
+  'half circle back forward': [
+    { type: 'motion', value: '63214' },
+    { type: 'direction', value: '6' },
+  ],
+  'half-circle-back-forward': [
+    { type: 'motion', value: '63214' },
+    { type: 'direction', value: '6' },
+  ],
+};
+const SORTED_ALL_ALIASES = [
+  ...Object.keys(MOTION_ALIASES),
+  ...Object.keys(MULTI_STEP_ALIASES),
+].sort((a, b) => b.length - a.length);
 const SORTED_MOTIONS = [...MOTIONS].sort((a, b) => b.length - a.length);
 
 /**
@@ -242,11 +300,26 @@ const SORTED_MOTIONS = [...MOTIONS].sort((a, b) => b.length - a.length);
 export function parseComboNotation(
   notation: string,
   customButtons: string[] = [],
+  options?: { inputType?: 'numpad' | 'button-numbers' },
 ): ComboToken[] {
+  const isNrsMode = options?.inputType === 'button-numbers';
   const tokens: ComboToken[] = [];
+  // In button-numbers mode without explicit buttons, skip COMMON_BUTTONS so
+  // single letters (f, b, d, u) are free to be parsed as directions.
   const allButtons =
-    customButtons.length > 0 ? [...customButtons] : [...COMMON_BUTTONS];
+    customButtons.length > 0
+      ? [...customButtons]
+      : isNrsMode
+        ? []
+        : [...COMMON_BUTTONS];
+  // In NRS/4-button mode, 1-4 are named buttons, not numpad directions.
+  if (isNrsMode) {
+    allButtons.push('1', '2', '3', '4');
+  }
   const sortedButtons = [...allButtons].sort((a, b) => b.length - a.length);
+  const activeDirections = isNrsMode
+    ? DIRECTIONS.filter((d) => Number(d) > 4)
+    : DIRECTIONS;
 
   const isAsciiLetter = (value: string | undefined): boolean => {
     if (!value) {
@@ -450,7 +523,11 @@ export function parseComboNotation(
             rawValue: '(',
           });
 
-          const nestedTokens = parseComboNotation(content, customButtons);
+          const nestedTokens = parseComboNotation(
+            content,
+            customButtons,
+            options,
+          );
           tokens.push(...nestedTokens);
 
           tokens.push({
@@ -476,7 +553,11 @@ export function parseComboNotation(
               value: '(',
               rawValue: '(',
             });
-            const nestedTokens = parseComboNotation(content, customButtons);
+            const nestedTokens = parseComboNotation(
+              content,
+              customButtons,
+              options,
+            );
             tokens.push(...nestedTokens);
             tokens.push({
               type: 'unknown',
@@ -528,6 +609,59 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
+    // Curly braces denote Tekken throw-escape notation e.g. {1+2}.
+    if (input[i] === '{') {
+      const closeIdx = input.indexOf('}', i + 1);
+      if (closeIdx !== -1) {
+        const fullText = input.substring(i, closeIdx + 1);
+        tokens.push({ type: 'modifier', value: fullText, rawValue: fullText });
+        i = closeIdx + 1;
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // Compound letter directions (d/f, u/f, etc.) must be resolved before '/' is
+    // consumed as a separator — only active in button-numbers mode.
+    if (isNrsMode) {
+      // Ground positions (FD/FT, FU/FA, etc.) also contain '/' and must be checked first.
+      const groundPositions: Record<string, string> = {
+        'fd/ft': 'FD/FT',
+        'fd/fa': 'FD/FA',
+        'fu/ft': 'FU/FT',
+        'fu/fa': 'FU/FA',
+      };
+      for (const [key, value] of Object.entries(groundPositions)) {
+        if (input.substring(i, i + key.length).toLowerCase() === key) {
+          tokens.push({
+            type: 'modifier',
+            value,
+            rawValue: input.substring(i, i + key.length),
+          });
+          i += key.length;
+          matched = true;
+          break;
+        }
+      }
+      if (matched) continue;
+
+      for (const dir of LETTER_DIR_COMPOUNDS) {
+        if (input.substring(i, i + dir.length).toLowerCase() === dir) {
+          const rawDir = input.substring(i, i + dir.length);
+          tokens.push({
+            type: 'direction',
+            // Preserve original case: D/F = hold, d/f = tap
+            value: rawDir,
+            rawValue: rawDir,
+          });
+          i += dir.length;
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (matched) continue;
+
     for (const sep of SEPARATORS) {
       const chunk = input.substring(i, i + sep.length);
       if (
@@ -571,7 +705,8 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    for (const alias of SORTED_ALIASES) {
+    // Aliases (qcf, dp, hcf, etc.) are valid in all modes — Tekken uses them.
+    for (const alias of SORTED_ALL_ALIASES) {
       const normalizedInput = input
         .substring(i, i + alias.length)
         .toLowerCase()
@@ -582,17 +717,32 @@ export function parseComboNotation(
         normalizedInput === normalizedAlias &&
         hasLetterBoundaryForWordToken(input, i, alias.length, alias)
       ) {
-        const numpadValue = MOTION_ALIASES[alias];
         let matchLength = alias.length;
         // Auto-consume trailing dot delimiter (e.g. dp.HP → motion "dp." + button "HP")
         if (i + matchLength < input.length && input[i + matchLength] === '.') {
           matchLength++;
         }
-        tokens.push({
-          type: 'motion',
-          value: numpadValue,
-          rawValue: input.substring(i, i + matchLength),
-        });
+        const multiSteps = MULTI_STEP_ALIASES[alias];
+        if (multiSteps) {
+          // Emit each step separately; rawValue on first token only.
+          for (let s = 0; s < multiSteps.length; s++) {
+            tokens.push({
+              type: multiSteps[s].type,
+              value: multiSteps[s].value,
+              rawValue:
+                s === 0
+                  ? input.substring(i, i + matchLength)
+                  : multiSteps[s].value,
+            });
+          }
+        } else {
+          const numpadValue = MOTION_ALIASES[alias];
+          tokens.push({
+            type: 'motion',
+            value: numpadValue,
+            rawValue: input.substring(i, i + matchLength),
+          });
+        }
         i += matchLength;
         matched = true;
         break;
@@ -600,21 +750,25 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    for (const motion of SORTED_MOTIONS) {
-      if (input.substring(i, i + motion.length) === motion) {
-        tokens.push({
-          type: 'motion',
-          value: motion,
-          rawValue: motion,
-        });
-        i += motion.length;
-        matched = true;
-        break;
+    // Numeric motions (236, 214, etc.) disabled in button-numbers mode
+    // since those digits are named buttons or cardinal directions.
+    if (!isNrsMode) {
+      for (const motion of SORTED_MOTIONS) {
+        if (input.substring(i, i + motion.length) === motion) {
+          tokens.push({
+            type: 'motion',
+            value: motion,
+            rawValue: motion,
+          });
+          i += motion.length;
+          matched = true;
+          break;
+        }
       }
+      if (matched) continue;
     }
-    if (matched) continue;
 
-    for (const dir of DIRECTIONS) {
+    for (const dir of activeDirections) {
       if (input[i] === dir) {
         tokens.push({
           type: 'direction',
@@ -644,6 +798,46 @@ export function parseComboNotation(
         i += tryInlineRepeat(i);
         matched = true;
         break;
+      }
+    }
+    if (matched) continue;
+
+    // Cardinal letter directions and stances — button-numbers mode only, checked
+    // after custom buttons so game-defined 'F'/'B' buttons take priority.
+    if (isNrsMode) {
+      for (const stanceKey of SORTED_LETTER_DIR_STANCES) {
+        if (
+          input.substring(i, i + stanceKey.length).toLowerCase() ===
+            stanceKey &&
+          hasLetterBoundaryForWordToken(input, i, stanceKey.length, stanceKey)
+        ) {
+          tokens.push({
+            type: 'modifier',
+            value: LETTER_DIR_STANCES[stanceKey],
+            rawValue: input.substring(i, i + stanceKey.length),
+          });
+          i += stanceKey.length;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        for (const dir of LETTER_DIR_CARDINALS) {
+          if (
+            input[i].toLowerCase() === dir &&
+            hasLetterBoundaryForWordToken(input, i, 1, dir)
+          ) {
+            tokens.push({
+              type: 'direction',
+              // Preserve original case: F = hold forward, f = tap forward
+              value: input[i],
+              rawValue: input[i],
+            });
+            i++;
+            matched = true;
+            break;
+          }
+        }
       }
     }
     if (matched) continue;

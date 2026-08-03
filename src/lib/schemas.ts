@@ -27,6 +27,8 @@ export const gameSchema = z.object({
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
+  inputType: z.enum(['numpad', 'button-numbers']).optional(),
+  commaStyle: z.enum(['hidden', 'separator']).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -47,6 +49,7 @@ export const characterSchema = z.object({
   portraitPanY: z.number().optional(),
   notes: z.string().optional(),
   links: z.array(characterLinkSchema).optional(),
+  portraitOrientation: z.enum(['landscape', 'portrait']).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -102,6 +105,9 @@ export const settingsSchema = z.object({
   lastSeenVersion: z.string().optional(),
   showChangelogBeforeUpdate: z.boolean(),
   accentColor: z.string().optional(),
+  characterCardOrientation: z
+    .enum(['landscape', 'portrait'])
+    .default('landscape'),
 });
 
 const demoVideoSchema = z
@@ -138,3 +144,4 @@ export type NotationColors = UserSettings['notationColors'];
 export type FontFamily = UserSettings['fontFamily'];
 export type DisplayMode = UserSettings['displayMode'];
 export type IconStyle = UserSettings['iconStyle'];
+export type MotionIconStyle = UserSettings['motionIconStyle'];

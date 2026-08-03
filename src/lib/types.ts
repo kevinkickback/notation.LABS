@@ -9,6 +9,7 @@ export type {
   FontFamily,
   Game,
   IconStyle,
+  MotionIconStyle,
   NotationColors,
   TokenType,
   UserSettings,

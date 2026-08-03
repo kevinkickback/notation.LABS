@@ -39,3 +39,4 @@ tmp/
 .vite-temp/
 import/
 scripts/
+inputs/

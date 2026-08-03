@@ -89,8 +89,11 @@ export function ComboFormDialog({
   const tagSuggestionsId = useId();
 
   const parsedNotationTokens = useMemo(
-    () => parseComboNotation(notation, game.buttonLayout),
-    [notation, game.buttonLayout],
+    () =>
+      parseComboNotation(notation, game.buttonLayout, {
+        inputType: game.inputType,
+      }),
+    [notation, game.buttonLayout, game.inputType],
   );
 
   const resetForm = useCallback(() => {

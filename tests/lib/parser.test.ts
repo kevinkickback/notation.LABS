@@ -468,6 +468,50 @@ describe('parseComboNotation', () => {
       expect(tokens).toHaveLength(1);
       expect(tokens[0]).toMatchObject({ type: 'unknown', value: 'blink' });
     });
+
+    it('parses : separator (just frame)', () => {
+      const tokens = parseComboNotation('L:M');
+      expect(tokens).toHaveLength(3);
+      expect(tokens[1]).toMatchObject({ type: 'separator', value: ':' });
+    });
+
+    it('parses = separator (next in sequence)', () => {
+      const tokens = parseComboNotation('L=M');
+      expect(tokens).toHaveLength(3);
+      expect(tokens[1]).toMatchObject({ type: 'separator', value: '=' });
+    });
+
+    it('parses ► separator', () => {
+      const tokens = parseComboNotation('L ► M');
+      expect(tokens).toHaveLength(3);
+      expect(tokens[1]).toMatchObject({ type: 'separator', value: '►' });
+    });
+
+    it('parses _ separator (or)', () => {
+      const tokens = parseComboNotation('L_M');
+      expect(tokens).toHaveLength(3);
+      expect(tokens[1]).toMatchObject({ type: 'separator', value: '_' });
+    });
+
+    it('parses < separator (delayed input)', () => {
+      const tokens = parseComboNotation('L<M');
+      expect(tokens).toHaveLength(3);
+      expect(tokens[1]).toMatchObject({ type: 'separator', value: '<' });
+    });
+  });
+
+  describe('bracket modifiers', () => {
+    it('parses {} curly braces as a modifier (throw escape notation)', () => {
+      const tokens = parseComboNotation('{1+2}');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ type: 'modifier', value: '{1+2}' });
+    });
+
+    it('parses [] square brackets as a modifier (optional/hold notation)', () => {
+      const tokens = parseComboNotation('[charge]');
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0]).toMatchObject({ type: 'modifier', value: '[charge]' });
+    });
   });
 
   describe('modifiers', () => {
@@ -835,6 +879,179 @@ describe('parseComboNotation', () => {
         'cr.LP > cr.LP > cr.MP > cr.MK xx 236LP > 236236HP',
       );
       expect(tokens.length).toBeGreaterThan(10);
+    });
+  });
+
+  describe('button-numbers mode (Tekken/NRS style: 1-4 are button names)', () => {
+    const mode = { inputType: 'button-numbers' as const };
+
+    it('treats 1, 2, 3, 4 as button tokens', () => {
+      for (const btn of ['1', '2', '3', '4']) {
+        const tokens = parseComboNotation(btn, [], mode);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0]).toMatchObject({ type: 'button', value: btn });
+      }
+    });
+
+    it('still treats 5, 6, 7, 8, 9 as directions', () => {
+      for (const dir of ['5', '6', '7', '8', '9']) {
+        const tokens = parseComboNotation(dir, [], mode);
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0]).toMatchObject({ type: 'direction', value: dir });
+      }
+    });
+
+    it('does not parse numeric motion sequences', () => {
+      const tokens = parseComboNotation('236', [], mode);
+      // 2, 3 become buttons; 6 becomes a direction
+      const types = tokens.map((t) => t.type);
+      expect(types).not.toContain('motion');
+      expect(tokens.find((t) => t.value === '2')?.type).toBe('button');
+      expect(tokens.find((t) => t.value === '3')?.type).toBe('button');
+    });
+
+    it('parses motion aliases (qcf, dp, hcf are valid in Tekken notation)', () => {
+      const tokens = parseComboNotation('qcf', [], mode);
+      expect(tokens[0]).toMatchObject({ type: 'motion' });
+    });
+
+    it('parses button-number combo with 1-4 buttons and separators', () => {
+      const tokens = parseComboNotation('1 > 2 > 3 > 4', ['1', '2', '3', '4'], mode);
+      const btns = tokens.filter((t) => t.type === 'button');
+      const seps = tokens.filter((t) => t.type === 'separator');
+      expect(btns).toHaveLength(4);
+      expect(seps).toHaveLength(3);
+    });
+
+    it('does not affect numpad mode parsing', () => {
+      const numpad = parseComboNotation('236');
+      expect(numpad[0]).toMatchObject({ type: 'motion', value: '236' });
+    });
+
+    describe('Tekken/NRS letter directions', () => {
+      it('parses compound slash directions (d/f, u/f, d/b, u/b)', () => {
+        for (const [input, expected] of [
+          ['d/f', 'd/f'],
+          ['u/f', 'u/f'],
+          ['d/b', 'd/b'],
+          ['u/b', 'u/b'],
+        ]) {
+          const tokens = parseComboNotation(input, [], mode);
+          expect(tokens[0]).toMatchObject({ type: 'direction', value: expected });
+        }
+      });
+
+      it('parses compound no-slash directions (df, uf, db, ub)', () => {
+        for (const [input, expected] of [
+          ['df', 'df'],
+          ['uf', 'uf'],
+          ['db', 'db'],
+          ['ub', 'ub'],
+        ]) {
+          const tokens = parseComboNotation(input, [], mode);
+          expect(tokens[0]).toMatchObject({ type: 'direction', value: expected });
+        }
+      });
+
+      it('parses cardinal directions (f, b, u, d, n)', () => {
+        // Use a real Tekken-style layout so COMMON_BUTTONS fallback doesn't interfere.
+        const layout = ['1', '2', '3', '4'];
+        for (const dir of ['f', 'b', 'u', 'd', 'n']) {
+          const tokens = parseComboNotation(dir, layout, mode);
+          expect(tokens[0]).toMatchObject({ type: 'direction', value: dir });
+        }
+      });
+
+      it('parses ► as a separator', () => {
+        const tokens = parseComboNotation('d/f,2 ► f,1', ['1', '2', '3', '4'], mode);
+        const seps = tokens.filter((t) => t.type === 'separator');
+        // Expects at minimum: ',' before 2, '►', ',' before 1
+        expect(seps.length).toBeGreaterThanOrEqual(3);
+        expect(seps.some((t) => t.rawValue === '►')).toBe(true);
+      });
+
+      it('parses a realistic Tekken combo string', () => {
+        const tokens = parseComboNotation(
+          'd/f,2 ► d/f,2 ► d/f,4,2 ► f,2,3,4',
+          ['1', '2', '3', '4'],
+          mode,
+        );
+        const dirs = tokens.filter((t) => t.type === 'direction');
+        const btns = tokens.filter((t) => t.type === 'button');
+        expect(dirs.some((t) => t.value === 'd/f')).toBe(true);
+        expect(dirs.some((t) => t.value === 'f')).toBe(true);
+        expect(btns.length).toBeGreaterThan(0);
+      });
+
+      it('parses WS, FC, SS, SSL, SSR, WR, BT stances as modifier tokens', () => {
+        for (const [input, expected] of [
+          ['WS', 'WS'],
+          ['FC', 'FC'],
+          ['SS', 'SS'],
+          ['SSL', 'SSL'],
+          ['SSR', 'SSR'],
+          ['WR', 'WR'],
+          ['BT', 'BT'],
+        ]) {
+          const tokens = parseComboNotation(input, [], mode);
+          expect(tokens[0]).toMatchObject({ type: 'modifier', value: expected });
+        }
+      });
+
+      it('preserves case: uppercase direction = hold, lowercase = tap', () => {
+        const layout = ['1', '2', '3', '4'];
+        const tapF = parseComboNotation('f', layout, mode);
+        const holdF = parseComboNotation('F', layout, mode);
+        const tapDf = parseComboNotation('d/f', layout, mode);
+        const holdDf = parseComboNotation('D/F', layout, mode);
+        expect(tapF[0]).toMatchObject({ type: 'direction', value: 'f' });
+        expect(holdF[0]).toMatchObject({ type: 'direction', value: 'F' });
+        expect(tapDf[0]).toMatchObject({ type: 'direction', value: 'd/f' });
+        expect(holdDf[0]).toMatchObject({ type: 'direction', value: 'D/F' });
+      });
+
+      it('parses qcf+2 (Tekken motion alias with button)', () => {
+        const tokens = parseComboNotation('qcf+2', ['1', '2', '3', '4'], mode);
+        expect(tokens[0]).toMatchObject({ type: 'motion' });
+        expect(tokens[1]).toMatchObject({ type: 'separator', value: '+' });
+        expect(tokens[2]).toMatchObject({ type: 'button', value: '2' });
+      });
+
+      it('parses H. as Heat modifier', () => {
+        const tokens = parseComboNotation('H. 2+3', ['1', '2', '3', '4'], mode);
+        expect(tokens[0]).toMatchObject({ type: 'modifier', value: 'H.' });
+      });
+
+      it('parses R. as Rage modifier', () => {
+        const tokens = parseComboNotation('R. d/f+1', ['1', '2', '3', '4'], mode);
+        expect(tokens[0]).toMatchObject({ type: 'modifier', value: 'R.' });
+      });
+
+      it('parses {} curly braces as throw-escape modifier', () => {
+        const tokens = parseComboNotation('{1+2}', ['1', '2', '3', '4'], mode);
+        expect(tokens[0]).toMatchObject({ type: 'modifier', value: '{1+2}' });
+      });
+
+      it('parses ground position stances (FD/FT, FU/FA, etc.)', () => {
+        const layout = ['1', '2', '3', '4'];
+        for (const [input, expected] of [
+          ['FD/FT', 'FD/FT'],
+          ['FD/FA', 'FD/FA'],
+          ['FU/FT', 'FU/FT'],
+          ['FU/FA', 'FU/FA'],
+        ]) {
+          const tokens = parseComboNotation(input, layout, mode);
+          expect(tokens[0]).toMatchObject({ type: 'modifier', value: expected });
+        }
+      });
+
+      it('parses _ as or-separator and < as delay-separator', () => {
+        const layout = ['1', '2', '3', '4'];
+        const orTokens = parseComboNotation('1_2', layout, mode);
+        expect(orTokens[1]).toMatchObject({ type: 'separator', value: '_' });
+        const delayTokens = parseComboNotation('f<1', layout, mode);
+        expect(delayTokens[1]).toMatchObject({ type: 'separator', value: '<' });
+      });
     });
   });
 });
