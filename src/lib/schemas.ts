@@ -108,6 +108,7 @@ export const settingsSchema = z.object({
   characterCardOrientation: z
     .enum(['landscape', 'portrait'])
     .default('landscape'),
+  motionIconStyle: z.enum(['joystick', 'arrows']).default('joystick'),
 });
 
 const demoVideoSchema = z
