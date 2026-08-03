@@ -196,6 +196,7 @@ function areStringArraysEqual(a: string[], b: string[]): boolean {
 async function reparseCombosForGame(
   gameId: string,
   buttonLayout: string[],
+  inputType?: Game['inputType'],
 ): Promise<void> {
   const characters = await db.characters
     .where('gameId')
@@ -217,7 +218,9 @@ async function reparseCombosForGame(
 
   const reparsedCombos = combos.map((combo) => ({
     ...combo,
-    parsedNotation: parseComboNotation(combo.notation, buttonLayout),
+    parsedNotation: parseComboNotation(combo.notation, buttonLayout, {
+      inputType,
+    }),
   }));
 
   await db.combos.bulkPut(reparsedCombos);
@@ -235,8 +238,10 @@ async function reparseStoredCombos(): Promise<void> {
   }
 
   const gameButtonsById = new Map<string, string[]>();
+  const gameInputTypeById = new Map<string, Game['inputType']>();
   for (const game of games) {
     gameButtonsById.set(game.id, game.buttonLayout);
+    gameInputTypeById.set(game.id, game.inputType);
   }
 
   const characterGameById = new Map<string, string>();
@@ -247,10 +252,13 @@ async function reparseStoredCombos(): Promise<void> {
   const reparsedCombos = combos.map((combo) => {
     const gameId = characterGameById.get(combo.characterId);
     const customButtons = gameId ? gameButtonsById.get(gameId) : undefined;
+    const inputType = gameId ? gameInputTypeById.get(gameId) : undefined;
 
     return {
       ...combo,
-      parsedNotation: parseComboNotation(combo.notation, customButtons),
+      parsedNotation: parseComboNotation(combo.notation, customButtons, {
+        inputType,
+      }),
     };
   });
 
@@ -294,10 +302,16 @@ export const indexedDbStorage = {
         async () => {
           const currentGame = await db.games.get(id);
           const nextButtonLayout = updates.buttonLayout;
+          const nextInputType = updates.inputType;
           const shouldReparseCombos =
             currentGame !== undefined &&
-            nextButtonLayout !== undefined &&
-            !areStringArraysEqual(currentGame.buttonLayout, nextButtonLayout);
+            ((nextButtonLayout !== undefined &&
+              !areStringArraysEqual(
+                currentGame.buttonLayout,
+                nextButtonLayout,
+              )) ||
+              (nextInputType !== undefined &&
+                nextInputType !== currentGame.inputType));
 
           await db.games.update(id, {
             ...updates,
@@ -305,7 +319,10 @@ export const indexedDbStorage = {
           });
 
           if (shouldReparseCombos) {
-            await reparseCombosForGame(id, nextButtonLayout);
+            const effectiveLayout =
+              nextButtonLayout ?? currentGame.buttonLayout;
+            const effectiveInputType = nextInputType ?? currentGame.inputType;
+            await reparseCombosForGame(id, effectiveLayout, effectiveInputType);
           }
         },
       );

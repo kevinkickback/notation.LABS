@@ -14,6 +14,7 @@ interface CharacterGridCardProps {
   isMobile: boolean;
   isSelecting: boolean;
   isSelected: boolean;
+  orientation: 'landscape' | 'portrait';
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -25,13 +26,14 @@ export function CharacterGridCard({
   isMobile,
   isSelecting,
   isSelected,
+  orientation,
   onSelect,
   onEdit,
   onDelete,
 }: CharacterGridCardProps) {
   return (
     <Card
-      className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative aspect-[4/3] !py-0 !gap-0 hover:scale-[1.03] ${isSelected ? 'ring-2 ring-primary' : ''}`}
+      className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative !py-0 !gap-0 hover:scale-[1.03] ${orientation === 'portrait' ? 'aspect-[3/4]' : 'aspect-[4/3]'} ${isSelected ? 'ring-2 ring-primary' : ''}`}
       onClick={onSelect}
     >
       {isSelecting && (

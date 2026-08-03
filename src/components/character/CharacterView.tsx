@@ -241,6 +241,11 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
               isMobile={isMobile}
               isSelecting={selection.isSelecting}
               isSelected={selection.selectedIds.has(character.id)}
+              orientation={
+                character.portraitOrientation ??
+                settings.characterCardOrientation ??
+                'landscape'
+              }
               onSelect={() => handleCharacterSelect(character.id)}
               onEdit={() => operations.openEditDialog(character)}
               onDelete={() => {

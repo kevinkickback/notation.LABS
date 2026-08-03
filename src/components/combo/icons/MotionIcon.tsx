@@ -1,8 +1,75 @@
+import btn1Url from '@/assets/motion-icons/1.svg?url';
+import btn2Url from '@/assets/motion-icons/2.svg?url';
+import btn3Url from '@/assets/motion-icons/3.svg?url';
+import btn4Url from '@/assets/motion-icons/4.svg?url';
+import bUrl from '@/assets/motion-icons/b.svg?url';
+import bhUrl from '@/assets/motion-icons/bh.svg?url';
+import dUrl from '@/assets/motion-icons/d.svg?url';
+import dbUrl from '@/assets/motion-icons/db.svg?url';
+import dbhUrl from '@/assets/motion-icons/dbh.svg?url';
+import dfUrl from '@/assets/motion-icons/df.svg?url';
+import dfhUrl from '@/assets/motion-icons/dfh.svg?url';
+import dhUrl from '@/assets/motion-icons/dh.svg?url';
+import fUrl from '@/assets/motion-icons/f.svg?url';
+import fhUrl from '@/assets/motion-icons/fh.svg?url';
+import uUrl from '@/assets/motion-icons/u.svg?url';
+import ubUrl from '@/assets/motion-icons/ub.svg?url';
+import ubhUrl from '@/assets/motion-icons/ubh.svg?url';
+import ufUrl from '@/assets/motion-icons/uf.svg?url';
+import ufhUrl from '@/assets/motion-icons/ufh.svg?url';
+import uhUrl from '@/assets/motion-icons/uh.svg?url';
+
+// Maps both numpad values and case-sensitive letter directions to arrow-style SVG URLs.
+// Uppercase = hold (D/F), lowercase = tap (d/f). Falls back to tap icon if no hold exists.
+const ARROW_ICON_MAP: Record<string, string> = {
+  // Numpad directions (standard mode)
+  '1': dbUrl,
+  '2': dUrl,
+  '3': dfUrl,
+  '4': bUrl,
+  '6': fUrl,
+  '7': ubUrl,
+  '8': uUrl,
+  '9': ufUrl,
+  // Tap letter directions (lowercase)
+  f: fUrl,
+  b: bUrl,
+  u: uUrl,
+  d: dUrl,
+  'd/f': dfUrl,
+  'd/b': dbUrl,
+  'u/f': ufUrl,
+  'u/b': ubUrl,
+  df: dfUrl,
+  db: dbUrl,
+  uf: ufUrl,
+  ub: ubUrl,
+  // Hold letter directions (uppercase)
+  F: fhUrl,
+  B: bhUrl,
+  D: dhUrl,
+  U: uhUrl,
+  'D/F': dfhUrl,
+  'D/B': dbhUrl,
+  'U/F': ufhUrl,
+  'U/B': ubhUrl,
+  DF: dfhUrl,
+  DB: dbhUrl,
+  UF: ufhUrl,
+  UB: ubhUrl,
+  // Numeric button icons for NRS/Tekken button-numbers mode
+  '1b': btn1Url,
+  '2b': btn2Url,
+  '3b': btn3Url,
+  '4b': btn4Url,
+};
+
 interface MotionIconProps {
   motion: string;
   size?: number;
   color?: string;
   className?: string;
+  iconStyle?: 'joystick' | 'arrows';
 }
 
 interface MotionSVGData {
@@ -429,7 +496,52 @@ export function MotionIcon({
   size = 48,
   color = 'currentColor',
   className = '',
+  iconStyle = 'joystick',
 }: MotionIconProps) {
+  // Arrows style: use SVG assets for single directions; decompose compound
+  // motions (236, 41236, etc.) into a sequence of individual direction arrows.
+  // Motions containing '0' (360, 720) can't decompose — fall through to joystick.
+  if (iconStyle === 'arrows') {
+    // Try exact case first (e.g. 'D/F' → hold icon), then lowercase fallback (e.g. 'D/F' → 'd/f').
+    const arrowUrl =
+      ARROW_ICON_MAP[motion] ?? ARROW_ICON_MAP[motion.toLowerCase()];
+    const arrowSize = Math.round(size * 0.8);
+    if (arrowUrl) {
+      return (
+        <div className={`inline-flex items-center ${className}`}>
+          <img
+            src={arrowUrl}
+            width={arrowSize}
+            height={arrowSize}
+            alt={motionSVGMap[motion]?.alt ?? `Direction ${motion}`}
+          />
+        </div>
+      );
+    }
+    const digits = motion.split('');
+    const allDecomposable =
+      digits.length > 0 &&
+      digits.length === motion.length &&
+      digits.every((d) => /^[1-9]$/.test(d) && ARROW_ICON_MAP[d]);
+    if (allDecomposable) {
+      return (
+        <div className={`inline-flex items-center gap-0.5 ${className}`}>
+          {digits.map((d, i) => (
+            <img
+              // biome-ignore lint/suspicious/noArrayIndexKey: order is stable
+              key={i}
+              src={ARROW_ICON_MAP[d]}
+              width={arrowSize}
+              height={arrowSize}
+              alt={d}
+            />
+          ))}
+        </div>
+      );
+    }
+    // Fall through to joystick for 360/720 and other non-decomposable motions.
+  }
+
   const motionData = motionSVGMap[motion];
 
   if (motionData) {

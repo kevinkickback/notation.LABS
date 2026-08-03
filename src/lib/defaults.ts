@@ -70,4 +70,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   parsedNotationVersion: 0,
   showChangelogBeforeUpdate: true,
   accentColor: '#3b82f6',
+  characterCardOrientation: 'landscape',
+  motionIconStyle: 'joystick',
 };

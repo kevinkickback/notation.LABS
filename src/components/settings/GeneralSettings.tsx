@@ -307,6 +307,31 @@ export function GeneralSettings() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Character Card Orientation</Label>
+              <p className="text-sm text-muted-foreground">
+                Default aspect ratio for character portrait cards
+              </p>
+            </div>
+            <Select
+              value={settings.characterCardOrientation ?? 'landscape'}
+              onValueChange={(v) =>
+                updateSetting(
+                  'characterCardOrientation',
+                  v as 'landscape' | 'portrait',
+                )
+              }
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="landscape">Landscape</SelectItem>
+                <SelectItem value="portrait">Portrait</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
       {/* Updates Card and modals - always shown */}

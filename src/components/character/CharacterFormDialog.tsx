@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
+import { useSettings } from '@/context/SettingsContext';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { Character, Game } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
@@ -34,6 +35,8 @@ export function CharacterFormDialog({
   editingCharacter,
   game,
 }: CharacterFormDialogProps) {
+  const settings = useSettings();
+  const orientation = settings.characterCardOrientation ?? 'landscape';
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [portraitImage, setPortraitImage] = useState('');
@@ -151,7 +154,11 @@ export function CharacterFormDialog({
             <div>
               <Label>Character Image (optional)</Label>
               <div className="flex gap-3 mt-1">
-                <div className="w-44 h-28 shrink-0 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-border relative">
+                <div
+                  className={`shrink-0 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-border relative ${
+                    orientation === 'portrait' ? 'w-28 h-44' : 'w-44 h-28'
+                  }`}
+                >
                   {portraitImage ? (
                     <>
                       <div

@@ -21,6 +21,23 @@ const DIRECTION_MODIFIERS: Record<string, string> = {
   dash: '66',
 };
 
+// Maps letter-based directions (Tekken/NRS) to numpad equivalents for icon display.
+const LETTER_DIR_TO_NUMPAD: Record<string, string> = {
+  n: '5',
+  f: '6',
+  b: '4',
+  u: '8',
+  d: '2',
+  'd/f': '3',
+  'd/b': '1',
+  'u/f': '9',
+  'u/b': '7',
+  df: '3',
+  db: '1',
+  uf: '9',
+  ub: '7',
+};
+
 function isLiteralParenUnknown(token: ComboToken): boolean {
   return (
     token.type === 'unknown' && (token.value === '(' || token.value === ')')
@@ -150,6 +167,7 @@ export function ComboDisplay({
   const colors = settings.notationColors;
   const comboScale = settings.comboScale ?? 1;
   const iconStyle = settings.iconStyle ?? 'hexagon';
+  const motionIconStyle = settings.motionIconStyle ?? 'joystick';
 
   const repeatParenIndices = useMemo(
     () => getRepeatParenIndices(tokens),
@@ -312,20 +330,26 @@ export function ComboDisplay({
             motion={token.value}
             size={Math.round(40 * comboScale)}
             color={color}
+            iconStyle={motionIconStyle}
           />
         );
-      case 'direction':
-        if (token.value === '5') {
-          return null;
-        }
+      case 'direction': {
+        // Normalise letter directions to numpad for joystick mode; preserve case for arrows
+        // mode so hold (D/F) and tap (d/f) resolve to different icons.
+        const numpad =
+          LETTER_DIR_TO_NUMPAD[token.value.toLowerCase()] ?? token.value;
+        if (numpad === '5') return null;
+        const motionArg = motionIconStyle === 'arrows' ? token.value : numpad;
         return (
           <MotionIcon
             key={idx}
-            motion={token.value}
+            motion={motionArg}
             size={Math.round(40 * comboScale)}
             color={color}
+            iconStyle={motionIconStyle}
           />
         );
+      }
       case 'button':
         return (
           <ButtonIcon
@@ -355,8 +379,42 @@ export function ComboDisplay({
               motion={dirNum}
               size={Math.round(40 * comboScale)}
               color={color}
+              iconStyle={motionIconStyle}
             />
           );
+        }
+        // Bracket modifier containing a button (e.g. [A], [HP]) → button icon.
+        // Use a blocklist of known non-button keywords rather than checking game.buttonLayout,
+        // since game is optional and bracket buttons appear regardless of explicit layout.
+        const bracketBtn = getBracketContent(token.value);
+        if (bracketBtn && !isDescriptiveBracketAnnotation(token)) {
+          const isSpecialKeyword = /^(charge|hold|release|whiff)$/i.test(
+            bracketBtn,
+          );
+          if (!isSpecialKeyword) {
+            return (
+              <span key={idx} className="inline-flex items-center gap-0.5">
+                <span
+                  style={{ color, fontSize: `${1.1 * comboScale}rem` }}
+                  className="font-medium opacity-60"
+                >
+                  [
+                </span>
+                <ButtonIcon
+                  button={bracketBtn.toUpperCase()}
+                  size={Math.round(30 * comboScale)}
+                  color={color}
+                  iconStyle={iconStyle}
+                />
+                <span
+                  style={{ color, fontSize: `${1.1 * comboScale}rem` }}
+                  className="font-medium opacity-60"
+                >
+                  ]
+                </span>
+              </span>
+            );
+          }
         }
         return (
           <span
@@ -369,13 +427,23 @@ export function ComboDisplay({
         );
       }
       case 'separator':
+        // Auto-detect comma role: if ► appears anywhere, commas are soft connectors
+        // (Format A, hidden). If no ►, commas are move separators (Format B, visible).
+        if (token.value === ',') {
+          const hasArrowSep = tokens.some(
+            (t) => t.type === 'separator' && t.value === '►',
+          );
+          if (hasArrowSep) return null;
+        }
         return (
           <span
             key={idx}
             className="font-bold opacity-50 mx-1"
             style={{ color, fontSize: `${1.5 * comboScale}rem` }}
           >
-            {token.value === '>' ? '→' : token.value}
+            {token.value === '>' || token.value === ',' || token.value === '►'
+              ? '→'
+              : token.value}
           </span>
         );
       default:

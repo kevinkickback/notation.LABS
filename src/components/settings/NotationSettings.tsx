@@ -3,6 +3,7 @@ import { useId } from 'react';
 import { toast } from 'sonner';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { ButtonIcon } from '@/components/combo/icons/ButtonIcon';
+import { MotionIcon } from '@/components/combo/icons/MotionIcon';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,7 +18,12 @@ import { Slider } from '@/components/ui/slider';
 import { useSettings } from '@/context/SettingsContext';
 import { parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import type { DisplayMode, IconStyle, UserSettings } from '@/lib/types';
+import type {
+  DisplayMode,
+  IconStyle,
+  MotionIconStyle,
+  UserSettings,
+} from '@/lib/types';
 
 const SAMPLE_COMBO = '5L > 2M > 236H';
 
@@ -94,10 +100,10 @@ export function NotationSettings() {
         </CardContent>
       </Card>
 
-      {/* Icon Style */}
+      {/* Button Style */}
       <Card>
         <CardHeader>
-          <CardTitle>Icon Style</CardTitle>
+          <CardTitle>Button Style</CardTitle>
           <CardDescription>
             Shape used for button icons in visual mode
           </CardDescription>
@@ -188,6 +194,53 @@ export function NotationSettings() {
                 />
               </div>
               <span className="text-sm font-medium">Hexagon</span>
+            </label>
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
+      {/* Motion Style */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Motion Style</CardTitle>
+          <CardDescription>
+            Visual style for direction and motion icons
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={settings.motionIconStyle ?? 'joystick'}
+            onValueChange={(v) =>
+              updateSetting('motionIconStyle', v as MotionIconStyle)
+            }
+            className="flex gap-4"
+          >
+            <label
+              htmlFor={`${iconStyleBaseId}-joystick`}
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+            >
+              <RadioGroupItem
+                value="joystick"
+                id={`${iconStyleBaseId}-joystick`}
+              />
+              <div className="flex gap-1.5 items-center">
+                <MotionIcon motion="6" size={28} iconStyle="joystick" />
+                <MotionIcon motion="3" size={28} iconStyle="joystick" />
+                <MotionIcon motion="2" size={28} iconStyle="joystick" />
+              </div>
+              <span className="text-sm font-medium">Joystick</span>
+            </label>
+            <label
+              htmlFor={`${iconStyleBaseId}-arrows`}
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+            >
+              <RadioGroupItem value="arrows" id={`${iconStyleBaseId}-arrows`} />
+              <div className="flex gap-1.5 items-center">
+                <MotionIcon motion="6" size={28} iconStyle="arrows" />
+                <MotionIcon motion="3" size={28} iconStyle="arrows" />
+                <MotionIcon motion="2" size={28} iconStyle="arrows" />
+              </div>
+              <span className="text-sm font-medium">Arrows</span>
             </label>
           </RadioGroup>
         </CardContent>
