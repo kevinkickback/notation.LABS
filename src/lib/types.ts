@@ -5,6 +5,7 @@ export type {
   CharacterLink,
   Combo,
   ComboToken,
+  CoverImageFit,
   DisplayMode,
   FontFamily,
   Game,

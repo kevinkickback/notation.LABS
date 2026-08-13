@@ -9,8 +9,23 @@ permissions:
   contents: write
 
 jobs:
+  verify-version:
+    name: Verify release version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Match package metadata to tag
+        run: npm run version:check -- --tag="$RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+
   create-release:
     name: Create draft release
+    needs: verify-version
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}

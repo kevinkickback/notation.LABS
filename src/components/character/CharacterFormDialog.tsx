@@ -5,20 +5,24 @@ import {
 } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { CoverImage } from '@/components/shared/CoverImage';
+import { CoverImageControls } from '@/components/shared/CoverImageControls';
+import { RequiredBadge } from '@/components/shared/RequiredBadge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import type { Character, Game } from '@/lib/types';
+import type { Character, CoverImageFit, Game } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
 
@@ -43,6 +47,7 @@ export function CharacterFormDialog({
   const [portraitZoom, setPortraitZoom] = useState(100);
   const [portraitPanX, setPortraitPanX] = useState(50);
   const [portraitPanY, setPortraitPanY] = useState(50);
+  const [portraitFit, setPortraitFit] = useState<CoverImageFit>('fill');
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const charNameId = useId();
@@ -56,6 +61,7 @@ export function CharacterFormDialog({
       setPortraitZoom(editingCharacter.portraitZoom || 100);
       setPortraitPanX(editingCharacter.portraitPanX ?? 50);
       setPortraitPanY(editingCharacter.portraitPanY ?? 50);
+      setPortraitFit(editingCharacter.portraitFit ?? 'fill');
     } else if (!open) {
       setName('');
       setNotes('');
@@ -63,6 +69,7 @@ export function CharacterFormDialog({
       setPortraitZoom(100);
       setPortraitPanX(50);
       setPortraitPanY(50);
+      setPortraitFit('fill');
       setImageSearchOpen(false);
     }
   }, [open, editingCharacter]);
@@ -81,6 +88,7 @@ export function CharacterFormDialog({
         portraitZoom: portraitZoom !== 100 ? portraitZoom : undefined,
         portraitPanX: portraitPanX !== 50 ? portraitPanX : undefined,
         portraitPanY: portraitPanY !== 50 ? portraitPanY : undefined,
+        portraitFit: portraitFit !== 'fill' ? portraitFit : undefined,
       });
       toast.success('Character added');
       onOpenChange(false);
@@ -103,6 +111,7 @@ export function CharacterFormDialog({
         portraitZoom: portraitZoom !== 100 ? portraitZoom : undefined,
         portraitPanX: portraitPanX !== 50 ? portraitPanX : undefined,
         portraitPanY: portraitPanY !== 50 ? portraitPanY : undefined,
+        portraitFit: portraitFit !== 'fill' ? portraitFit : undefined,
       });
       toast.success('Character updated');
       onOpenChange(false);
@@ -112,6 +121,14 @@ export function CharacterFormDialog({
   };
 
   const handleImageSelect = () => imageInputRef.current?.click();
+
+  const applyPortraitImage = (image: string) => {
+    setPortraitImage(image);
+    setPortraitZoom(100);
+    setPortraitPanX(50);
+    setPortraitPanY(50);
+    setPortraitFit('fill');
+  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,7 +144,7 @@ export function CharacterFormDialog({
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setPortraitImage(reader.result as string);
+    reader.onload = () => applyPortraitImage(reader.result as string);
     reader.readAsDataURL(file);
     e.target.value = '';
   };
@@ -142,32 +159,60 @@ export function CharacterFormDialog({
         onChange={handleImageChange}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
             <DialogTitle>
               {editingCharacter
                 ? 'Edit Character'
                 : `Add Character to ${game.name}`}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <DialogBody className="-mr-2 space-y-3 pr-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor={charNameId}>Character Name</Label>
+                <RequiredBadge />
+              </div>
+              <Input
+                id={charNameId}
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ryu"
+              />
+            </div>
+
             <div>
               <Label>Character Image (optional)</Label>
-              <div className="flex gap-3 mt-1">
+              <div className="mt-1 flex flex-col gap-3 sm:flex-row">
                 <div
-                  className={`shrink-0 rounded-lg bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-border relative ${
-                    orientation === 'portrait' ? 'w-28 h-44' : 'w-44 h-28'
+                  className={`relative flex shrink-0 self-center items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted sm:self-auto ${
+                    orientation === 'portrait'
+                      ? 'w-28 aspect-[3/4]'
+                      : 'w-44 aspect-[4/3]'
                   }`}
                 >
                   {portraitImage ? (
                     <>
-                      <div
+                      <CoverImage
+                        src={portraitImage}
+                        frameAspect={orientation === 'portrait' ? 3 / 4 : 4 / 3}
+                        fit={portraitFit}
+                        zoom={portraitZoom}
+                        focalX={portraitPanX}
+                        focalY={portraitPanY}
+                        interactive
                         className="absolute inset-0"
+                        onFocalPointChange={(x, y) => {
+                          setPortraitPanX(Math.round(x));
+                          setPortraitPanY(Math.round(y));
+                        }}
+                      />
+                      <div
+                        className="absolute inset-x-0 bottom-0 h-3/5 pointer-events-none"
                         style={{
-                          backgroundImage: `url(${portraitImage})`,
-                          backgroundSize: `${portraitZoom}%`,
-                          backgroundPosition: `${portraitPanX}% ${portraitPanY}%`,
-                          backgroundRepeat: 'no-repeat',
+                          background:
+                            'linear-gradient(to top, black 0%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.2) 80%, transparent 100%)',
                         }}
                       />
                       <button
@@ -183,66 +228,24 @@ export function CharacterFormDialog({
                     <ImageSquareIcon className="w-8 h-8 text-muted-foreground" />
                   )}
                 </div>
-                <div className="flex-1 flex flex-col">
+                <div className="flex min-w-0 flex-1 flex-col">
                   {portraitImage ? (
-                    <div className="flex-1 flex flex-col bg-card rounded-lg border border-border p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                        Adjust
-                      </p>
-                      <div className="flex-1 flex flex-col">
-                        <div className="flex-1" />
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground shrink-0 w-12">
-                            Zoom
-                          </span>
-                          <Slider
-                            min={100}
-                            max={200}
-                            step={5}
-                            value={[portraitZoom]}
-                            onValueChange={([v]) => setPortraitZoom(v)}
-                            className="flex-1"
-                          />
-                          <span className="text-sm text-muted-foreground w-10 text-right">
-                            {portraitZoom}%
-                          </span>
-                        </div>
-                        <div className="flex-1" />
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground shrink-0 w-12">
-                            Pan X
-                          </span>
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[portraitPanX]}
-                            onValueChange={([v]) => setPortraitPanX(v)}
-                            className="flex-1"
-                          />
-                          <span className="text-sm text-muted-foreground w-10 text-right">
-                            {(portraitPanX - 50) * 2}%
-                          </span>
-                        </div>
-                        <div className="flex-1" />
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground shrink-0 w-12">
-                            Pan Y
-                          </span>
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[portraitPanY]}
-                            onValueChange={([v]) => setPortraitPanY(v)}
-                            className="flex-1"
-                          />
-                          <span className="text-sm text-muted-foreground w-10 text-right">
-                            {(portraitPanY - 50) * 2}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <CoverImageControls
+                      fit={portraitFit}
+                      zoom={portraitZoom}
+                      focalX={portraitPanX}
+                      focalY={portraitPanY}
+                      onFitChange={setPortraitFit}
+                      onZoomChange={setPortraitZoom}
+                      onFocalXChange={setPortraitPanX}
+                      onFocalYChange={setPortraitPanY}
+                      onReset={() => {
+                        setPortraitZoom(100);
+                        setPortraitPanX(50);
+                        setPortraitPanY(50);
+                        setPortraitFit('fill');
+                      }}
+                    />
                   ) : (
                     <div className="flex flex-col justify-center gap-1.5 h-full">
                       <Button
@@ -277,16 +280,6 @@ export function CharacterFormDialog({
             </div>
 
             <div>
-              <Label htmlFor={charNameId}>Character Name</Label>
-              <Input
-                id={charNameId}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ryu"
-              />
-            </div>
-
-            <div>
               <Label htmlFor={charNotesId}>Notes (optional)</Label>
               <Textarea
                 id={charNotesId}
@@ -295,16 +288,15 @@ export function CharacterFormDialog({
                 rows={3}
               />
             </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={editingCharacter ? handleEdit : handleAdd}>
-                {editingCharacter ? 'Save Changes' : 'Add Character'}
-              </Button>
-            </div>
-          </div>
+          </DialogBody>
+          <DialogFooter className="shrink-0 border-t border-border pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={editingCharacter ? handleEdit : handleAdd}>
+              {editingCharacter ? 'Save Changes' : 'Add Character'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <CharacterSearchDialog
@@ -312,7 +304,7 @@ export function CharacterFormDialog({
         onOpenChange={setImageSearchOpen}
         searchQuery={`${game.name} ${name}`.trim()}
         onImageSelect={(base64) => {
-          setPortraitImage(base64);
+          applyPortraitImage(base64);
           setImageSearchOpen(false);
         }}
       />

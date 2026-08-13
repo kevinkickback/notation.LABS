@@ -97,6 +97,38 @@ describe('ComboFormDialog', () => {
     expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
   });
 
+  it('groups the form into consistent cards and marks required fields', () => {
+    render(
+      <ComboFormDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        game={mockGame}
+        character={mockCharacter}
+        editingCombo={null}
+        allTags={['corner', 'bnb']}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
+    for (const title of [
+      'Combo Basics',
+      'Combo Details',
+      'Demo Video',
+      'Description & Status',
+    ]) {
+      expect(screen.getByText(title).closest('[data-slot="card"]')).not.toBeNull();
+    }
+
+    expect(screen.getByText('Required')).not.toBeNull();
+    expect(screen.getByLabelText('Combo Name').hasAttribute('required')).toBe(
+      true,
+    );
+    expect(screen.getByLabelText('Notation').hasAttribute('required')).toBe(
+      true,
+    );
+  });
+
   it('renders Edit Combo title when editingCombo is provided', () => {
     render(
       <ComboFormDialog

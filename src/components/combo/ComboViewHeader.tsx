@@ -1,4 +1,5 @@
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
+import { CoverImage } from '@/components/shared/CoverImage';
 import type { Character, Game } from '@/lib/types';
 
 interface ComboViewHeaderProps {
@@ -15,18 +16,14 @@ export function ComboViewHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
       <div className="min-w-0 flex-1 flex items-center gap-4">
-        <div
+        <CoverImage
+          src={character.portraitImage || defaultCharacterImage}
+          frameAspect={10 / 7}
+          fit={character.portraitFit}
+          zoom={character.portraitZoom}
+          focalX={character.portraitPanX}
+          focalY={character.portraitPanY}
           className="w-20 h-14 rounded-lg shrink-0 border border-border overflow-hidden"
-          style={{
-            backgroundImage: `url(${character.portraitImage || defaultCharacterImage})`,
-            backgroundSize: character.portraitZoom
-              ? `${character.portraitZoom}%`
-              : 'cover',
-            backgroundPosition: character.portraitZoom
-              ? `${character.portraitPanX ?? 50}% ${character.portraitPanY ?? 50}%`
-              : 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
         />
         <div className="min-w-0">
           <h2 className="text-3xl font-bold mb-1 truncate">{character.name}</h2>

@@ -17,6 +17,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Check version metadata
+        run: npm run version:check
       - name: Lint
         run: npx biome ci .
       - name: Type-check

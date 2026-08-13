@@ -98,6 +98,30 @@ describe('CharacterInfoCard', () => {
         expect(screen.getByText('Example')).not.toBeNull();
     });
 
+    it('uses a responsive grid and one primary target for each resource', () => {
+        render(<CharacterInfoCard {...defaultProps} links={mockLinks} />);
+
+        const resourceLink = screen.getByRole('link', {
+            name: 'Open Dustloop Wiki in a new tab',
+        });
+        expect(resourceLink.getAttribute('href')).toBe('https://dustloop.com');
+        expect(resourceLink.getAttribute('target')).toBe('_blank');
+        expect(resourceLink.contains(screen.getByText('Dustloop Wiki'))).toBe(true);
+        expect(resourceLink.contains(screen.getByText('dustloop.com'))).toBe(true);
+        expect(resourceLink.querySelector('img')).not.toBeNull();
+        expect(resourceLink.querySelector('button')).toBeNull();
+
+        const resourceGrid = resourceLink.parentElement?.parentElement;
+        expect(resourceGrid?.classList.contains('grid')).toBe(true);
+        expect(resourceGrid?.classList.contains('sm:grid-cols-2')).toBe(true);
+        expect(
+            screen.getByRole('button', { name: 'Edit Dustloop Wiki' }),
+        ).not.toBeNull();
+        expect(
+            screen.getByRole('button', { name: 'Remove Dustloop Wiki' }),
+        ).not.toBeNull();
+    });
+
     it('shows add link form when Resources + button is clicked', async () => {
         const user = userEvent.setup();
         render(<CharacterInfoCard {...defaultProps} notes="Some notes" />);

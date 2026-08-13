@@ -17,6 +17,8 @@ export const comboTokenSchema = z.object({
   repeatLabel: z.string().optional(),
 });
 
+export const coverImageFitSchema = z.enum(['fill', 'free']);
+
 export const gameSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -24,6 +26,7 @@ export const gameSchema = z.object({
   coverZoom: z.number().optional(),
   coverPanX: z.number().optional(),
   coverPanY: z.number().optional(),
+  coverFit: coverImageFitSchema.optional(),
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
@@ -47,6 +50,7 @@ export const characterSchema = z.object({
   portraitZoom: z.number().optional(),
   portraitPanX: z.number().optional(),
   portraitPanY: z.number().optional(),
+  portraitFit: coverImageFitSchema.optional(),
   notes: z.string().optional(),
   links: z.array(characterLinkSchema).optional(),
   portraitOrientation: z.enum(['landscape', 'portrait']).optional(),
@@ -138,6 +142,7 @@ export type ComboToken = z.infer<typeof comboTokenSchema>;
 export type TokenType = ComboToken['type'];
 export type Game = z.infer<typeof gameSchema>;
 export type CharacterLink = z.infer<typeof characterLinkSchema>;
+export type CoverImageFit = z.infer<typeof coverImageFitSchema>;
 export type Character = z.infer<typeof characterSchema>;
 export type Combo = z.infer<typeof comboSchema>;
 export type UserSettings = z.infer<typeof settingsSchema>;

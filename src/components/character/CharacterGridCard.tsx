@@ -4,6 +4,7 @@ import {
   TrashIcon,
 } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
+import { CoverImage } from '@/components/shared/CoverImage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Character } from '@/lib/types';
@@ -47,18 +48,14 @@ export function CharacterGridCard({
           />
         </div>
       )}
-      <div
+      <CoverImage
+        src={character.portraitImage || defaultCharacterImage}
+        frameAspect={orientation === 'portrait' ? 3 / 4 : 4 / 3}
+        fit={character.portraitFit}
+        zoom={character.portraitZoom}
+        focalX={character.portraitPanX}
+        focalY={character.portraitPanY}
         className="absolute inset-0"
-        style={{
-          backgroundImage: `url(${character.portraitImage || defaultCharacterImage})`,
-          backgroundSize: character.portraitZoom
-            ? `${character.portraitZoom}%`
-            : 'cover',
-          backgroundPosition: character.portraitZoom
-            ? `${character.portraitPanX ?? 50}% ${character.portraitPanY ?? 50}%`
-            : 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
       />
       <CardContent className="p-0 relative z-10 flex flex-col justify-end h-full">
         <div

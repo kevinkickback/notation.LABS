@@ -1,4 +1,5 @@
 import { PlayIcon, VideoCameraIcon, XIcon } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 import {
   useCallback,
   useEffect,
@@ -9,12 +10,22 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { RequiredBadge } from '@/components/shared/RequiredBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -57,6 +68,33 @@ interface ComboFormDialogProps {
   allTags: string[];
 }
 
+interface ComboFormSectionProps {
+  title: string;
+  description: string;
+  required?: boolean;
+  children: ReactNode;
+}
+
+function ComboFormSection({
+  title,
+  description,
+  required = false,
+  children,
+}: ComboFormSectionProps) {
+  return (
+    <Card className="gap-3 py-4 shadow-none">
+      <CardHeader className="gap-1 px-4">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <h3>{title}</h3>
+          {required && <RequiredBadge />}
+        </CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 px-4">{children}</CardContent>
+    </Card>
+  );
+}
+
 export function ComboFormDialog({
   open,
   onOpenChange,
@@ -83,8 +121,11 @@ export function ComboFormDialog({
 
   const comboNameId = useId();
   const comboNotationId = useId();
+  const comboDifficultyId = useId();
   const comboDamageId = useId();
   const comboMeterId = useId();
+  const comboTagsId = useId();
+  const comboDemoUrlId = useId();
   const comboDescriptionId = useId();
   const tagSuggestionsId = useId();
 
@@ -334,148 +375,168 @@ export function ComboFormDialog({
         if (!isOpen) resetForm();
       }}
     >
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
           <DialogTitle>
             {editingCombo ? 'Edit' : 'Add'} Combo for {character.name}
           </DialogTitle>
           <DialogDescription>
-            Enter notation, tags, and optional demo media for this combo.
+            Enter the combo notation, details, and optional demo video.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor={comboNameId}>Combo Name *</Label>
-            <Input
-              id={comboNameId}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="BnB Corner Combo"
-            />
-          </div>
+        <DialogBody className="-mr-2 space-y-4 pr-2">
+          <ComboFormSection
+            title="Combo Basics"
+            description="Name the combo, enter its notation, and confirm the parsed preview."
+            required
+          >
+            <div>
+              <Label htmlFor={comboNameId}>Combo Name</Label>
+              <Input
+                id={comboNameId}
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="BnB Corner Combo"
+              />
+            </div>
 
-          <div>
-            <Label htmlFor={comboNotationId}>Notation *</Label>
-            <Textarea
-              id={comboNotationId}
-              value={notation}
-              onChange={(e) => setNotation(e.target.value)}
-              placeholder="5L > 5L > 236H > 623M"
-              rows={3}
-              className="font-mono"
-            />
-            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              <span className="text-xs text-muted-foreground">
-                Available buttons:
-              </span>
-              {game.buttonLayout.map((btn) => (
-                <span
-                  key={btn}
-                  className="px-2 py-0.5 text-xs font-mono bg-muted rounded"
-                >
-                  {btn}
+            <div>
+              <Label htmlFor={comboNotationId}>Notation</Label>
+              <Textarea
+                id={comboNotationId}
+                required
+                value={notation}
+                onChange={(e) => setNotation(e.target.value)}
+                placeholder="5L > 5L > 236H > 623M"
+                rows={3}
+                className="font-mono"
+              />
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">
+                  Available buttons:
                 </span>
-              ))}
-            </div>
-          </div>
-
-          {notation && (
-            <div className="p-4 bg-muted rounded-lg">
-              <Label className="mb-2 block">Preview</Label>
-              <ComboDisplay tokens={parsedNotationTokens} game={game} />
-            </div>
-          )}
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="min-w-0">
-              <Label>Difficulty</Label>
-              <Select value={difficulty} onValueChange={setDifficulty}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 / 5</SelectItem>
-                  <SelectItem value="2">2 / 5</SelectItem>
-                  <SelectItem value="3">3 / 5</SelectItem>
-                  <SelectItem value="4">4 / 5</SelectItem>
-                  <SelectItem value="5">5 / 5</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-0">
-              <Label htmlFor={comboDamageId}>Damage</Label>
-              <Input
-                id={comboDamageId}
-                value={damage}
-                onChange={(e) => setDamage(e.target.value)}
-                placeholder="4200"
-              />
-            </div>
-            <div className="min-w-0">
-              <Label htmlFor={comboMeterId}>Meter Cost</Label>
-              <Input
-                id={comboMeterId}
-                value={meterCost}
-                onChange={(e) => setMeterCost(e.target.value)}
-                placeholder="1 bar"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Tags</Label>
-            <div className="flex flex-wrap items-center gap-1.5 p-2 border border-input rounded-md bg-background min-h-[40px] focus-within:ring-2 focus-within:ring-ring">
-              {currentTags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="secondary"
-                  className="gap-1 cursor-pointer shrink-0"
-                  onClick={() => removeTag(tag)}
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === 'Delete' ||
-                      e.key === 'Backspace' ||
-                      e.key === 'Enter'
-                    ) {
-                      e.preventDefault();
-                      removeTag(tag);
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`Remove tag: ${tag}`}
-                >
-                  {tag}
-                  <XIcon className="w-3 h-3" />
-                </Badge>
-              ))}
-              <input
-                list={tagSuggestionsId}
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={() => {
-                  if (tagInput.trim()) commitTag(tagInput);
-                }}
-                placeholder={
-                  currentTags.length > 0
-                    ? 'Add tag...'
-                    : 'BnB, Corner, Meterless'
-                }
-                className="flex-1 min-w-[100px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
-              />
-              <datalist id={tagSuggestionsId}>
-                {tagSuggestions.map((tag) => (
-                  <option key={tag} value={tag} />
+                {game.buttonLayout.map((btn) => (
+                  <span
+                    key={btn}
+                    className="rounded bg-muted px-2 py-0.5 font-mono text-xs"
+                  >
+                    {btn}
+                  </span>
                 ))}
-              </datalist>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <Label>Demo Video</Label>
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3">
+            {notation && (
+              <div className="rounded-lg bg-muted p-4">
+                <Label className="mb-2 block">Preview</Label>
+                <ComboDisplay tokens={parsedNotationTokens} game={game} />
+              </div>
+            )}
+          </ComboFormSection>
+
+          <ComboFormSection
+            title="Combo Details"
+            description="Record difficulty, damage, meter cost, and tags."
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+              <div className="min-w-0">
+                <Label htmlFor={comboDifficultyId}>Difficulty</Label>
+                <Select value={difficulty} onValueChange={setDifficulty}>
+                  <SelectTrigger id={comboDifficultyId} className="w-full">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 / 5</SelectItem>
+                    <SelectItem value="2">2 / 5</SelectItem>
+                    <SelectItem value="3">3 / 5</SelectItem>
+                    <SelectItem value="4">4 / 5</SelectItem>
+                    <SelectItem value="5">5 / 5</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-0">
+                <Label htmlFor={comboDamageId}>Damage</Label>
+                <Input
+                  id={comboDamageId}
+                  value={damage}
+                  onChange={(e) => setDamage(e.target.value)}
+                  placeholder="4200"
+                />
+              </div>
+              <div className="min-w-0">
+                <Label htmlFor={comboMeterId}>Meter Cost</Label>
+                <Input
+                  id={comboMeterId}
+                  value={meterCost}
+                  onChange={(e) => setMeterCost(e.target.value)}
+                  placeholder="1 bar"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor={comboTagsId}>Tags</Label>
+              <div className="flex min-h-[40px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
+                {currentTags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="gap-1 cursor-pointer shrink-0"
+                    onClick={() => removeTag(tag)}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === 'Delete' ||
+                        e.key === 'Backspace' ||
+                        e.key === 'Enter'
+                      ) {
+                        e.preventDefault();
+                        removeTag(tag);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Remove tag: ${tag}`}
+                  >
+                    {tag}
+                    <XIcon className="w-3 h-3" />
+                  </Badge>
+                ))}
+                <input
+                  id={comboTagsId}
+                  list={tagSuggestionsId}
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={() => {
+                    if (tagInput.trim()) commitTag(tagInput);
+                  }}
+                  placeholder={
+                    currentTags.length > 0
+                      ? 'Add tag...'
+                      : 'BnB, Corner, Meterless'
+                  }
+                  className="flex-1 min-w-[100px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+                />
+                <datalist id={tagSuggestionsId}>
+                  {tagSuggestions.map((tag) => (
+                    <option key={tag} value={tag} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+          </ComboFormSection>
+
+          <ComboFormSection
+            title="Demo Video"
+            description="Link a YouTube video or attach a local video file."
+          >
+            <Label htmlFor={comboDemoUrlId} className="sr-only">
+              YouTube demo URL
+            </Label>
+            <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_auto] sm:gap-3">
               <Input
+                id={comboDemoUrlId}
                 value={localDemoVideoId ? '' : demoUrl}
                 onChange={(e) => {
                   setDemoUrl(e.target.value);
@@ -484,7 +545,7 @@ export function ComboFormDialog({
                 placeholder="Paste a YouTube URL"
                 disabled={!!localDemoVideoId}
               />
-              <span className="text-xs text-muted-foreground font-medium">
+              <span className="text-center text-xs font-medium text-muted-foreground">
                 OR
               </span>
               {isDesktop ? (
@@ -543,50 +604,57 @@ export function ComboFormDialog({
                 </Button>
               </div>
             )}
-          </div>
+          </ComboFormSection>
 
-          <div>
-            <Label htmlFor={comboDescriptionId}>Description</Label>
-            <Textarea
-              id={comboDescriptionId}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Works in the corner after any starter..."
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor={outdatedToggleId} className="text-sm font-medium">
-                Mark as outdated
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Flag this combo as potentially outdated due to a game patch
-              </p>
+          <ComboFormSection
+            title="Description & Status"
+            description="Add context and flag combos that may need review after a game update."
+          >
+            <div>
+              <Label htmlFor={comboDescriptionId}>Description</Label>
+              <Textarea
+                id={comboDescriptionId}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Works in the corner after any starter..."
+              />
             </div>
-            <Switch
-              id={outdatedToggleId}
-              checked={outdated}
-              onCheckedChange={setOutdated}
-            />
-          </div>
 
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={editingCombo ? handleUpdate : handleAdd}>
-              {editingCombo ? 'Update' : 'Add'} Combo
-            </Button>
-          </div>
-        </div>
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor={outdatedToggleId}
+                  className="text-sm font-medium"
+                >
+                  Mark as outdated
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Flag this combo as potentially outdated due to a game patch
+                </p>
+              </div>
+              <Switch
+                id={outdatedToggleId}
+                checked={outdated}
+                onCheckedChange={setOutdated}
+              />
+            </div>
+          </ComboFormSection>
+        </DialogBody>
+        <DialogFooter className="shrink-0 border-t border-border pt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              resetForm();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button onClick={editingCombo ? handleUpdate : handleAdd}>
+            {editingCombo ? 'Update' : 'Add'} Combo
+          </Button>
+        </DialogFooter>
       </DialogContent>
       <input
         ref={videoFileInputRef}

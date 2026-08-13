@@ -1,7 +1,7 @@
 {
   "name": "notation-labs",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "dev:import-md": "node scripts/import-from-md.mjs"
+    "dev:import-md": "node scripts/import-from-md.mjs",
+    "version:check": "node .github/check-package-version.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -88,7 +89,7 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
-    "icon": "build/icon.png",
+    "icon": "build/icon.ico",
     "publish": {
       "provider": "github",
       "owner": "kevinkickback",
@@ -126,9 +127,9 @@
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "installerHeader": "build/installerHeader.png",
-      "installerSidebar": "build/installerSidebar.png",
-      "uninstallerSidebar": "build/uninstallerSidebar.png",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
       "include": "build/uninstaller.nsh"
     },
     "mac": {
