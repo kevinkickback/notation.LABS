@@ -1,394 +1,389 @@
 import { BookOpenIcon } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { MotionIcon } from '@/components/combo/icons/MotionIcon';
 import { Button } from '@/components/ui/button';
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSettings } from '@/context/SettingsContext';
+import {
+  COMMON_SYNTAX,
+  DIRECTION_REFERENCE_DESCRIPTIONS,
+  DIRECTION_REFERENCES,
+  type GuideEntry,
+  PROFILE_GUIDES,
+  PROFILE_INPUT_SYNTAX,
+} from '@/lib/notationGuideData';
+import {
+  getNotationProfileDefinition,
+  NOTATION_PROFILES,
+  resolveNotationProfile,
+} from '@/lib/notationProfiles';
+import { parseComboNotation } from '@/lib/parser';
+import type { Game, NotationProfile } from '@/lib/types';
 
 interface NotationGuideProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
+  activeGame?: Game;
 }
 
 export function NotationGuide({
   open,
   onOpenChange,
   showTrigger = true,
+  activeGame,
 }: NotationGuideProps) {
+  const initialProfile = resolveNotationProfile(activeGame);
+  const [profile, setProfile] = useState<NotationProfile>(initialProfile);
+  const [previewNotation, setPreviewNotation] = useState(
+    getNotationProfileDefinition(initialProfile).example,
+  );
+  const previewInputId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const nextProfile = resolveNotationProfile(activeGame);
+    setProfile(nextProfile);
+    setPreviewNotation(getNotationProfileDefinition(nextProfile).example);
+  }, [open, activeGame]);
+
+  const profileDefinition = getNotationProfileDefinition(profile);
+  const guide = PROFILE_GUIDES[profile];
+  const previewGame = useMemo<Game>(
+    () => ({
+      id: 'notation-guide-preview',
+      name: profileDefinition.label,
+      notationProfile: profile,
+      buttonLayout: profileDefinition.defaultButtons,
+      createdAt: 0,
+      updatedAt: 0,
+    }),
+    [profile, profileDefinition],
+  );
+  const previewTokens = useMemo(
+    () =>
+      parseComboNotation(previewNotation, previewGame.buttonLayout, {
+        profile,
+      }),
+    [previewNotation, previewGame, profile],
+  );
+
+  const handleProfileChange = (nextProfile: NotationProfile) => {
+    setProfile(nextProfile);
+    setPreviewNotation(getNotationProfileDefinition(nextProfile).example);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {showTrigger ? (
         <DialogTrigger asChild>
-          <Button variant="ghost" size="icon" title="Notation Guide">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Notation Guide"
+            aria-label="Notation guide"
+          >
             <BookOpenIcon className="size-6" />
           </Button>
         </DialogTrigger>
       ) : null}
-      <DialogContent className="max-w-4xl max-h-[85vh]">
-        <DialogHeader>
+      <DialogContent className="flex max-w-4xl flex-col overflow-hidden">
+        <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
           <DialogTitle className="font-mono text-2xl">
             Combo Notation Guide
           </DialogTitle>
           <DialogDescription>
-            Complete reference for all supported notation types and syntax
+            Community notation reference with live text and icon previews.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="separators" className="gap-6">
-          <TabsList className="w-full">
-            <TabsTrigger
-              value="separators"
-              className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
+        <DialogBody className="-mr-2 pr-2">
+          <Tabs
+            value={profile}
+            onValueChange={(value) =>
+              handleProfileChange(value as NotationProfile)
+            }
+            className="gap-4"
+          >
+            <TabsList
+              className="grid w-full grid-cols-3"
+              aria-label="Notation style"
             >
-              Separators
-            </TabsTrigger>
-            <TabsTrigger
-              value="motions"
-              className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-            >
-              Motions
-            </TabsTrigger>
-            <TabsTrigger
-              value="modifiers"
-              className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-            >
-              Modifiers
-            </TabsTrigger>
-            <TabsTrigger
-              value="examples"
-              className="cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors"
-            >
-              Examples
-            </TabsTrigger>
-          </TabsList>
+              {NOTATION_PROFILES.map((item) => (
+                <TabsTrigger key={item.id} value={item.id}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          <ScrollArea className="h-[calc(85vh-180px)] pr-4">
-            <TabsContent value="separators" className="space-y-4">
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Separators & Flow
-                </h3>
-                <div>
-                  <NotationRow
-                    index={0}
-                    notation=">"
-                    meaning="Proceed from the previous move to the following move"
-                  />
-                  <NotationRow
-                    index={1}
-                    notation="|> or (Land)"
-                    meaning="Indicate that the player must land at that point in the sequence"
-                  />
-                  <NotationRow
-                    index={2}
-                    notation=","
-                    meaning="Link the previous move into the following move"
-                  />
-                  <NotationRow
-                    index={3}
-                    notation="~"
-                    meaning="Cancel the previous special into a follow-up"
-                  />
-                  <NotationRow
-                    index={4}
-                    notation="+"
-                    meaning="Press buttons simultaneously"
-                  />
-                </div>
-              </div>
+            <TabsContent value={profile} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {profileDefinition.description}
+              </p>
+
+              <DirectionsCard
+                profile={profile}
+                entries={guide.directionRules}
+              />
+
+              <GuideCard
+                title={`${profileDefinition.shortLabel} Supported Syntax`}
+                entries={[
+                  ...COMMON_SYNTAX,
+                  ...PROFILE_INPUT_SYNTAX[profile],
+                  ...guide.separators,
+                ]}
+              />
+
+              <GuideCard title="Mechanics & States" entries={guide.mechanics} />
+              <GuideCard title="Community Examples" entries={guide.examples} />
+
+              <Card className="gap-3 py-4 shadow-none">
+                <CardHeader className="gap-1 px-4">
+                  <CardTitle className="text-sm">Live Preview</CardTitle>
+                  <CardDescription className="text-xs">
+                    Edit the notation to compare preserved text with its visual
+                    interpretation.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4">
+                  <div>
+                    <Label htmlFor={previewInputId}>Notation</Label>
+                    <Input
+                      id={previewInputId}
+                      value={previewNotation}
+                      onChange={(event) =>
+                        setPreviewNotation(event.target.value)
+                      }
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <PreviewPanel label="Text">
+                      <ComboDisplay
+                        tokens={previewTokens}
+                        game={previewGame}
+                        mode="colored-text"
+                      />
+                    </PreviewPanel>
+                    <PreviewPanel label="Icons">
+                      <ComboDisplay
+                        tokens={previewTokens}
+                        game={previewGame}
+                        mode="visual-icons"
+                      />
+                    </PreviewPanel>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <MotionStyleCallout />
             </TabsContent>
-
-            <TabsContent value="motions" className="space-y-4">
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Special Motions
-                </h3>
-                <div>
-                  <NotationRow
-                    index={0}
-                    notation="qcf. / 236"
-                    meaning="Quarter Circle Forward"
-                  />
-                  <NotationRow
-                    index={1}
-                    notation="qcb. / 214"
-                    meaning="Quarter Circle Back"
-                  />
-                  <NotationRow
-                    index={2}
-                    notation="dp. / 623"
-                    meaning="Dragon Punch (Shoryuken)"
-                  />
-                  <NotationRow
-                    index={3}
-                    notation="rdp. / 421"
-                    meaning="Reverse Dragon Punch"
-                  />
-                  <NotationRow
-                    index={4}
-                    notation="hcf. / 41236"
-                    meaning="Half Circle Forward"
-                  />
-                  <NotationRow
-                    index={5}
-                    notation="hcb. / 63214"
-                    meaning="Half Circle Back"
-                  />
-                  <NotationRow
-                    index={6}
-                    notation="2qcf. / 236236"
-                    meaning="Double Quarter Circle Forward"
-                  />
-                  <NotationRow
-                    index={7}
-                    notation="2qcb. / 214214"
-                    meaning="Double Quarter Circle Back"
-                  />
-                  <NotationRow
-                    index={8}
-                    notation="dd. / 22"
-                    meaning="Double Down"
-                  />
-                  <NotationRow
-                    index={9}
-                    notation="dash / 66"
-                    meaning="Forward Dash"
-                  />
-                  <NotationRow
-                    index={10}
-                    notation="back dash / 44"
-                    meaning="Back Dash"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Numpad Notation
-                </h3>
-                <div className="grid grid-cols-3 gap-2 max-w-xs mb-3">
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    7 ↖
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    8 ↑
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    9 ↗
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    4 ←
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    5 ⊙
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    6 →
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    1 ↙
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    2 ↓
-                  </div>
-                  <div className="bg-muted p-3 rounded text-center font-mono">
-                    3 ↘
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  5 = Neutral position (no directional input)
-                </p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="modifiers" className="space-y-4">
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Position Modifiers
-                </h3>
-                <div>
-                  <NotationRow
-                    index={0}
-                    notation="st. / standing"
-                    meaning="Standing position"
-                  />
-                  <NotationRow
-                    index={1}
-                    notation="cr. / crouching"
-                    meaning="Crouching position"
-                  />
-                  <NotationRow
-                    index={2}
-                    notation="j. / jumping"
-                    meaning="Jumping/Aerial position"
-                  />
-                  <NotationRow
-                    index={3}
-                    notation="dj. / double jump"
-                    meaning="Double Jump"
-                  />
-                  <NotationRow
-                    index={4}
-                    notation="sj. / super jump"
-                    meaning="Super Jump"
-                  />
-                  <NotationRow
-                    index={5}
-                    notation="cl. / close"
-                    meaning="Close distance version"
-                  />
-                  <NotationRow
-                    index={6}
-                    notation="f. / far"
-                    meaning="Far distance version"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Action Modifiers
-                </h3>
-                <div>
-                  <NotationRow
-                    index={0}
-                    notation="jc. / jump cancel"
-                    meaning="Jump Cancel"
-                  />
-                  <NotationRow
-                    index={1}
-                    notation="sjc. / super jump cancel"
-                    meaning="Super Jump Cancel"
-                  />
-                  <NotationRow
-                    index={2}
-                    notation="dl. / delay"
-                    meaning="Delay the following move"
-                  />
-                  <NotationRow
-                    index={3}
-                    notation="(whiff)"
-                    meaning="The move must whiff (not hit)"
-                  />
-                  <NotationRow index={4} notation="CH" meaning="Counter Hit" />
-                  <NotationRow index={5} notation="[X]" meaning="Hold input" />
-                  <NotationRow
-                    index={6}
-                    notation="(sequence)xN"
-                    meaning="Repeat sequence N amount of times"
-                  />
-                  <NotationRow
-                    index={7}
-                    notation="(N)"
-                    meaning="Hit N of a move or move must deal N amount of hits"
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="examples" className="space-y-4">
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Traditional Notation
-                </h3>
-                <div className="space-y-2">
-                  <ExampleRow
-                    notation="cr.L , st.M , qcf.H"
-                    meaning="Crouching Light, Standing Medium, Quarter Circle Forward Heavy"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Numpad Notation
-                </h3>
-                <div className="space-y-2">
-                  <ExampleRow
-                    notation="2L > 5M > 236H"
-                    meaning="Crouching Light, Standing Medium, Quarter Circle Forward Heavy"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Mixed Notation
-                </h3>
-                <div className="space-y-2">
-                  <ExampleRow
-                    notation="cr.L , 2M > qcf.H"
-                    meaning="Mix traditional and numpad notation freely"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-mono font-semibold text-lg mb-3">
-                  Advanced Examples
-                </h3>
-                <div className="space-y-2">
-                  <ExampleRow
-                    notation="CH st.H , dash , st.M xx qcf.H"
-                    meaning="Counter Hit Standing Heavy, dash, Standing Medium, special cancel Quarter Circle Forward Heavy"
-                  />
-                  <ExampleRow
-                    notation="(5L > 2L)x3 > 5M > 623H"
-                    meaning="Repeat Light sequence 3 times, standing Medium into DP Heavy"
-                  />
-                  <ExampleRow
-                    notation="j.LLL > dj.MM |> 2M > 236L+M"
-                    meaning="Light Air combo with double jump Medium combo, land, then super"
-                  />
-                </div>
-              </div>
-            </TabsContent>
-          </ScrollArea>
-        </Tabs>
+          </Tabs>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );
 }
 
-function NotationRow({
-  notation,
-  meaning,
-  index,
+function DirectionsCard({
+  profile,
+  entries,
 }: {
-  notation: string;
-  meaning: string;
-  index: number;
+  profile: NotationProfile;
+  entries: GuideEntry[];
+}) {
+  const profileDefinition = getNotationProfileDefinition(profile);
+
+  return (
+    <Card className="gap-3 py-4 shadow-none">
+      <CardHeader className="gap-1 px-4">
+        <CardTitle className="text-sm">Directions</CardTitle>
+        <CardDescription className="text-xs">
+          {DIRECTION_REFERENCE_DESCRIPTIONS[profile]}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 px-4">
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-muted-foreground">
+            Directional Reference
+          </h4>
+          <ul
+            className="mx-auto grid max-w-sm grid-cols-3 gap-2"
+            aria-label={`${profileDefinition.shortLabel} direction notation`}
+          >
+            {DIRECTION_REFERENCES[profile].map((entry) => (
+              <li
+                key={`${entry.notation}-${entry.meaning}`}
+                className="min-w-0 rounded-md border border-border bg-muted/30 px-2 py-2 text-center"
+                aria-label={`${entry.meaning}: ${entry.notation}`}
+              >
+                <div className="flex items-center justify-center gap-1.5">
+                  <code className="font-mono text-sm font-semibold text-primary">
+                    {entry.notation}
+                  </code>
+                  <span
+                    aria-hidden="true"
+                    className="text-base text-foreground"
+                  >
+                    {entry.symbol}
+                  </span>
+                </div>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {entry.meaning}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="space-y-2 border-t border-border pt-4">
+          <h4 className="text-xs font-medium text-muted-foreground">
+            Parsing Rules
+          </h4>
+          <GuideGrid entries={entries} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GuideCard({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: GuideEntry[];
 }) {
   return (
-    <div
-      className={`flex gap-4 p-2 rounded ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
-    >
-      <code className="font-mono font-semibold text-primary min-w-[140px] shrink-0">
-        {notation}
-      </code>
-      <span className="text-sm text-muted-foreground">{meaning}</span>
+    <Card className="gap-3 py-4 shadow-none">
+      <CardHeader className="px-4">
+        <CardTitle className="text-sm">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="px-4">
+        <GuideGrid entries={entries} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function GuideGrid({ entries }: { entries: GuideEntry[] }) {
+  return (
+    <dl className="divide-y divide-border/60">
+      {entries.map((entry) => (
+        <div
+          key={`${entry.notation}-${entry.meaning}`}
+          className="space-y-0.5 py-2 first:pt-0 last:pb-0"
+        >
+          <dt>
+            <code className="font-mono font-semibold text-primary">
+              {entry.notation}
+            </code>
+          </dt>
+          <dd className="text-sm text-muted-foreground">{entry.meaning}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function MotionStyleCallout() {
+  const { motionIconStyle } = useSettings();
+  const offersJoystick = motionIconStyle === 'arrows';
+  const examples = [
+    { label: 'Tap Forward', motion: offersJoystick ? '6' : 'f' },
+    {
+      label: 'Hold Forward',
+      motion: offersJoystick ? '6' : 'F',
+      hold: true,
+    },
+    { label: 'Quarter Circle', motion: '236' },
+    { label: 'Dragon Punch', motion: '623' },
+  ];
+
+  return (
+    <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
+      <p className="text-sm font-medium text-foreground">
+        Want {offersJoystick ? 'joystick' : 'arrow'} inputs?
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Open Settings → Notation → Motion Style and choose{' '}
+        {offersJoystick ? 'Joystick' : 'Arrows'}.{' '}
+        {offersJoystick
+          ? 'Joystick inputs show complete motion paths in a single diagram.'
+          : 'Tekken tap and hold arrows use different shapes; neutral uses a star.'}
+      </p>
+      <fieldset className="mt-3 flex flex-wrap items-end gap-4">
+        <legend className="sr-only">
+          {offersJoystick ? 'Joystick' : 'Arrow'} input examples
+        </legend>
+        {examples.map((example) => (
+          <IconExample
+            key={example.label}
+            {...example}
+            iconStyle={offersJoystick ? 'joystick' : 'arrows'}
+          />
+        ))}
+      </fieldset>
     </div>
   );
 }
 
-function ExampleRow({
-  notation,
-  meaning,
+function IconExample({
+  label,
+  motion,
+  iconStyle,
+  hold = false,
 }: {
-  notation: string;
-  meaning: string;
+  label: string;
+  motion: string;
+  iconStyle: 'joystick' | 'arrows';
+  hold?: boolean;
 }) {
   return (
-    <div className="border border-border rounded-lg p-3 space-y-1">
-      <code className="font-mono text-primary block">{notation}</code>
-      <p className="text-sm text-muted-foreground">{meaning}</p>
+    <div className="flex flex-col items-center gap-1">
+      <MotionIcon
+        motion={motion}
+        iconStyle={iconStyle}
+        size={34}
+        label={`${label} example`}
+        hold={hold}
+      />
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function PreviewPanel({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-muted/30 p-3">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
+      {children}
     </div>
   );
 }

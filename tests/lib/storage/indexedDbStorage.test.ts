@@ -40,6 +40,7 @@ describe('indexedDbStorage.games', () => {
     assertDefined(game);
     expect(game.name).toBe('Street Fighter 6');
     expect(game.buttonLayout).toEqual(['LP', 'MP', 'HP', 'LK', 'MK', 'HK']);
+    expect(game.notationProfile).toBe('standard');
     expect(game.id).toBe(id);
   });
 
@@ -118,6 +119,49 @@ describe('indexedDbStorage.games', () => {
         (token) => token.type === 'button' && token.value === 'EX1',
       ),
     ).toBe(true);
+  });
+
+  it('reparses existing combos when notation profile is updated', async () => {
+    const gameId = await indexedDbStorage.games.add({
+      name: 'Test Game',
+      notationProfile: 'nrs',
+      buttonLayout: ['1', '2', '3', '4'],
+    });
+    const characterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Test Character',
+    });
+    const notation = 'DF1';
+    const comboId = await indexedDbStorage.combos.add({
+      characterId,
+      name: 'Profile-sensitive combo',
+      notation,
+      parsedNotation: parseComboNotation(notation, ['1', '2', '3', '4'], {
+        profile: 'nrs',
+      }),
+      tags: [],
+    });
+
+    const nrsCombo = await indexedDbStorage.combos.get(comboId);
+    assertDefined(nrsCombo);
+    expect(
+      nrsCombo.parsedNotation
+        .filter((token) => token.type === 'direction')
+        .map((token) => token.value),
+    ).toEqual(['d', 'f']);
+
+    await indexedDbStorage.games.update(gameId, {
+      notationProfile: 'tekken',
+    });
+
+    const tekkenCombo = await indexedDbStorage.combos.get(comboId);
+    assertDefined(tekkenCombo);
+    expect(
+      tekkenCombo.parsedNotation
+        .filter((token) => token.type === 'direction')
+        .map((token) => token.value),
+    ).toEqual(['DF']);
+    expect(tekkenCombo.notation).toBe(notation);
   });
 
   it('updates updatedAt timestamp on update', async () => {
@@ -960,6 +1004,42 @@ describe('indexedDbStorage.import', () => {
     expect(games[0].name).toBe('Imported Game');
     expect(chars).toHaveLength(1);
     expect(combos).toHaveLength(1);
+  });
+
+  it('maps legacy input types to notation profiles during import', async () => {
+    const data = JSON.stringify({
+      version: 1,
+      exported: new Date().toISOString(),
+      games: [
+        {
+          id: 'legacy-nrs-tekken',
+          name: 'Legacy Numbered Game',
+          inputType: 'button-numbers',
+          buttonLayout: ['1', '2', '3', '4'],
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+        {
+          id: 'legacy-standard',
+          name: 'Legacy Standard Game',
+          inputType: 'numpad',
+          buttonLayout: ['L', 'M', 'H'],
+          createdAt: 1000,
+          updatedAt: 1000,
+        },
+      ],
+    });
+
+    await indexedDbStorage.import(data);
+
+    const numberedGame = await indexedDbStorage.games.get('legacy-nrs-tekken');
+    const standardGame = await indexedDbStorage.games.get('legacy-standard');
+    assertDefined(numberedGame);
+    assertDefined(standardGame);
+    expect(numberedGame.notationProfile).toBe('tekken');
+    expect(standardGame.notationProfile).toBe('standard');
+    expect(numberedGame.inputType).toBeUndefined();
+    expect(standardGame.inputType).toBeUndefined();
   });
 
   it('imports settings', async () => {

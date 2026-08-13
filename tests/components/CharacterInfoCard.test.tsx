@@ -70,6 +70,21 @@ describe('CharacterInfoCard', () => {
         );
         expect(screen.queryByText('Hidden content')).toBeNull();
         expect(screen.queryByText(/no notes yet/i)).toBeNull();
+        expect(
+            screen.getByRole('button', { name: /character info/i }).getAttribute(
+                'aria-expanded',
+            ),
+        ).toBe('false');
+    });
+
+    it('connects the expanded disclosure button to its content', () => {
+        render(<CharacterInfoCard {...defaultProps} notes="Visible content" />);
+        const trigger = screen.getByRole('button', { name: /character info/i });
+        const contentId = trigger.getAttribute('aria-controls');
+
+        expect(trigger.getAttribute('aria-expanded')).toBe('true');
+        expect(contentId).toBeTruthy();
+        expect(document.getElementById(contentId ?? '')).not.toBeNull();
     });
 
     it('calls onToggle when the header button is clicked', async () => {
@@ -96,6 +111,30 @@ describe('CharacterInfoCard', () => {
         render(<CharacterInfoCard {...defaultProps} links={mockLinks} />);
         expect(screen.getByText('Dustloop Wiki')).not.toBeNull();
         expect(screen.getByText('Example')).not.toBeNull();
+    });
+
+    it('uses a responsive grid and one primary target for each resource', () => {
+        render(<CharacterInfoCard {...defaultProps} links={mockLinks} />);
+
+        const resourceLink = screen.getByRole('link', {
+            name: 'Open Dustloop Wiki in a new tab',
+        });
+        expect(resourceLink.getAttribute('href')).toBe('https://dustloop.com');
+        expect(resourceLink.getAttribute('target')).toBe('_blank');
+        expect(resourceLink.contains(screen.getByText('Dustloop Wiki'))).toBe(true);
+        expect(resourceLink.contains(screen.getByText('dustloop.com'))).toBe(true);
+        expect(resourceLink.querySelector('img')).not.toBeNull();
+        expect(resourceLink.querySelector('button')).toBeNull();
+
+        const resourceGrid = resourceLink.parentElement?.parentElement;
+        expect(resourceGrid?.classList.contains('grid')).toBe(true);
+        expect(resourceGrid?.classList.contains('sm:grid-cols-2')).toBe(true);
+        expect(
+            screen.getByRole('button', { name: 'Edit Dustloop Wiki' }),
+        ).not.toBeNull();
+        expect(
+            screen.getByRole('button', { name: 'Remove Dustloop Wiki' }),
+        ).not.toBeNull();
     });
 
     it('shows add link form when Resources + button is clicked', async () => {
@@ -150,6 +189,22 @@ describe('CharacterInfoCard', () => {
                 ]),
             }),
         );
+    });
+
+    it('rejects resource URLs with an unsafe scheme', async () => {
+        const { indexedDbStorage } = await import('@/lib/storage/indexedDbStorage');
+        const { toast } = await import('sonner');
+        const user = userEvent.setup();
+        render(<CharacterInfoCard {...defaultProps} notes="Some notes" />);
+        await user.click(screen.getByTitle('Add resource link'));
+        await user.type(
+            screen.getByPlaceholderText(/dustloop\.com/i),
+            'javascript:alert(1)',
+        );
+        await user.click(screen.getByRole('button', { name: /^add$/i }));
+
+        expect(toast.error).toHaveBeenCalledWith('Invalid URL');
+        expect(indexedDbStorage.characters.update).not.toHaveBeenCalled();
     });
 
     it('uses domain as label when label field is left empty', async () => {

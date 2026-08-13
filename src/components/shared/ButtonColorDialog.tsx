@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -93,47 +94,49 @@ export function ButtonColorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent className="flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
           <DialogTitle>Button Colors — {game.name}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2">
-          {tempButtonLayout.map((btn) => (
-            <ColorPickerRow
-              key={btn}
-              label={btn}
-              value={tempGameColors[btn] || '#808080'}
-              onChange={(hex) =>
-                setTempGameColors((prev) => ({ ...prev, [btn]: hex }))
-              }
-              onRemove={() =>
-                setTempButtonLayout((prev) => prev.filter((b) => b !== btn))
-              }
+        <DialogBody className="-mr-2 pr-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2">
+            {tempButtonLayout.map((btn) => (
+              <ColorPickerRow
+                key={btn}
+                label={btn}
+                value={tempGameColors[btn] || '#808080'}
+                onChange={(hex) =>
+                  setTempGameColors((prev) => ({ ...prev, [btn]: hex }))
+                }
+                onRemove={() =>
+                  setTempButtonLayout((prev) => prev.filter((b) => b !== btn))
+                }
+              />
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2 border-t border-border pt-3">
+            <Input
+              placeholder="Button name (e.g. LP)"
+              value={newButtonName}
+              onChange={(e) => setNewButtonName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addButton();
+              }}
+              className="h-8 text-sm"
             />
-          ))}
-        </div>
-        <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-          <Input
-            placeholder="Button name (e.g. LP)"
-            value={newButtonName}
-            onChange={(e) => setNewButtonName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') addButton();
-            }}
-            className="h-8 text-sm"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            onClick={addButton}
-          >
-            <PlusIcon className="w-4 h-4 mr-1" weight="bold" />
-            Add
-          </Button>
-        </div>
-        <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={addButton}
+            >
+              <PlusIcon className="w-4 h-4 mr-1" weight="bold" />
+              Add
+            </Button>
+          </div>
+        </DialogBody>
+        <DialogFooter className="shrink-0 border-t border-border pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

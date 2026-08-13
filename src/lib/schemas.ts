@@ -17,16 +17,39 @@ export const comboTokenSchema = z.object({
   repeatLabel: z.string().optional(),
 });
 
+export const coverImageFitSchema = z.enum(['fill', 'free']);
+export const notationProfileSchema = z.enum(['standard', 'nrs', 'tekken']);
+const coverZoomSchema = z.number().min(100).max(200);
+const coverPanSchema = z.number().min(0).max(100);
+export const externalHttpUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') &&
+        !url.username &&
+        !url.password
+      );
+    } catch {
+      return false;
+    }
+  }, 'URL must use HTTP or HTTPS and cannot include credentials');
+
 export const gameSchema = z.object({
   id: z.string(),
   name: z.string(),
   logoImage: z.string().optional(),
-  coverZoom: z.number().optional(),
-  coverPanX: z.number().optional(),
-  coverPanY: z.number().optional(),
+  coverZoom: coverZoomSchema.optional(),
+  coverPanX: coverPanSchema.optional(),
+  coverPanY: coverPanSchema.optional(),
+  coverFit: coverImageFitSchema.optional(),
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
+  notationProfile: notationProfileSchema.optional(),
+  // Accepted while upgrading databases and importing older backups.
   inputType: z.enum(['numpad', 'button-numbers']).optional(),
   commaStyle: z.enum(['hidden', 'separator']).optional(),
   createdAt: z.number(),
@@ -35,7 +58,7 @@ export const gameSchema = z.object({
 
 export const characterLinkSchema = z.object({
   id: z.string(),
-  url: z.string(),
+  url: externalHttpUrlSchema,
   label: z.string(),
 });
 
@@ -44,9 +67,10 @@ export const characterSchema = z.object({
   gameId: z.string(),
   name: z.string(),
   portraitImage: z.string().optional(),
-  portraitZoom: z.number().optional(),
-  portraitPanX: z.number().optional(),
-  portraitPanY: z.number().optional(),
+  portraitZoom: coverZoomSchema.optional(),
+  portraitPanX: coverPanSchema.optional(),
+  portraitPanY: coverPanSchema.optional(),
+  portraitFit: coverImageFitSchema.optional(),
   notes: z.string().optional(),
   links: z.array(characterLinkSchema).optional(),
   portraitOrientation: z.enum(['landscape', 'portrait']).optional(),
@@ -138,6 +162,8 @@ export type ComboToken = z.infer<typeof comboTokenSchema>;
 export type TokenType = ComboToken['type'];
 export type Game = z.infer<typeof gameSchema>;
 export type CharacterLink = z.infer<typeof characterLinkSchema>;
+export type CoverImageFit = z.infer<typeof coverImageFitSchema>;
+export type NotationProfile = z.infer<typeof notationProfileSchema>;
 export type Character = z.infer<typeof characterSchema>;
 export type Combo = z.infer<typeof comboSchema>;
 export type UserSettings = z.infer<typeof settingsSchema>;

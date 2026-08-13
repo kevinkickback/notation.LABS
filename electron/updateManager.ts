@@ -344,7 +344,7 @@ export function installUpdate(): void {
     console.log('[UpdateManager] Dev mode: skipping quitAndInstall');
     return;
   }
-  autoUpdater.quitAndInstall(false, true);
+  autoUpdater.quitAndInstall(true, true);
 }
 
 export function getUpdateStatus(): UpdateStatus {

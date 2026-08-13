@@ -60,6 +60,23 @@ function normalizeUrl(raw: string): string {
   return `https://${trimmed}`;
 }
 
+function getSafeResourceUrl(raw: string): string | null {
+  const normalized = normalizeUrl(raw);
+  try {
+    const url = new URL(normalized);
+    if (
+      (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 export const CharacterInfoCard = forwardRef<
   CharacterInfoCardRef,
   CharacterInfoCardProps
@@ -77,6 +94,7 @@ export const CharacterInfoCard = forwardRef<
   const labelInputId = useId();
   const editUrlInputId = useId();
   const editLabelInputId = useId();
+  const contentId = useId();
 
   const cancelAdd = useCallback(() => {
     setShowAddForm(false);
@@ -100,10 +118,8 @@ export const CharacterInfoCard = forwardRef<
     async (id: string) => {
       const raw = editUrlDraft.trim();
       if (!raw) return;
-      const normalized = normalizeUrl(raw);
-      try {
-        new URL(normalized);
-      } catch {
+      const normalized = getSafeResourceUrl(raw);
+      if (!normalized) {
         toast.error('Invalid URL');
         return;
       }
@@ -135,10 +151,8 @@ export const CharacterInfoCard = forwardRef<
     const raw = urlDraft.trim();
     if (!raw) return;
 
-    const normalized = normalizeUrl(raw);
-    try {
-      new URL(normalized);
-    } catch {
+    const normalized = getSafeResourceUrl(raw);
+    if (!normalized) {
       toast.error('Invalid URL');
       return;
     }
@@ -183,6 +197,8 @@ export const CharacterInfoCard = forwardRef<
         <button
           type="button"
           onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={contentId}
           className="flex-1 min-w-0 flex items-center justify-between px-1 py-1 rounded hover:bg-muted/50 transition-colors"
         >
           <span className="flex items-center gap-2 text-base font-semibold text-foreground">
@@ -201,7 +217,7 @@ export const CharacterInfoCard = forwardRef<
       </div>
 
       {isOpen && (
-        <div className="bg-muted/30 p-3 flex flex-col gap-3">
+        <div id={contentId} className="bg-muted/30 p-3 flex flex-col gap-3">
           {/* Notes inner card */}
           <div className="border border-border rounded-md overflow-hidden bg-card">
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
@@ -249,13 +265,13 @@ export const CharacterInfoCard = forwardRef<
                 <span className="sr-only">Add resource link</span>
               </Button>
             </div>
-            <div>
+            <div className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2">
               {links.map((link) =>
                 editingLinkId === link.id ? (
                   // Inline edit form
                   <div
                     key={link.id}
-                    className="px-3 py-2.5 space-y-3 border-b border-border last:border-b-0"
+                    className="space-y-3 rounded-md border border-border bg-muted/20 p-3 sm:col-span-2"
                   >
                     <div className="space-y-1.5">
                       <Label htmlFor={editUrlInputId} className="text-xs">
@@ -312,61 +328,63 @@ export const CharacterInfoCard = forwardRef<
                   // Normal link row
                   <div
                     key={link.id}
-                    className="flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-b-0"
+                    className="flex min-w-0 items-center overflow-hidden rounded-md border border-border bg-background/40"
                   >
-                    <img
-                      src={getFaviconUrl(link.url)}
-                      alt=""
-                      aria-hidden="true"
-                      className="w-6 h-6 shrink-0 object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {link.label}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {getDomain(link.url)}
-                      </p>
-                    </div>
                     <a
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title="Open link"
-                      className="shrink-0 p-1.5 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+                      aria-label={`Open ${link.label} in a new tab`}
+                      className="flex min-w-0 flex-1 self-stretch items-center gap-3 rounded-l-md px-3 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                     >
-                      <ArrowSquareOutIcon className="w-4 h-4" />
-                      <span className="sr-only">Open {link.label}</span>
+                      <img
+                        src={getFaviconUrl(link.url)}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-6 w-6 shrink-0 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {link.label}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {getDomain(link.url)}
+                        </span>
+                      </span>
+                      <ArrowSquareOutIcon
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0 text-muted-foreground"
+                      />
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => startEditLink(link)}
-                      title="Edit link"
-                      className="shrink-0 p-1.5 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
-                    >
-                      <PencilSimpleIcon className="w-4 h-4" />
-                      <span className="sr-only">Edit {link.label}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(link.id)}
-                      title="Remove link"
-                      className="shrink-0 p-1.5 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-destructive"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                      <span className="sr-only">Remove {link.label}</span>
-                    </button>
+                    <div className="flex shrink-0 items-center gap-0.5 border-l border-border/60 px-1">
+                      <button
+                        type="button"
+                        onClick={() => startEditLink(link)}
+                        title="Edit link"
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <PencilSimpleIcon className="h-4 w-4" />
+                        <span className="sr-only">Edit {link.label}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(link.id)}
+                        title="Remove link"
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                        <span className="sr-only">Remove {link.label}</span>
+                      </button>
+                    </div>
                   </div>
                 ),
               )}
 
               {showAddForm && (
-                <div
-                  className={`px-3 py-3 space-y-3 ${hasLinks ? 'border-t border-border' : ''}`}
-                >
+                <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3 sm:col-span-2">
                   <div className="space-y-1.5">
                     <Label htmlFor={urlInputId} className="text-xs">
                       URL

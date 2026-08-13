@@ -9,6 +9,7 @@ import {
   WarningIcon,
 } from '@phosphor-icons/react';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { NotesMarkdown } from '@/components/shared/NotesMarkdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -188,9 +189,9 @@ export function SortableComboCard({
             game={game}
           />
           {combo.description && (
-            <p className="text-sm text-muted-foreground mt-2 pt-2 border-t border-border/50">
-              {combo.description}
-            </p>
+            <div className="mt-2 border-t border-border/50 pt-2">
+              <NotesMarkdown content={combo.description} />
+            </div>
           )}
         </div>
 

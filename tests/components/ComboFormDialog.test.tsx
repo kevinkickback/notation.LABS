@@ -97,6 +97,38 @@ describe('ComboFormDialog', () => {
     expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
   });
 
+  it('groups the form into consistent cards and marks required fields', () => {
+    render(
+      <ComboFormDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        game={mockGame}
+        character={mockCharacter}
+        editingCombo={null}
+        allTags={['corner', 'bnb']}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
+    for (const title of [
+      'Combo Basics',
+      'Combo Details',
+      'Demo Video',
+      'Description & Status',
+    ]) {
+      expect(screen.getByText(title).closest('[data-slot="card"]')).not.toBeNull();
+    }
+
+    expect(screen.getByText('Required')).not.toBeNull();
+    expect(screen.getByLabelText('Combo Name').hasAttribute('required')).toBe(
+      true,
+    );
+    expect(screen.getByLabelText('Notation').hasAttribute('required')).toBe(
+      true,
+    );
+  });
+
   it('renders Edit Combo title when editingCombo is provided', () => {
     render(
       <ComboFormDialog
@@ -160,9 +192,29 @@ describe('ComboFormDialog', () => {
     expect(screen.getByText(/max file size:\s*50 mb/i)).not.toBeNull();
   });
 
-  it('shows validation error when submitting without name and notation', async () => {
+  it('identifies combo descriptions as multiline Markdown fields', () => {
+    render(
+      <ComboFormDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        game={mockGame}
+        character={mockCharacter}
+        editingCombo={null}
+        allTags={[]}
+      />,
+    );
+
+    const description = screen.getByLabelText('Description');
+    const helpId = description.getAttribute('aria-describedby');
+
+    expect(helpId).not.toBeNull();
+    expect(document.getElementById(helpId ?? '')?.textContent).toMatch(
+      /multiple lines and markdown are supported/i,
+    );
+  });
+
+  it('uses native validation when submitting without name and notation', async () => {
     const user = userEvent.setup();
-    const { toast } = await import('sonner');
 
     render(
       <ComboFormDialog
@@ -176,7 +228,12 @@ describe('ComboFormDialog', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /add combo/i }));
-    expect(toast.error).toHaveBeenCalledWith('Name and notation are required');
+    expect(
+      (screen.getByLabelText('Combo Name') as HTMLInputElement).checkValidity(),
+    ).toBe(false);
+    expect(
+      (screen.getByLabelText('Notation') as HTMLTextAreaElement).checkValidity(),
+    ).toBe(false);
   });
 
   it('calls onOpenChange(false) when Cancel is clicked', async () => {

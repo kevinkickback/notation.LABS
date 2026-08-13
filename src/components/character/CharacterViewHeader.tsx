@@ -1,4 +1,5 @@
 import defaultGameImage from '@/assets/images/defaultGame.jpg';
+import { CoverImage } from '@/components/shared/CoverImage';
 import type { Game } from '@/lib/types';
 
 interface CharacterViewHeaderProps {
@@ -8,16 +9,14 @@ interface CharacterViewHeaderProps {
 export function CharacterViewHeader({ game }: CharacterViewHeaderProps) {
   return (
     <div className="min-w-0 flex-1 flex items-center gap-4">
-      <div
-        className="w-12 h-16 rounded-lg shrink-0 border border-border overflow-hidden"
-        style={{
-          backgroundImage: `url(${game.logoImage || defaultGameImage})`,
-          backgroundSize: game.coverZoom ? `${game.coverZoom}%` : 'cover',
-          backgroundPosition: game.coverZoom
-            ? `${game.coverPanX ?? 50}% ${game.coverPanY ?? 50}%`
-            : 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
+      <CoverImage
+        src={game.logoImage || defaultGameImage}
+        frameAspect={3 / 4}
+        fit={game.coverFit}
+        zoom={game.coverZoom}
+        focalX={game.coverPanX}
+        focalY={game.coverPanY}
+        className="h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-border"
       />
       <div className="min-w-0">
         <h2 className="text-3xl font-bold mb-1 truncate">{game.name}</h2>

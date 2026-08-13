@@ -86,6 +86,7 @@ const mockCombos: Combo[] = [
       { type: 'separator', value: '>', rawValue: '>' },
       { type: 'motion', value: '236', rawValue: '236H' },
     ],
+    description: 'Use **drive rush**.\n\n- Safe\n- Corner only',
     difficulty: 3,
     damage: '4200',
     meterCost: '1 bar',
@@ -157,6 +158,9 @@ describe('ComboView', () => {
     );
     expect(screen.getByText('BnB Corner')).not.toBeNull();
     expect(screen.getByText('Easy Punish')).not.toBeNull();
+    expect(screen.getByText('drive rush').tagName).toBe('STRONG');
+    expect(screen.getByText('Safe').closest('li')).not.toBeNull();
+    expect(screen.getByText('Corner only').closest('li')).not.toBeNull();
   });
 
   it('opens filter panel when filter button is clicked', async () => {

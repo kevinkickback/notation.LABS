@@ -31,6 +31,7 @@ import {
   indexedDbStorage,
   type ZipImportProgress,
 } from '@/lib/storage/indexedDbStorage';
+import type { Game } from '@/lib/types';
 
 type SavePickerWindow = Window & {
   showSaveFilePicker?: (options?: {
@@ -134,7 +135,7 @@ async function saveBlobWithPicker(
   }
 }
 
-export function Header() {
+export function Header({ activeGame }: { activeGame?: Game }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -291,6 +292,7 @@ export function Header() {
           <NotationGuide
             open={notationGuideOpen}
             onOpenChange={setNotationGuideOpen}
+            activeGame={activeGame}
           />
           <Button
             variant="ghost"

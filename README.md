@@ -19,7 +19,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ## ✨ Features
 
-- **Various Notation Styles** — Fully supports numpad (`236H`, `623K`), traditional (`qcf`, `dp`), and full (`standing Light Punch`, `quarter circle forward`) notations
+- **Community Notation Styles** — Supports Standard / Numpad, NRS, and Tekken notation with style-aware parsing and icons
 - **Dual Display Modes** — Toggle between custom colored text and visual icon display for combos
 - **Beautiful Organization** — Organize your combos by game and character with cover images
 - **Import / Export** — Backup, restore, and share your entire library or individual combos as JSON
@@ -87,8 +87,14 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ### Option 2: Download Release (Recommended)
 
-1. Download the latest installer or portable `.exe` from the [Releases](https://github.com/kevinkickback/notation.LABS/releases/latest) page
-2. Run the installer or open the app
+1. Download the package for your platform from the [Releases](https://github.com/kevinkickback/notation.LABS/releases/latest) page:
+
+   - Windows: installer or portable `.exe`
+   - macOS: `.dmg`
+   - Debian, Ubuntu, or Linux Mint: `.deb`
+   - Other Linux distributions: `.AppImage`
+
+2. Install or open the downloaded app
 
 ### Option 3: Build from Source
 
@@ -105,25 +111,30 @@ npm run dev:web
 
 | Notation | Meaning |
 |----------|---------|
-| `>` | Proceed from the previous move to the following move |
+| `>` / `→` / `»` | Proceed from the previous move to the following move |
 | `\|>` / `(Land)` | Indicate that the player must land at that point in the sequence |
 | `,` | Link the previous move into the following move |
 | `~` | Cancel the previous special into a follow-up |
+| `+` | Press buttons simultaneously |
+| `xx` | Cancel the previous move into a special move |
 | `dl.` | Delay the following move |
 | `(whiff)` | The move must whiff (not hit) |
 | `cl.` | Close |
 | `f.` | Far |
 | `j.` | Jumping/Aerial |
+| `nj.` | Neutral Jump |
 | `dj.` | Double Jump |
 | `sj.` | Super Jump |
+| `iad` | Instant Air Dash |
 | `jc.` | Jump Cancel |
 | `sjc.` | Super Jump Cancel |
 | `dd.` / `22` | Double Down |
 | `back dash` / `44` | Back Dash |
 | `dash` / `66` | Forward Dash |
 | `CH` | Counter Hit |
-| `[X]` | Hold input |
-| `(sequence) xN` | Repeat sequence N amount of times |
+| `[X]` | Hold or charge input X |
+| `]X[` | Release input X |
+| `XxN` / `(sequence)xN` | Repeat an input or sequence N times |
 | `(N)` | Hit N of a move or move must deal N amount of hits |
 | `qcf.` / `236` | Quarter Circle Forward |
 | `qcb.` / `214` | Quarter Circle Back |
@@ -131,8 +142,21 @@ npm run dev:web
 | `rdp.` / `421` | Reverse Dragon Punch |
 | `hcf.` / `41236` | Half Circle Forward |
 | `hcb.` / `63214` | Half Circle Back |
+| `hcbf` | Half Circle Back, then Forward |
 | `2qcf.` / `236236` | Double Quarter Circle Forward |
 | `2qcb.` / `214214` | Double Quarter Circle Back |
+| `360` / `spd` | Full circle motion |
+| `720` / `1080` | Double or triple circle motion |
+
+### Notation Styles
+
+- **Standard / Numpad** — Numbers are directions, including motions such as
+  `236H` and `623K`. Traditional aliases such as `qcf` and `dp` also work.
+- **NRS** — Supports Mortal Kombat, Injustice, and other NRS games. `1`–`4`
+  are attack buttons, direction strings are sequential and case-insensitive,
+  and slash diagonals such as `U/F` remain one input.
+- **Tekken** — `1`–`4` are attack buttons; lowercase directions are taps,
+  uppercase directions are holds, and diagonals remain one input.
 
 ## 📄 License
 

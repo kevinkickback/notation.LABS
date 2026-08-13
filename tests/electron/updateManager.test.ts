@@ -190,7 +190,7 @@ describe('updateManager', () => {
 
     context.module.installUpdate();
     expect(context.autoUpdaterMock.quitAndInstall).toHaveBeenCalledWith(
-      false,
+      true,
       true,
     );
   });

@@ -1,5 +1,6 @@
 import { LightningIcon, NotePencilIcon, PlusIcon } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
+import { CoverImage } from '@/components/shared/CoverImage';
 import { Button } from '@/components/ui/button';
 import type { Character, Game } from '@/lib/types';
 
@@ -23,18 +24,14 @@ export function ComboViewEmptyState({
       </div>
 
       <div className="text-center max-w-md">
-        <div
+        <CoverImage
+          src={character.portraitImage || defaultCharacterImage}
+          frameAspect={4 / 3}
+          fit={character.portraitFit}
+          zoom={character.portraitZoom}
+          focalX={character.portraitPanX}
+          focalY={character.portraitPanY}
           className="w-32 h-24 rounded-xl mx-auto mb-4 border-2 border-border overflow-hidden"
-          style={{
-            backgroundImage: `url(${character.portraitImage || defaultCharacterImage})`,
-            backgroundSize: character.portraitZoom
-              ? `${character.portraitZoom}%`
-              : 'cover',
-            backgroundPosition: character.portraitZoom
-              ? `${character.portraitPanX ?? 50}% ${character.portraitPanY ?? 50}%`
-              : 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
         />
         <h2 className="text-3xl font-bold mb-2">{character.name}</h2>
         <p className="text-sm text-muted-foreground mb-6">{game.name}</p>

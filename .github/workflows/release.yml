@@ -9,30 +9,78 @@ permissions:
   contents: write
 
 jobs:
+  verify-quality:
+    name: Verify release quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Match package metadata to tag
+        run: npm run version:check -- --tag="$RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Require release commit on main
+        shell: bash
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Lint
+        run: npx biome ci .
+      - name: Type-check
+        run: npx tsc -b
+      - name: Test with coverage
+        run: npm run test:coverage
+
+  e2e:
+    name: Browser tests
+    needs: verify-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Run browser tests
+        run: npm run test:e2e
+
   create-release:
     name: Create draft release
+    needs: [verify-quality, e2e]
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
+      - uses: actions/checkout@v4
       - name: Create draft release
-        id: create_release
-        uses: actions/create-release@v1
+        run: gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file "changelogs/$RELEASE_TAG.md"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
-          draft: true
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
 
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.name }})
     needs: create-release
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
+          - name: Linux AppImage and Debian
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +90,68 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build and publish
-        run: npm run build:app
+        run: npm run build:app -- --publish onTagOrDraft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify Windows packages
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'release/*-Win.exe')) { throw 'Windows installer was not created.' }
+          if (-not (Test-Path 'release/*-Win-Portable.exe')) { throw 'Windows portable package was not created.' }
+      - name: Verify macOS package
+        if: runner.os == 'macOS'
+        shell: bash
+        run: compgen -G 'release/*-Mac.dmg' > /dev/null
+      - name: Verify Linux packages
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          compgen -G 'release/*-Linux.AppImage' > /dev/null
+          compgen -G 'release/*-Linux.deb' > /dev/null
+
+  verify-release-assets:
+    name: Verify draft release assets
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify draft notes and required packages
+        shell: bash
+        run: |
+          is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')"
+          if [[ "$is_draft" != "true" ]]; then
+            echo "Release $RELEASE_TAG is not a draft."
+            exit 1
+          fi
+
+          expected_notes="$(cat "changelogs/$RELEASE_TAG.md")"
+          actual_notes="$(gh release view "$RELEASE_TAG" --json body --jq '.body')"
+          if [[ "$actual_notes" != "$expected_notes" ]]; then
+            echo "Release notes do not match changelogs/$RELEASE_TAG.md."
+            diff -u \
+              <(printf '%s\n' "$expected_notes") \
+              <(printf '%s\n' "$actual_notes") || true
+            exit 1
+          fi
+
+          assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
+          required_patterns=(
+            '-Win\.exe$'
+            '-Win-Portable\.exe$'
+            '-Mac\.dmg$'
+            '-Linux\.AppImage$'
+            '-Linux\.deb$'
+          )
+
+          for pattern in "${required_patterns[@]}"; do
+            if ! grep -Eq "$pattern" <<< "$assets"; then
+              echo "Missing release asset matching: $pattern"
+              echo "$assets"
+              exit 1
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}

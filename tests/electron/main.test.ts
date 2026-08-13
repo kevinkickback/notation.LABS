@@ -7,6 +7,7 @@ async function loadMainModule() {
 
   const appEvents: Record<string, (...args: unknown[]) => unknown> = {};
   const ipcHandlers: Record<string, (...args: unknown[]) => unknown> = {};
+  const rawIpcHandlers: Record<string, (...args: unknown[]) => unknown> = {};
   const browserWindows: BrowserWindowMock[] = [];
 
   class BrowserWindowMock {
@@ -16,6 +17,7 @@ async function loadMainModule() {
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       send: vi.fn(),
+      mainFrame: {},
     };
     loadFile = vi.fn();
     loadURL = vi.fn();
@@ -62,7 +64,17 @@ async function loadMainModule() {
   const ipcMainMock = {
     handle: vi.fn(
       (channel: string, handler: (...args: unknown[]) => unknown) => {
-        ipcHandlers[channel] = handler;
+        rawIpcHandlers[channel] = handler;
+        ipcHandlers[channel] = (...args: unknown[]) => {
+          const webContents = browserWindows[browserWindows.length - 1]?.webContents;
+          return handler(
+            {
+              sender: webContents,
+              senderFrame: webContents?.mainFrame,
+            },
+            ...args,
+          );
+        };
       },
     ),
   };
@@ -101,6 +113,7 @@ async function loadMainModule() {
   return {
     appEvents,
     ipcHandlers,
+    rawIpcHandlers,
     browserWindows,
     dialogMock,
     sessionMock,
@@ -122,6 +135,14 @@ describe('electron main process wiring', () => {
     await context.appEvents.ready();
 
     expect(context.browserWindows).toHaveLength(2);
+    expect(context.browserWindows[0]?.options).toMatchObject({
+      width: 480,
+      height: 360,
+      useContentSize: true,
+      frame: false,
+      hasShadow: false,
+      resizable: false,
+    });
     expect(
       context.sessionMock.defaultSession.webRequest.onHeadersReceived,
     ).toHaveBeenCalled();
@@ -172,7 +193,6 @@ describe('electron main process wiring', () => {
 
     await expect(
       context.ipcHandlers['file:save'](
-        {},
         new Uint8Array([1, 2, 3]),
         'backup.json',
         'application/json',
@@ -218,9 +238,9 @@ describe('electron main process wiring', () => {
     context.ipcHandlers['update:install']();
     expect(context.updateManagerMock.installUpdate).toHaveBeenCalled();
 
-    context.ipcHandlers['update:set-auto-check']({}, true);
-    context.ipcHandlers['update:set-auto-check']({}, false);
-    context.ipcHandlers['update:set-auto-check']({}, 'invalid');
+    context.ipcHandlers['update:set-auto-check'](true);
+    context.ipcHandlers['update:set-auto-check'](false);
+    context.ipcHandlers['update:set-auto-check']('invalid');
 
     expect(
       context.updateManagerMock.startAutoCheckSchedule,
@@ -228,6 +248,18 @@ describe('electron main process wiring', () => {
     expect(
       context.updateManagerMock.stopAutoCheckSchedule,
     ).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects privileged IPC from an untrusted renderer', async () => {
+    const context = await loadMainModule();
+    await context.appEvents.ready();
+
+    await expect(
+      context.rawIpcHandlers['update:check']({
+        sender: {},
+        senderFrame: {},
+      }),
+    ).rejects.toThrow('untrusted renderer');
   });
 
   it('opens allowlisted links and prompts for unknown https domains', async () => {
@@ -298,7 +330,6 @@ describe('electron main process wiring', () => {
 
     await expect(
       context.ipcHandlers['file:save'](
-        {},
         new Uint8Array([1]),
         'backup.zip',
         'application/zip',

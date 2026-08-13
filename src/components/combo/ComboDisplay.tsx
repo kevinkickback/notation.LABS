@@ -1,154 +1,29 @@
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { useSettings } from '@/context/SettingsContext';
+import {
+  getButtonAccessibilityLabel,
+  getMechanicAccessibilityLabel,
+  resolveNotationProfile,
+} from '@/lib/notationProfiles';
 import { getTokenColor } from '@/lib/parser';
-import type { ComboToken, Game, NotationColors } from '@/lib/types';
+import type { ComboToken, Game } from '@/lib/types';
+import {
+  DIRECTION_MODIFIERS,
+  DIRECTION_NAMES,
+  getDelimitedButton,
+  getNrsHoldAssociations,
+  getRepeatParenIndices,
+  groupTokensWithButtons,
+  isDescriptiveBracketAnnotation,
+  isLiteralParenUnknown,
+  LETTER_DIR_TO_NUMPAD,
+  REPEAT_PAREN_COLOR,
+  shouldRenderMechanicBadge,
+  TEKKEN_EXPLICIT_MOVE_BOUNDARIES,
+} from './comboDisplayUtils';
 import { ButtonIcon } from './icons/ButtonIcon';
 import { CounterHitIcon } from './icons/CounterHitIcon';
 import { MotionIcon } from './icons/MotionIcon';
-
-const REPEAT_PAREN_COLOR = 'oklch(0.65 0.02 265)';
-
-const DIRECTION_MODIFIERS: Record<string, string> = {
-  'st.': '5',
-  'cr.': '2',
-  'b.': '4',
-  'db.': '1',
-  'df.': '3',
-  'f.': '6',
-  'ub.': '7',
-  'u.': '8',
-  'uf.': '9',
-  dash: '66',
-};
-
-// Maps letter-based directions (Tekken/NRS) to numpad equivalents for icon display.
-const LETTER_DIR_TO_NUMPAD: Record<string, string> = {
-  n: '5',
-  f: '6',
-  b: '4',
-  u: '8',
-  d: '2',
-  'd/f': '3',
-  'd/b': '1',
-  'u/f': '9',
-  'u/b': '7',
-  df: '3',
-  db: '1',
-  uf: '9',
-  ub: '7',
-};
-
-function isLiteralParenUnknown(token: ComboToken): boolean {
-  return (
-    token.type === 'unknown' && (token.value === '(' || token.value === ')')
-  );
-}
-
-function getRepeatParenIndices(tokens: ComboToken[]): Set<number> {
-  const showParens = new Set<number>();
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].type === 'repeat-start') {
-      let innerCount = 0;
-      let endIdx = -1;
-      for (let j = i + 1; j < tokens.length; j++) {
-        if (tokens[j].type === 'repeat-end') {
-          endIdx = j;
-          break;
-        }
-        if (tokens[j].type !== 'separator') {
-          innerCount++;
-        }
-      }
-      if (innerCount > 1 && endIdx !== -1) {
-        showParens.add(i);
-        showParens.add(endIdx);
-      }
-    }
-  }
-  return showParens;
-}
-
-function groupTokensWithButtons(
-  tokens: ComboToken[],
-  colors: NotationColors,
-  buttonColors?: Record<string, string>,
-): Array<{ tokens: ComboToken[]; buttonColor?: string }> {
-  const groups: Array<{ tokens: ComboToken[]; buttonColor?: string }> = [];
-  let currentGroup: ComboToken[] = [];
-  let pendingButton: ComboToken | null = null;
-
-  for (const token of tokens) {
-    if (token.type === 'separator') {
-      if (pendingButton) {
-        const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
-        groups.push({ tokens: currentGroup, buttonColor });
-        currentGroup = [];
-        pendingButton = null;
-      } else if (currentGroup.length > 0) {
-        groups.push({ tokens: currentGroup });
-        currentGroup = [];
-      }
-      groups.push({ tokens: [token] });
-    } else if (isLiteralParenUnknown(token)) {
-      if (pendingButton) {
-        const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
-        groups.push({ tokens: currentGroup, buttonColor });
-        currentGroup = [];
-        pendingButton = null;
-      } else if (currentGroup.length > 0) {
-        groups.push({ tokens: currentGroup });
-        currentGroup = [];
-      }
-      groups.push({ tokens: [token] });
-    } else if (token.type === 'button') {
-      pendingButton = token;
-      currentGroup.push(token);
-    } else if (token.type === 'modifier') {
-      const bracketContent = getBracketContent(token.value);
-      if (bracketContent && buttonColors?.[bracketContent.toUpperCase()]) {
-        pendingButton = {
-          type: 'button',
-          value: bracketContent.toUpperCase(),
-          rawValue: token.rawValue,
-        };
-      }
-      currentGroup.push(token);
-    } else {
-      currentGroup.push(token);
-    }
-  }
-
-  if (currentGroup.length > 0) {
-    if (pendingButton) {
-      const buttonColor = getTokenColor(pendingButton, colors, buttonColors);
-      groups.push({ tokens: currentGroup, buttonColor });
-    } else {
-      groups.push({ tokens: currentGroup });
-    }
-  }
-
-  return groups;
-}
-
-function getBracketContent(tokenValue: string): string | null {
-  const trimmed = tokenValue.trim();
-  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
-    return null;
-  }
-  return trimmed.slice(1, -1).trim();
-}
-
-function isDescriptiveBracketAnnotation(token: ComboToken): boolean {
-  if (token.type !== 'modifier') {
-    return false;
-  }
-  const content = getBracketContent(token.value);
-  if (content === null) {
-    return false;
-  }
-  // Treat bracket labels with spaces as descriptive annotations, not charge-style tokens.
-  return content.includes(' ');
-}
 
 interface ComboDisplayProps {
   tokens: ComboToken[];
@@ -168,6 +43,17 @@ export function ComboDisplay({
   const comboScale = settings.comboScale ?? 1;
   const iconStyle = settings.iconStyle ?? 'hexagon';
   const motionIconStyle = settings.motionIconStyle ?? 'joystick';
+  const notationProfile = resolveNotationProfile(game);
+  const nrsHoldAssociations = useMemo(
+    () =>
+      notationProfile === 'nrs'
+        ? getNrsHoldAssociations(tokens)
+        : {
+            heldInputIndices: new Set<number>(),
+            appliedAnnotationIndices: new Set<number>(),
+          },
+    [notationProfile, tokens],
+  );
 
   const repeatParenIndices = useMemo(
     () => getRepeatParenIndices(tokens),
@@ -192,8 +78,12 @@ export function ComboDisplay({
   ) => {
     const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
     const isParenUnknown = isLiteralParenUnknown(token);
+    const isTekkenNeutral =
+      notationProfile === 'tekken' &&
+      token.type === 'direction' &&
+      token.value.toLowerCase() === 'n';
     const color =
-      !isDescriptiveBracket && !isParenUnknown && groupColor
+      !isDescriptiveBracket && !isParenUnknown && !isTekkenNeutral && groupColor
         ? groupColor
         : getTokenColor(token, colors, game?.buttonColors);
 
@@ -245,6 +135,11 @@ export function ComboDisplay({
     const isCH = token.type === 'modifier' && token.value === 'CH';
     const isParenAnnotation =
       token.type === 'modifier' && token.value.startsWith('(');
+    const hasPreservedWhitespace = /\s$/.test(token.rawValue);
+    const hasAdjacentSeparatorSpacing =
+      token.type === 'separator' &&
+      (hasPreservedWhitespace ||
+        (idx > 0 && /\s$/.test(tokens[idx - 1].rawValue)));
 
     return (
       <span
@@ -252,15 +147,15 @@ export function ComboDisplay({
         style={{ color }}
         className={
           token.type === 'separator'
-            ? 'font-medium tracking-tight mx-1'
+            ? `font-medium tracking-tight whitespace-pre${hasAdjacentSeparatorSpacing ? '' : ' mx-1'}`
             : isCH || isParenAnnotation
-              ? 'font-medium tracking-tight mx-1'
+              ? 'font-medium tracking-tight whitespace-pre mx-1'
               : isDescriptiveBracket
-                ? 'font-medium tracking-tight mr-1'
-                : 'font-medium tracking-tight'
+                ? 'font-medium tracking-tight whitespace-pre mr-1'
+                : 'font-medium tracking-tight whitespace-pre'
         }
       >
-        {token.type === 'motion' ? token.rawValue : token.value}
+        {token.rawValue}
       </span>
     );
   };
@@ -272,8 +167,12 @@ export function ComboDisplay({
   ) => {
     const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
     const isParenUnknown = isLiteralParenUnknown(token);
+    const isTekkenNeutral =
+      notationProfile === 'tekken' &&
+      token.type === 'direction' &&
+      token.value.toLowerCase() === 'n';
     const color =
-      !isDescriptiveBracket && !isParenUnknown && groupColor
+      !isDescriptiveBracket && !isParenUnknown && !isTekkenNeutral && groupColor
         ? groupColor
         : getTokenColor(token, colors, game?.buttonColors);
 
@@ -338,8 +237,26 @@ export function ComboDisplay({
         // mode so hold (D/F) and tap (d/f) resolve to different icons.
         const numpad =
           LETTER_DIR_TO_NUMPAD[token.value.toLowerCase()] ?? token.value;
-        if (numpad === '5') return null;
-        const motionArg = motionIconStyle === 'arrows' ? token.value : numpad;
+        if (numpad === '5' && !isTekkenNeutral) return null;
+        const isTekkenHold =
+          notationProfile === 'tekken' &&
+          token.value !== token.value.toLowerCase();
+        const isNrsHold = nrsHoldAssociations.heldInputIndices.has(idx);
+        const isHeldDirection = isTekkenHold || isNrsHold;
+        const directionName =
+          DIRECTION_NAMES[token.value.toLowerCase()] ?? token.value;
+        const directionLabel = isTekkenNeutral
+          ? 'Neutral'
+          : notationProfile === 'tekken'
+            ? `${isHeldDirection ? 'Hold' : 'Tap'} ${directionName}`
+            : isHeldDirection
+              ? `Hold ${directionName}`
+              : directionName;
+        const motionArg = isTekkenNeutral
+          ? 'N'
+          : motionIconStyle === 'arrows'
+            ? token.value
+            : numpad;
         return (
           <MotionIcon
             key={idx}
@@ -347,20 +264,38 @@ export function ComboDisplay({
             size={Math.round(40 * comboScale)}
             color={color}
             iconStyle={motionIconStyle}
+            hold={isHeldDirection}
+            label={directionLabel}
           />
         );
       }
-      case 'button':
-        return (
+      case 'button': {
+        const isHeldButton = nrsHoldAssociations.heldInputIndices.has(idx);
+        const buttonLabel = getButtonAccessibilityLabel(
+          notationProfile,
+          token.value,
+        );
+        const buttonIcon = (
           <ButtonIcon
-            key={idx}
             button={token.value}
             size={Math.round(30 * comboScale)}
             color={color}
             iconStyle={iconStyle}
+            label={isHeldButton ? `Hold ${buttonLabel}` : buttonLabel}
           />
         );
+        return isHeldButton ? (
+          <HeldInputIndicator key={idx}>{buttonIcon}</HeldInputIndicator>
+        ) : (
+          <span key={idx} className="inline-flex">
+            {buttonIcon}
+          </span>
+        );
+      }
       case 'modifier': {
+        if (nrsHoldAssociations.appliedAnnotationIndices.has(idx)) {
+          return null;
+        }
         if (token.value === 'CH') {
           return (
             <CounterHitIcon
@@ -383,38 +318,98 @@ export function ComboDisplay({
             />
           );
         }
-        // Bracket modifier containing a button (e.g. [A], [HP]) → button icon.
-        // Use a blocklist of known non-button keywords rather than checking game.buttonLayout,
-        // since game is optional and bracket buttons appear regardless of explicit layout.
-        const bracketBtn = getBracketContent(token.value);
-        if (bracketBtn && !isDescriptiveBracketAnnotation(token)) {
+        // Delimited inputs (e.g. [2] for held down or [A] for a held button).
+        const delimitedButton = getDelimitedButton(token.value);
+        if (delimitedButton && !isDescriptiveBracketAnnotation(token)) {
           const isSpecialKeyword = /^(charge|hold|release|whiff)$/i.test(
-            bracketBtn,
+            delimitedButton.button,
           );
           if (!isSpecialKeyword) {
+            const normalizedButton = delimitedButton.button.toUpperCase();
+            const isHeldNumpadDirection =
+              notationProfile === 'standard' &&
+              delimitedButton.kind === 'hold' &&
+              /^[1-46-9]$/.test(normalizedButton) &&
+              !game?.buttonLayout.some(
+                (button) => button.toUpperCase() === normalizedButton,
+              );
+            if (isHeldNumpadDirection) {
+              return (
+                <MotionIcon
+                  key={idx}
+                  motion={normalizedButton}
+                  size={Math.round(40 * comboScale)}
+                  color={color}
+                  iconStyle={motionIconStyle}
+                  hold
+                  label={`Hold ${DIRECTION_NAMES[normalizedButton]}`}
+                />
+              );
+            }
+            const actionLabel =
+              delimitedButton.kind === 'hold' ? 'Hold' : 'Release';
             return (
               <span key={idx} className="inline-flex items-center gap-0.5">
                 <span
+                  aria-hidden="true"
                   style={{ color, fontSize: `${1.1 * comboScale}rem` }}
                   className="font-medium opacity-60"
                 >
-                  [
+                  {delimitedButton.leadingDelimiter}
                 </span>
                 <ButtonIcon
-                  button={bracketBtn.toUpperCase()}
+                  button={normalizedButton}
                   size={Math.round(30 * comboScale)}
                   color={color}
                   iconStyle={iconStyle}
+                  label={`${actionLabel} ${getButtonAccessibilityLabel(
+                    notationProfile,
+                    normalizedButton,
+                  )}`}
                 />
                 <span
+                  aria-hidden="true"
                   style={{ color, fontSize: `${1.1 * comboScale}rem` }}
                   className="font-medium opacity-60"
                 >
-                  ]
+                  {delimitedButton.trailingDelimiter}
                 </span>
               </span>
             );
           }
+        }
+        if (shouldRenderMechanicBadge(notationProfile, token.value)) {
+          return (
+            <MechanicBadge
+              key={idx}
+              value={token.value.trim()}
+              color={color}
+              label={getMechanicAccessibilityLabel(
+                notationProfile,
+                token.value,
+              )}
+            />
+          );
+        }
+        if (
+          notationProfile === 'tekken' &&
+          (token.value === '(' || token.value === ')')
+        ) {
+          return (
+            <span
+              key={idx}
+              role="img"
+              aria-label={
+                token.value === '('
+                  ? 'Start required omitted input'
+                  : 'End required omitted input'
+              }
+              className="font-medium opacity-60"
+              style={{ color, fontSize: `${1.1 * comboScale}rem` }}
+            >
+              {token.value}
+            </span>
+          );
         }
         return (
           <span
@@ -427,13 +422,15 @@ export function ComboDisplay({
         );
       }
       case 'separator':
-        // Auto-detect comma role: if ► appears anywhere, commas are soft connectors
-        // (Format A, hidden). If no ►, commas are move separators (Format B, visible).
-        if (token.value === ',') {
-          const hasArrowSep = tokens.some(
-            (t) => t.type === 'separator' && t.value === '►',
+        // Explicit Tekken 8-style boundaries make commas internal connectors.
+        // Without one, commas remain legacy Tekken 7 move separators.
+        if (notationProfile === 'tekken' && token.value === ',') {
+          const hasExplicitMoveBoundary = tokens.some(
+            (candidate) =>
+              candidate.type === 'separator' &&
+              TEKKEN_EXPLICIT_MOVE_BOUNDARIES.has(candidate.value),
           );
-          if (hasArrowSep) return null;
+          if (hasExplicitMoveBoundary) return null;
         }
         return (
           <span
@@ -441,7 +438,8 @@ export function ComboDisplay({
             className="font-bold opacity-50 mx-1"
             style={{ color, fontSize: `${1.5 * comboScale}rem` }}
           >
-            {token.value === '>' || token.value === ',' || token.value === '►'
+            {TEKKEN_EXPLICIT_MOVE_BOUNDARIES.has(token.value) ||
+            token.value === ','
               ? '→'
               : token.value}
           </span>
@@ -492,5 +490,40 @@ export function ComboDisplay({
         );
       })}
     </div>
+  );
+}
+
+function HeldInputIndicator({ children }: { children: ReactNode }) {
+  return (
+    <span className="relative inline-flex">
+      {children}
+      <span
+        aria-hidden="true"
+        className="absolute -right-2 -bottom-1 rounded bg-background px-1 text-[8px] font-bold leading-none text-foreground ring-1 ring-border"
+      >
+        Hold
+      </span>
+    </span>
+  );
+}
+
+function MechanicBadge({
+  value,
+  color,
+  label = `${value} mechanic`,
+}: {
+  value: string;
+  color: string;
+  label?: string;
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="rounded border border-current/40 bg-current/10 px-1.5 py-0.5 font-mono text-xs font-semibold"
+      style={{ color }}
+    >
+      {value}
+    </span>
   );
 }

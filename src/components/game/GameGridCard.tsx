@@ -1,5 +1,6 @@
 import { PencilSimpleIcon, TrashIcon, UserIcon } from '@phosphor-icons/react';
 import defaultGameImage from '@/assets/images/defaultGame.jpg';
+import { CoverImage } from '@/components/shared/CoverImage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Game } from '@/lib/types';
@@ -41,16 +42,14 @@ export function GameGridCard({
           />
         </div>
       )}
-      <div
+      <CoverImage
+        src={game.logoImage || defaultGameImage}
+        frameAspect={3 / 4}
+        fit={game.coverFit}
+        zoom={game.coverZoom}
+        focalX={game.coverPanX}
+        focalY={game.coverPanY}
         className="absolute inset-0"
-        style={{
-          backgroundImage: `url(${game.logoImage || defaultGameImage})`,
-          backgroundSize: game.coverZoom ? `${game.coverZoom}%` : 'cover',
-          backgroundPosition: game.coverZoom
-            ? `${game.coverPanX ?? 50}% ${game.coverPanY ?? 50}%`
-            : 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
       />
       <CardContent className="p-0 relative z-10 flex flex-col justify-end h-full">
         <div

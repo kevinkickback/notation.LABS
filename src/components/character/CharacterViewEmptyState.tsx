@@ -1,5 +1,6 @@
 import { PlusIcon, UserIcon } from '@phosphor-icons/react';
 import defaultGameImage from '@/assets/images/defaultGame.jpg';
+import { CoverImage } from '@/components/shared/CoverImage';
 import { Button } from '@/components/ui/button';
 import type { Game } from '@/lib/types';
 
@@ -19,16 +20,14 @@ export function CharacterViewEmptyState({
       </div>
 
       <div className="text-center max-w-md">
-        <div
-          className="w-20 h-28 rounded-xl mx-auto mb-4 border-2 border-border overflow-hidden"
-          style={{
-            backgroundImage: `url(${game.logoImage || defaultGameImage})`,
-            backgroundSize: game.coverZoom ? `${game.coverZoom}%` : 'cover',
-            backgroundPosition: game.coverZoom
-              ? `${game.coverPanX ?? 50}% ${game.coverPanY ?? 50}%`
-              : 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
+        <CoverImage
+          src={game.logoImage || defaultGameImage}
+          frameAspect={3 / 4}
+          fit={game.coverFit}
+          zoom={game.coverZoom}
+          focalX={game.coverPanX}
+          focalY={game.coverPanY}
+          className="mx-auto mb-4 aspect-[3/4] w-20 overflow-hidden rounded-xl border-2 border-border"
         />
         <h2 className="text-3xl font-bold mb-2">{game.name}</h2>
         <p className="text-muted-foreground mb-6">
