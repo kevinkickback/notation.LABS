@@ -154,26 +154,9 @@ npm run dev:web
   `236H` and `623K`. Traditional aliases such as `qcf` and `dp` also work.
 - **NRS** — Supports Mortal Kombat, Injustice, and other NRS games. `1`–`4`
   are attack buttons, direction strings are sequential and case-insensitive,
-  and slash diagonals such as `U/F` remain one input. Common mechanics such as
-  `EX`, `AMP`, `MB`, MK1 input labels, jumps, air states, side swaps, traits,
-  and Kameo inputs are recognized. For example, `DF1` means Down, Forward,
-  then button 1, while `D/F` means a down-forward diagonal.
+  and slash diagonals such as `U/F` remain one input.
 - **Tekken** — `1`–`4` are attack buttons; lowercase directions are taps,
-  uppercase directions are holds, and diagonals remain one input (`d/f` versus
-  `D/F`). Supports common movement, state, ground, timing, Tekken 7/8 separator,
-  Heat, Rage, side-switch, screw (`S!`), and throw-escape notation. Custom
-  character stances remain readable as authored text.
-
-Choose a style when adding or editing a game. Existing games that used the
-older **NRS / Tekken** option retain Tekken-compatible behavior; NRS players
-should edit those games and select the new **NRS** style.
-The in-app Notation Guide keeps each style self-contained in clearly
-separated, scrollable sections. Each style includes directional references,
-its complete common and style-specific legend, realistic examples, and live
-text/icon previews.
-Styles enhance recognized notation but do not enforce a closed vocabulary.
-Unknown mechanics and character-specific stances remain available as authored
-text, allowing each style to work with other games and future conventions.
+  uppercase directions are holds, and diagonals remain one input.
 
 ## 📄 License
 
