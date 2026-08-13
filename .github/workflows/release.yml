@@ -145,7 +145,7 @@ jobs:
           )
 
           for pattern in "${required_patterns[@]}"; do
-            if ! grep -Eq "$pattern" <<< "$assets"; then
+            if ! grep -Eq -- "$pattern" <<< "$assets"; then
               echo "Missing release asset matching: $pattern"
               echo "$assets"
               exit 1
