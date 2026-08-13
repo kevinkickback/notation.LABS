@@ -126,9 +126,8 @@ describe('GameLibrary', () => {
     expect(screen.getByText('Add New Game')).not.toBeNull();
   });
 
-  it('shows validation error when adding a game without a name', async () => {
+  it('uses native validation when adding a game without a name', async () => {
     const user = userEvent.setup();
-    const { toast } = await import('sonner');
 
     render(<GameLibrary games={mockGames} />);
 
@@ -138,7 +137,8 @@ describe('GameLibrary', () => {
     await user.clear(nameInput);
     await user.click(screen.getByRole('button', { name: /^add game$/i }));
 
-    expect(toast.error).toHaveBeenCalledWith('Game name is required');
+    expect((nameInput as HTMLInputElement).checkValidity()).toBe(false);
+    expect(indexedDbStorage.games.add).not.toHaveBeenCalled();
   });
 
   it('toggles filter panel visibility', async () => {

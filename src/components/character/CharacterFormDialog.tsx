@@ -161,150 +161,164 @@ export function CharacterFormDialog({
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="flex flex-col overflow-hidden">
-          <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
-            <DialogTitle>
-              {editingCharacter
-                ? 'Edit Character'
-                : `Add Character to ${game.name}`}
-            </DialogTitle>
-          </DialogHeader>
-          <DialogBody className="-mr-2 space-y-3 pr-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor={charNameId}>Character Name</Label>
-                <RequiredBadge />
+          <form
+            className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void (editingCharacter ? handleEdit() : handleAdd());
+            }}
+          >
+            <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
+              <DialogTitle>
+                {editingCharacter
+                  ? 'Edit Character'
+                  : `Add Character to ${game.name}`}
+              </DialogTitle>
+            </DialogHeader>
+            <DialogBody className="-mr-2 space-y-3 pr-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor={charNameId}>Character Name</Label>
+                  <RequiredBadge />
+                </div>
+                <Input
+                  id={charNameId}
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ryu"
+                />
               </div>
-              <Input
-                id={charNameId}
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ryu"
-              />
-            </div>
 
-            <div>
-              <Label>Character Image (optional)</Label>
-              <div className="mt-1 flex flex-col gap-3 sm:flex-row">
-                <div
-                  className={`relative flex shrink-0 self-center items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted sm:self-auto ${
-                    orientation === 'portrait'
-                      ? 'w-28 aspect-[3/4]'
-                      : 'w-44 aspect-[4/3]'
-                  }`}
-                >
-                  {portraitImage ? (
-                    <>
-                      <CoverImage
-                        src={portraitImage}
-                        frameAspect={orientation === 'portrait' ? 3 / 4 : 4 / 3}
+              <div>
+                <Label>Character Image (optional)</Label>
+                <div className="mt-1 flex flex-col gap-3 sm:flex-row">
+                  <div
+                    className={`relative flex shrink-0 self-center items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted sm:self-auto ${
+                      orientation === 'portrait'
+                        ? 'w-28 aspect-[3/4]'
+                        : 'w-44 aspect-[4/3]'
+                    }`}
+                  >
+                    {portraitImage ? (
+                      <>
+                        <CoverImage
+                          src={portraitImage}
+                          frameAspect={
+                            orientation === 'portrait' ? 3 / 4 : 4 / 3
+                          }
+                          fit={portraitFit}
+                          zoom={portraitZoom}
+                          focalX={portraitPanX}
+                          focalY={portraitPanY}
+                          interactive
+                          className="absolute inset-0"
+                          onFocalPointChange={(x, y) => {
+                            setPortraitPanX(Math.round(x));
+                            setPortraitPanY(Math.round(y));
+                          }}
+                        />
+                        <div
+                          className="absolute inset-x-0 bottom-0 h-3/5 pointer-events-none"
+                          style={{
+                            background:
+                              'linear-gradient(to top, black 0%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.2) 80%, transparent 100%)',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          aria-label="Remove image"
+                          onClick={() => setPortraitImage('')}
+                          className="absolute top-1 right-1 z-10 rounded-full bg-red-600/80 hover:bg-red-600 text-white w-5 h-5 flex items-center justify-center transition-colors cursor-pointer"
+                        >
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <ImageSquareIcon className="w-8 h-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    {portraitImage ? (
+                      <CoverImageControls
                         fit={portraitFit}
                         zoom={portraitZoom}
                         focalX={portraitPanX}
                         focalY={portraitPanY}
-                        interactive
-                        className="absolute inset-0"
-                        onFocalPointChange={(x, y) => {
-                          setPortraitPanX(Math.round(x));
-                          setPortraitPanY(Math.round(y));
+                        onFitChange={setPortraitFit}
+                        onZoomChange={setPortraitZoom}
+                        onFocalXChange={setPortraitPanX}
+                        onFocalYChange={setPortraitPanY}
+                        onReset={() => {
+                          setPortraitZoom(100);
+                          setPortraitPanX(50);
+                          setPortraitPanY(50);
+                          setPortraitFit('fill');
                         }}
                       />
-                      <div
-                        className="absolute inset-x-0 bottom-0 h-3/5 pointer-events-none"
-                        style={{
-                          background:
-                            'linear-gradient(to top, black 0%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.2) 80%, transparent 100%)',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        aria-label="Remove image"
-                        onClick={() => setPortraitImage('')}
-                        className="absolute top-1 right-1 z-10 rounded-full bg-red-600/80 hover:bg-red-600 text-white w-5 h-5 flex items-center justify-center transition-colors cursor-pointer"
-                      >
-                        <XIcon className="w-3 h-3" />
-                      </button>
-                    </>
-                  ) : (
-                    <ImageSquareIcon className="w-8 h-8 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  {portraitImage ? (
-                    <CoverImageControls
-                      fit={portraitFit}
-                      zoom={portraitZoom}
-                      focalX={portraitPanX}
-                      focalY={portraitPanY}
-                      onFitChange={setPortraitFit}
-                      onZoomChange={setPortraitZoom}
-                      onFocalXChange={setPortraitPanX}
-                      onFocalYChange={setPortraitPanY}
-                      onReset={() => {
-                        setPortraitZoom(100);
-                        setPortraitPanX(50);
-                        setPortraitPanY(50);
-                        setPortraitFit('fill');
-                      }}
-                    />
-                  ) : (
-                    <div className="flex flex-col justify-center gap-1.5 h-full">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleImageSelect}
-                      >
-                        <ImageSquareIcon className="w-4 h-4 mr-2 shrink-0" />
-                        Upload Image
-                      </Button>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-px bg-border" />
-                        <span className="text-xs text-muted-foreground">
-                          or
-                        </span>
-                        <div className="flex-1 h-px bg-border" />
+                    ) : (
+                      <div className="flex flex-col justify-center gap-1.5 h-full">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleImageSelect}
+                        >
+                          <ImageSquareIcon className="w-4 h-4 mr-2 shrink-0" />
+                          Upload Image
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="text-xs text-muted-foreground">
+                            or
+                          </span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setImageSearchOpen(true)}
+                        >
+                          <MagnifyingGlassIcon className="w-4 h-4 mr-2 shrink-0" />
+                          Search Online
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setImageSearchOpen(true)}
-                      >
-                        <MagnifyingGlassIcon className="w-4 h-4 mr-2 shrink-0" />
-                        Search Online
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <Label htmlFor={charNotesId}>Notes (optional)</Label>
-              <Textarea
-                id={charNotesId}
-                aria-describedby={charNotesHelpId}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
-              <p
-                id={charNotesHelpId}
-                className="mt-1.5 text-xs text-muted-foreground"
+              <div>
+                <Label htmlFor={charNotesId}>Notes (optional)</Label>
+                <Textarea
+                  id={charNotesId}
+                  aria-describedby={charNotesHelpId}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                />
+                <p
+                  id={charNotesHelpId}
+                  className="mt-1.5 text-xs text-muted-foreground"
+                >
+                  Multiple lines and Markdown are supported.
+                </p>
+              </div>
+            </DialogBody>
+            <DialogFooter className="shrink-0 border-t border-border pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
               >
-                Multiple lines and Markdown are supported.
-              </p>
-            </div>
-          </DialogBody>
-          <DialogFooter className="shrink-0 border-t border-border pt-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={editingCharacter ? handleEdit : handleAdd}>
-              {editingCharacter ? 'Save Changes' : 'Add Character'}
-            </Button>
-          </DialogFooter>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {editingCharacter ? 'Save Changes' : 'Add Character'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
       <CharacterSearchDialog

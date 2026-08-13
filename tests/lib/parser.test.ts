@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { GUIDE_PARSER_SAMPLES } from '@/lib/notationGuideData';
 import { parseComboNotation, getTokenColor, getMotionName } from '@/lib/parser';
 
 describe('parseComboNotation', () => {
@@ -1320,68 +1321,28 @@ describe('notation guide compatibility', () => {
 });
 
 describe('profile guide parser coverage', () => {
-  const commonSamples = [
-    '1+2',
-    '1 > 2',
-    '1 → 2',
-    '1 » 2',
-    '1 |> 2',
-    '1 (Land) 2',
-    '1x3',
-    '(1 > 2)x3',
-    '(3)',
-    'CH',
-    '(whiff)',
-  ];
-
   const profileCases = [
     {
       profile: 'standard' as const,
       buttons: ['L', 'M', 'H'],
-      samples: [
-        '1 2 3 4 5 6 7 8 9',
-        '236 qcf 214 qcb 623 dp 421 rdp 41236 hcf 63214 hcb',
-        '236236 2qcf 214214 2qcb 360 spd 720 1080',
-        '22 66 44 88 dd ff bb uu hcbf',
-        '[L] ]L[',
-        'L,M L xx M L~M',
-        'jc. sjc. dl. j. sj. dj. nj. cr. st. cl. f. iad tk.',
-      ],
+      samples: GUIDE_PARSER_SAMPLES.profiles.standard,
     },
     {
       profile: 'nrs' as const,
       buttons: ['1', '2', '3', '4'],
-      samples: [
-        'F B U D U/F U/B D/F D/B DF1 df1 114',
-        '1 xx 2 1~2 1,2',
-        'TH BL FL S K FB EX DELAY (DELAY)',
-        '(hold) (swap side) J JF JB AIR (AIR)',
-        'Block Grab Throw DASH BACK DASH EN AMP KB PB',
-        'NJP NJK JIP JIK RUN RC SH MD MB JI Trait Interactable',
-      ],
+      samples: GUIDE_PARSER_SAMPLES.profiles.nrs,
     },
     {
       profile: 'tekken' as const,
       buttons: ['1', '2', '3', '4'],
-      samples: [
-        'f d/f d d/b b u/b u u/f F D/F D D/B B U/B U U/F',
-        'df db uf ub DF DB UF UB N dp ff fff bb dash',
-        '1 ► 2,3 1* 2*(max) f<1 1:2 1~2',
-        '(...) (Switch) 1_2 1=2',
-        'WS FC BT WR SS SSL SSR SWL SWR iWS iWR',
-        'cc cd LP AIR any H. R.',
-        'During Heat Heat Burst Heat Smash Rage Art',
-        'W! WB! WBl! WBo! F! FBl! BB! S!',
-        'WGF TGF EWGF OTGF ETGF',
-        'FD/FT FD/FA FU/FT FU/FA {1+2}',
-      ],
+      samples: GUIDE_PARSER_SAMPLES.profiles.tekken,
     },
   ];
 
   it.each(profileCases)(
     'parses every $profile guide form without unknown tokens',
     ({ profile, buttons, samples }) => {
-      for (const sample of [...commonSamples, ...samples]) {
+      for (const sample of [...GUIDE_PARSER_SAMPLES.common, ...samples]) {
         const tokens = parseComboNotation(sample, buttons, { profile });
         const unknownTokens = tokens.filter((token) => token.type === 'unknown');
 

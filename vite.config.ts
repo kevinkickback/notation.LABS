@@ -33,6 +33,45 @@ export default defineConfig(() => {
         '@': resolve(projectRoot, 'src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            icons: ['@phosphor-icons/react'],
+            markdown: ['react-markdown'],
+            storage: ['dexie', 'dexie-react-hooks'],
+            ui: [
+              '@radix-ui/react-alert-dialog',
+              '@radix-ui/react-checkbox',
+              '@radix-ui/react-dialog',
+              '@radix-ui/react-dropdown-menu',
+              '@radix-ui/react-label',
+              '@radix-ui/react-radio-group',
+              '@radix-ui/react-scroll-area',
+              '@radix-ui/react-select',
+              '@radix-ui/react-separator',
+              '@radix-ui/react-slider',
+              '@radix-ui/react-slot',
+              '@radix-ui/react-switch',
+              '@radix-ui/react-tabs',
+            ],
+            vendor: [
+              '@dnd-kit/core',
+              '@dnd-kit/sortable',
+              '@dnd-kit/utilities',
+              'class-variance-authority',
+              'clsx',
+              'jszip',
+              'react-error-boundary',
+              'sonner',
+              'tailwind-merge',
+              'zod',
+              'zustand',
+            ],
+          },
+        },
+      },
+    },
     server: {
       proxy: {
         '/api/igdb': 'http://localhost:3002',

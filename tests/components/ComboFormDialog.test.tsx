@@ -213,9 +213,8 @@ describe('ComboFormDialog', () => {
     );
   });
 
-  it('shows validation error when submitting without name and notation', async () => {
+  it('uses native validation when submitting without name and notation', async () => {
     const user = userEvent.setup();
-    const { toast } = await import('sonner');
 
     render(
       <ComboFormDialog
@@ -229,7 +228,12 @@ describe('ComboFormDialog', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /add combo/i }));
-    expect(toast.error).toHaveBeenCalledWith('Name and notation are required');
+    expect(
+      (screen.getByLabelText('Combo Name') as HTMLInputElement).checkValidity(),
+    ).toBe(false);
+    expect(
+      (screen.getByLabelText('Notation') as HTMLTextAreaElement).checkValidity(),
+    ).toBe(false);
   });
 
   it('calls onOpenChange(false) when Cancel is clicked', async () => {

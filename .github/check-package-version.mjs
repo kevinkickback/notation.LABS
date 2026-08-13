@@ -22,4 +22,19 @@ if (mismatches.length > 0) {
   throw new Error(`Version metadata does not match ${expectedVersion}:\n${details}`);
 }
 
+if (tag) {
+  const changelogUrl = new URL(`../changelogs/${tag}.md`, import.meta.url);
+  let changelog;
+
+  try {
+    changelog = await readFile(changelogUrl, "utf8");
+  } catch {
+    throw new Error(`Missing release changelog: changelogs/${tag}.md`);
+  }
+
+  if (!changelog.trim()) {
+    throw new Error(`Release changelog is empty: changelogs/${tag}.md`);
+  }
+}
+
 console.log(`Version metadata is synchronized at ${expectedVersion}${tag ? ` (${tag})` : ""}.`);

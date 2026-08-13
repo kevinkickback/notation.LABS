@@ -8,7 +8,7 @@ on:
 
 jobs:
   check:
-    name: Lint, type-check, and test
+    name: Audit, lint, type-check, and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,9 +19,26 @@ jobs:
       - run: npm ci
       - name: Check version metadata
         run: npm run version:check
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint
         run: npx biome ci .
       - name: Type-check
         run: npx tsc -b
-      - name: Test
-        run: npm run test
+      - name: Test with coverage
+        run: npm run test:coverage
+
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Run browser tests
+        run: npm run test:e2e

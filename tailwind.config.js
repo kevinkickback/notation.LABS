@@ -7,13 +7,7 @@ export default {
       center: true,
       padding: '2rem',
     },
-    extend: {
-      screens: {
-        coarse: { raw: '(pointer: coarse)' },
-        fine: { raw: '(pointer: fine)' },
-        pwa: { raw: '(display-mode: standalone)' },
-      },
-    },
+    extend: {},
   },
   darkMode: ['selector', '[data-appearance="dark"]'],
 };

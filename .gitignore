@@ -27,9 +27,7 @@ coverage/
 playwright-report/
 test-results/
 
-# Copilot instructions
-.github/copilot-instructions.md
-docs/cicd-workflow.md
+# Local planning notes
 docs/TODO.md
 
 # Misc

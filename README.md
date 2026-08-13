@@ -158,18 +158,11 @@ npm run dev:web
   `EX`, `AMP`, `MB`, MK1 input labels, jumps, air states, side swaps, traits,
   and Kameo inputs are recognized. For example, `DF1` means Down, Forward,
   then button 1, while `D/F` means a down-forward diagonal.
-- **Tekken** — `1`–`4` are attack buttons, lowercase directions are taps,
-  uppercase directions are holds, and diagonals remain one input. For example,
-  `d/f` is a tap diagonal and `D/F` is a held diagonal. Neutral (`N`), common
-  movement and state abbreviations, held buttons (`*` and `*(max)`), stage
-  interactions, ground positions, and timing separators are also supported.
-  Tekken 7-style notation can use spaces within moves and commas between them,
-  including screw (`S!`). In Tekken 8-style notation, `►`, `>`, `→`, or `»`
-  marks move boundaries and commas remain within moves or strings. Standardized
-  Heat, Rage, God Fist, and side-switch terms are recognized, while custom
-  character stances remain readable as authored text. All four grounded
-  position/facing forms (`FD/FT`, `FD/FA`, `FU/FT`, and `FU/FA`) and
-  throw-escape notation such as `{1+2}` are supported.
+- **Tekken** — `1`–`4` are attack buttons; lowercase directions are taps,
+  uppercase directions are holds, and diagonals remain one input (`d/f` versus
+  `D/F`). Supports common movement, state, ground, timing, Tekken 7/8 separator,
+  Heat, Rage, side-switch, screw (`S!`), and throw-escape notation. Custom
+  character stances remain readable as authored text.
 
 Choose a style when adding or editing a game. Existing games that used the
 older **NRS / Tekken** option retain Tekken-compatible behavior; NRS players

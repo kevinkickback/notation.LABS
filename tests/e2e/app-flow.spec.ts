@@ -61,6 +61,26 @@ async function navigateToComboView(page: Page): Promise<void> {
 }
 
 test.describe('Core E2E Flows', () => {
+  test('keeps the game form usable at the minimum desktop window size', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto('/');
+    await page
+      .getByRole('button', { name: /add your first game|add game/i })
+      .first()
+      .click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole('button', { name: /^add game$/i })).toBeVisible();
+
+    const box = await dialog.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(600);
+  });
+
   test('creates game, character, and combo then filters combos', async ({
     page,
   }) => {

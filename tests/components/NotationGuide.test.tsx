@@ -70,9 +70,10 @@ describe('NotationGuide', () => {
       screen.getByText('Hold the preceding button to maximum level'),
     ).not.toBeNull();
     expect(
-      screen.getByText(/Tekken 8-style move boundary/i),
+      screen.getByText(/Community-standard Tekken 8 move boundary/i),
     ).not.toBeNull();
-    expect(screen.getByText('► / > / → / »')).not.toBeNull();
+    expect(screen.getAllByText('►').length).toBeGreaterThan(0);
+    expect(screen.getByText('> / → / »')).not.toBeNull();
     expect(
       screen.getByText(/Tekken 7-style move boundary/i),
     ).not.toBeNull();

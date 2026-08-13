@@ -60,6 +60,23 @@ function normalizeUrl(raw: string): string {
   return `https://${trimmed}`;
 }
 
+function getSafeResourceUrl(raw: string): string | null {
+  const normalized = normalizeUrl(raw);
+  try {
+    const url = new URL(normalized);
+    if (
+      (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 export const CharacterInfoCard = forwardRef<
   CharacterInfoCardRef,
   CharacterInfoCardProps
@@ -77,6 +94,7 @@ export const CharacterInfoCard = forwardRef<
   const labelInputId = useId();
   const editUrlInputId = useId();
   const editLabelInputId = useId();
+  const contentId = useId();
 
   const cancelAdd = useCallback(() => {
     setShowAddForm(false);
@@ -100,10 +118,8 @@ export const CharacterInfoCard = forwardRef<
     async (id: string) => {
       const raw = editUrlDraft.trim();
       if (!raw) return;
-      const normalized = normalizeUrl(raw);
-      try {
-        new URL(normalized);
-      } catch {
+      const normalized = getSafeResourceUrl(raw);
+      if (!normalized) {
         toast.error('Invalid URL');
         return;
       }
@@ -135,10 +151,8 @@ export const CharacterInfoCard = forwardRef<
     const raw = urlDraft.trim();
     if (!raw) return;
 
-    const normalized = normalizeUrl(raw);
-    try {
-      new URL(normalized);
-    } catch {
+    const normalized = getSafeResourceUrl(raw);
+    if (!normalized) {
       toast.error('Invalid URL');
       return;
     }
@@ -183,6 +197,8 @@ export const CharacterInfoCard = forwardRef<
         <button
           type="button"
           onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={contentId}
           className="flex-1 min-w-0 flex items-center justify-between px-1 py-1 rounded hover:bg-muted/50 transition-colors"
         >
           <span className="flex items-center gap-2 text-base font-semibold text-foreground">
@@ -201,7 +217,7 @@ export const CharacterInfoCard = forwardRef<
       </div>
 
       {isOpen && (
-        <div className="bg-muted/30 p-3 flex flex-col gap-3">
+        <div id={contentId} className="bg-muted/30 p-3 flex flex-col gap-3">
           {/* Notes inner card */}
           <div className="border border-border rounded-md overflow-hidden bg-card">
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
