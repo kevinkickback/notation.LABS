@@ -8,7 +8,7 @@ on:
 
 jobs:
   check:
-    name: Audit, lint, type-check, and test
+    name: Lint, type-check, and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
