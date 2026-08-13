@@ -1056,6 +1056,175 @@ describe('parseComboNotation', () => {
   });
 });
 
+describe('notation guide compatibility', () => {
+  const standardButtons = ['L', 'M', 'H'];
+
+  it.each([
+    ['L > M', '>'],
+    ['L |> M', '|>'],
+    ['L (Land) M', '|>'],
+    ['L , M', ','],
+    ['L ~ M', '~'],
+    ['L + M', '+'],
+    ['L xx M', 'xx'],
+  ])('parses the documented separator in %s', (input, separator) => {
+    const tokens = parseComboNotation(input, standardButtons);
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'separator', value: separator }),
+    );
+  });
+
+  it.each([
+    ['qcf.', '236', '236'],
+    ['qcb.', '214', '214'],
+    ['dp.', '623', '623'],
+    ['rdp.', '421', '421'],
+    ['hcf.', '41236', '41236'],
+    ['hcb.', '63214', '63214'],
+    ['2qcf.', '236236', '236236'],
+    ['2qcb.', '214214', '214214'],
+    ['dd.', '22', '22'],
+  ])(
+    'treats documented motion forms %s and %s as %s',
+    (alias, numeric, expected) => {
+      for (const input of [`${alias}H`, `${numeric}H`]) {
+        expect(parseComboNotation(input, standardButtons)).toContainEqual(
+          expect.objectContaining({ type: 'motion', value: expected }),
+        );
+      }
+    },
+  );
+
+  it('supports both documented forward and back dash forms', () => {
+    expect(parseComboNotation('dash')).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: 'dash' }),
+    );
+    expect(parseComboNotation('66')).toContainEqual(
+      expect.objectContaining({ type: 'motion', value: '66' }),
+    );
+    for (const input of ['back dash', '44']) {
+      expect(parseComboNotation(input)).toContainEqual(
+        expect.objectContaining({ type: 'motion', value: '44' }),
+      );
+    }
+  });
+
+  it('parses every documented numpad direction in Standard mode', () => {
+    for (const direction of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
+      expect(parseComboNotation(direction)).toEqual([
+        expect.objectContaining({ type: 'direction', value: direction }),
+      ]);
+    }
+  });
+
+  it.each([
+    ['st.', 'standing', 'st.'],
+    ['cr.', 'crouching', 'cr.'],
+    ['j.', 'jumping', 'j.'],
+    ['dj.', 'double jump', 'dj.'],
+    ['sj.', 'super jump', 'sj.'],
+    ['cl.', 'close', 'cl.'],
+    ['f.', 'far', 'f.'],
+  ])(
+    'treats documented position forms %s and %s as %s',
+    (abbreviation, fullName, expected) => {
+      for (const input of [`${abbreviation}H`, `${fullName} H`]) {
+        expect(parseComboNotation(input, standardButtons)).toContainEqual(
+          expect.objectContaining({ type: 'modifier', value: expected }),
+        );
+      }
+    },
+  );
+
+  it.each([
+    ['jc.', 'jump cancel', 'jc.'],
+    ['sjc.', 'super jump cancel', 'sjc.'],
+    ['dl.', 'delay', 'dl.'],
+  ])(
+    'treats documented action forms %s and %s as %s',
+    (abbreviation, fullName, expected) => {
+      for (const input of [`${abbreviation}H`, `${fullName} H`]) {
+        expect(parseComboNotation(input, standardButtons)).toContainEqual(
+          expect.objectContaining({ type: 'modifier', value: expected }),
+        );
+      }
+    },
+  );
+
+  it.each([
+    ['(whiff)', '(whiff)'],
+    ['CH', 'CH'],
+    ['[X]', '[X]'],
+    ['(N)', '(N)'],
+    ['H(3)', '(3)'],
+  ])('preserves documented annotation %s', (input, expected) => {
+    expect(parseComboNotation(input, standardButtons)).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: expected }),
+    );
+  });
+
+  it.each([
+    ['(L > M)x3', { repeatCount: 3 }],
+    ['(L > M) x3', { repeatCount: 3 }],
+    ['(L > M)xN', { repeatLabel: 'N' }],
+    ['(L > M) xN', { repeatLabel: 'N' }],
+  ])('parses documented repeat form %s without trailing tokens', (input, repeat) => {
+    const tokens = parseComboNotation(input, standardButtons);
+    expect(tokens[tokens.length - 1]).toMatchObject({
+      type: 'repeat-end',
+      ...repeat,
+    });
+    expect(tokens.some((token) => token.type === 'unknown')).toBe(false);
+  });
+
+  it.each([
+    'cr.L , st.M , qcf.H',
+    '2L > 5M > 236H',
+    'cr.L , 2M > qcf.H',
+    'CH st.H , dash , st.M xx qcf.H',
+    '(5L > 2L)x3 > 5M > 623H',
+    'j.LLL > dj.MM |> 2M > 236L+M',
+  ])('parses guide example without unknown tokens: %s', (input) => {
+    const tokens = parseComboNotation(input, standardButtons);
+    expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+  });
+
+  it('collapses the guide repeated-button example into repeat groups', () => {
+    const tokens = parseComboNotation(
+      'j.LLL > dj.MM |> 2M > 236L+M',
+      standardButtons,
+    );
+    expect(
+      tokens
+        .filter((token) => token.type === 'repeat-end')
+        .map((token) => token.repeatCount),
+    ).toEqual([3, 2]);
+  });
+
+  it('supports repeated multi-character buttons without matching inside words', () => {
+    const repeated = parseComboNotation('LPLP', ['LP']);
+    expect(repeated[repeated.length - 1]).toMatchObject({
+      type: 'repeat-end',
+      repeatCount: 2,
+    });
+    expect(parseComboNotation('HELPHELPER', ['HELP'])).toEqual([
+      expect.objectContaining({ type: 'unknown', value: 'HELPHELPER' }),
+    ]);
+  });
+
+  it('applies the documented input-mode distinction', () => {
+    const buttonNumberMode = { inputType: 'button-numbers' as const };
+    expect(
+      parseComboNotation('236', ['1', '2', '3', '4'], buttonNumberMode).some(
+        (token) => token.type === 'motion',
+      ),
+    ).toBe(false);
+    expect(
+      parseComboNotation('qcf.', ['1', '2', '3', '4'], buttonNumberMode),
+    ).toContainEqual(expect.objectContaining({ type: 'motion', value: '236' }));
+  });
+});
+
 describe('getTokenColor', () => {
   const colors = {
     direction: '#ff0000',

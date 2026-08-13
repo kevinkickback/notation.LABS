@@ -42,12 +42,18 @@ jobs:
           prerelease: false
 
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.name }})
     needs: create-release
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
+          - name: Linux AppImage and Debian
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -60,3 +66,7 @@ jobs:
         run: npm run build:app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify Debian package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: compgen -G 'release/*.deb' > /dev/null

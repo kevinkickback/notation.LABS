@@ -60,7 +60,35 @@ describe('GameFormDialog', () => {
     expect(screen.getByText('Game Profile')).not.toBeNull();
     expect(screen.getByText('Notation & Buttons')).not.toBeNull();
     expect(screen.getByText('Notes')).not.toBeNull();
-    expect(screen.getByLabelText('Game notes')).not.toBeNull();
+    const notes = screen.getByLabelText('Game notes');
+    expect(notes).not.toBeNull();
+    expect(notes.getAttribute('aria-describedby')).not.toBeNull();
+    expect(
+      screen.getByText(/multiple lines and markdown are supported/i),
+    ).not.toBeNull();
+  });
+
+  it('uses the accent state for the selected input type', async () => {
+    const user = userEvent.setup();
+    render(
+      <GameFormDialog
+        open
+        editingGame={null}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const standard = screen.getByRole('button', { name: 'Standard' });
+    const numbered = screen.getByRole('button', { name: 'NRS / Tekken' });
+
+    expect(standard.getAttribute('aria-pressed')).toBe('true');
+    expect(standard.className).toContain('bg-primary');
+
+    await user.click(numbered);
+
+    expect(numbered.getAttribute('aria-pressed')).toBe('true');
+    expect(numbered.className).toContain('bg-primary');
+    expect(standard.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('persists free crop mode with the shared cover controls', async () => {

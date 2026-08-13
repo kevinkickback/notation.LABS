@@ -87,8 +87,14 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ### Option 2: Download Release (Recommended)
 
-1. Download the latest installer or portable `.exe` from the [Releases](https://github.com/kevinkickback/notation.LABS/releases/latest) page
-2. Run the installer or open the app
+1. Download the package for your platform from the [Releases](https://github.com/kevinkickback/notation.LABS/releases/latest) page:
+
+   - Windows: installer or portable `.exe`
+   - macOS: `.dmg`
+   - Debian, Ubuntu, or Linux Mint: `.deb`
+   - Other Linux distributions: `.AppImage`
+
+2. Install or open the downloaded app
 
 ### Option 3: Build from Source
 
@@ -109,6 +115,8 @@ npm run dev:web
 | `\|>` / `(Land)` | Indicate that the player must land at that point in the sequence |
 | `,` | Link the previous move into the following move |
 | `~` | Cancel the previous special into a follow-up |
+| `+` | Press buttons simultaneously |
+| `xx` | Cancel the previous move into a special move |
 | `dl.` | Delay the following move |
 | `(whiff)` | The move must whiff (not hit) |
 | `cl.` | Close |
@@ -123,7 +131,7 @@ npm run dev:web
 | `dash` / `66` | Forward Dash |
 | `CH` | Counter Hit |
 | `[X]` | Hold input |
-| `(sequence) xN` | Repeat sequence N amount of times |
+| `(sequence)xN` / `(sequence) xN` | Repeat sequence N amount of times |
 | `(N)` | Hit N of a move or move must deal N amount of hits |
 | `qcf.` / `236` | Quarter Circle Forward |
 | `qcb.` / `214` | Quarter Circle Back |
@@ -133,6 +141,8 @@ npm run dev:web
 | `hcb.` / `63214` | Half Circle Back |
 | `2qcf.` / `236236` | Double Quarter Circle Forward |
 | `2qcb.` / `214214` | Double Quarter Circle Back |
+
+Numeric directions and motions apply to the Standard input type. In NRS / Tekken mode, `1`–`4` are attack buttons; use aliases such as `qcf.` or `dp.` for motions.
 
 ## 📄 License
 

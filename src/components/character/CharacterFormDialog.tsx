@@ -52,6 +52,7 @@ export function CharacterFormDialog({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const charNameId = useId();
   const charNotesId = useId();
+  const charNotesHelpId = useId();
 
   useEffect(() => {
     if (open && editingCharacter) {
@@ -283,10 +284,17 @@ export function CharacterFormDialog({
               <Label htmlFor={charNotesId}>Notes (optional)</Label>
               <Textarea
                 id={charNotesId}
+                aria-describedby={charNotesHelpId}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
               />
+              <p
+                id={charNotesHelpId}
+                className="mt-1.5 text-xs text-muted-foreground"
+              >
+                Multiple lines and Markdown are supported.
+              </p>
             </div>
           </DialogBody>
           <DialogFooter className="shrink-0 border-t border-border pt-4">

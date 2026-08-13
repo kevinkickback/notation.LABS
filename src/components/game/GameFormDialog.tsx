@@ -77,6 +77,7 @@ export function GameFormDialog({
   const nameInputId = `${formId}-name`;
   const buttonsInputId = `${formId}-buttons`;
   const notesInputId = `${formId}-notes`;
+  const notesHelpId = `${formId}-notes-help`;
 
   useEffect(() => {
     if (open && editingGame) {
@@ -248,7 +249,7 @@ export function GameFormDialog({
             <Card className="gap-3 py-4 shadow-none">
               <CardHeader className="gap-1 px-4">
                 <CardTitle className="text-sm">Game Profile</CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription id={notesHelpId} className="text-xs">
                   Set the name and artwork shown throughout the app.
                 </CardDescription>
               </CardHeader>
@@ -458,7 +459,8 @@ export function GameFormDialog({
               <CardHeader className="gap-1 px-4">
                 <CardTitle className="text-sm">Notes</CardTitle>
                 <CardDescription className="text-xs">
-                  Add optional context or reminders about this game.
+                  Add optional context or reminders about this game. Multiple
+                  lines and Markdown are supported.
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-4">
@@ -467,6 +469,7 @@ export function GameFormDialog({
                 </Label>
                 <Textarea
                   id={notesInputId}
+                  aria-describedby={notesHelpId}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}

@@ -1,7 +1,7 @@
 import type { ComboToken } from './types';
 
 // Bump when parser behavior changes and stored combo tokens need refreshing.
-export const COMBO_NOTATION_PARSER_VERSION = 3;
+export const COMBO_NOTATION_PARSER_VERSION = 4;
 
 // Ordered from longest to shortest semantic motions so numeric tokens prefer
 // complete motion matches before falling back to individual directions.
@@ -341,7 +341,36 @@ export function parseComboNotation(
 
     const prevChar = start > 0 ? inputText[start - 1] : undefined;
     const nextChar = inputText[start + buttonLength];
-    return !isAsciiLetter(prevChar) && !isAsciiLetter(nextChar);
+    if (!isAsciiLetter(prevChar) && !isAsciiLetter(nextChar)) {
+      return true;
+    }
+
+    // Allow adjacent repeats of the same configured button (LLL, LPLP) while
+    // still rejecting button-shaped fragments inside words such as ENDER.
+    const normalizedButton = buttonText.toLowerCase();
+    let runStart = start;
+    let runEnd = start + buttonLength;
+
+    while (
+      runStart >= buttonLength &&
+      inputText.substring(runStart - buttonLength, runStart).toLowerCase() ===
+        normalizedButton
+    ) {
+      runStart -= buttonLength;
+    }
+    while (
+      inputText.substring(runEnd, runEnd + buttonLength).toLowerCase() ===
+      normalizedButton
+    ) {
+      runEnd += buttonLength;
+    }
+
+    const isRepeatedRun = runEnd - runStart > buttonLength;
+    return (
+      isRepeatedRun &&
+      !isAsciiLetter(inputText[runStart - 1]) &&
+      !isAsciiLetter(inputText[runEnd])
+    );
   };
 
   const hasLetterBoundaryForWordToken = (
@@ -499,8 +528,8 @@ export function parseComboNotation(
     if (input[i] === '(') {
       const closeParenIndex = findMatchingParen(i);
       if (closeParenIndex !== -1) {
-        const afterParen = input.substring(closeParenIndex + 1).trimStart();
-        const repeatMatch = afterParen.match(/^[xX*](\d+|N)/i);
+        const afterParen = input.substring(closeParenIndex + 1);
+        const repeatMatch = afterParen.match(/^\s*[xX*](\d+|N)/i);
 
         if (repeatMatch) {
           const repeatValue = repeatMatch[1];
@@ -511,11 +540,7 @@ export function parseComboNotation(
           const contentEnd = closeParenIndex;
           const content = input.substring(contentStart, contentEnd);
           const fullMatchLength =
-            closeParenIndex -
-            i +
-            1 +
-            repeatMatch[0].length +
-            (afterParen.length - afterParen.trimStart().length);
+            closeParenIndex - i + 1 + repeatMatch[0].length;
 
           tokens.push({
             type: 'repeat-start',

@@ -1,6 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -43,5 +48,21 @@ describe('Dialog', () => {
 
     expect(dialog.className).toContain('overflow-hidden');
     expect(dialog.className).not.toContain('overflow-y-auto');
+  });
+});
+
+describe('AlertDialog', () => {
+  it('keeps confirmation content within the viewport', () => {
+    render(
+      <AlertDialog open>
+        <AlertDialogContent>
+          <AlertDialogTitle>Viewport-safe confirmation</AlertDialogTitle>
+        </AlertDialogContent>
+      </AlertDialog>,
+    );
+
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog.className).toContain('max-h-[calc(100dvh-1rem)]');
+    expect(dialog.className).toContain('overflow-y-auto');
   });
 });

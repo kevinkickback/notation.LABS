@@ -2,6 +2,12 @@
   "name": "notation-labs",
   "private": true,
   "version": "1.7.0",
+  "description": "A combo tracker for fighting game players.",
+  "homepage": "https://github.com/kevinkickback/notation.LABS",
+  "author": {
+    "name": "KevinKickback",
+    "url": "https://github.com/kevinkickback"
+  },
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -138,7 +144,19 @@
     },
     "linux": {
       "icon": "build/icon.png",
-      "target": "AppImage"
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Game",
+      "synopsis": "A combo tracker for fighting game players",
+      "description": "Build, visualize, organize, and share fighting game combos."
+    },
+    "deb": {
+      "artifactName": "Notation-Labs-${version}-${arch}.${ext}",
+      "packageCategory": "games",
+      "priority": "optional",
+      "maintainer": "KevinKickback <kevinkickback@users.noreply.github.com>"
     }
   },
   "allowScripts": {

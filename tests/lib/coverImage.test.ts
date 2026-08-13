@@ -3,6 +3,7 @@ import {
   getCoverImageSizePercent,
   getDraggedFocalPoint,
 } from '@/lib/coverImage';
+import { characterSchema, gameSchema } from '@/lib/schemas';
 
 describe('getCoverImageSizePercent', () => {
   it('expands a landscape image enough to fill a portrait frame', () => {
@@ -38,5 +39,35 @@ describe('getDraggedFocalPoint', () => {
 
   it('does not move an axis with no available travel', () => {
     expect(getDraggedFocalPoint(35, 50, 0)).toBe(35);
+  });
+});
+
+describe('cover image schema fields', () => {
+  const baseGame = {
+    id: 'game-1',
+    name: 'Street Fighter 6',
+    buttonLayout: ['L', 'M', 'H'],
+    createdAt: 1,
+    updatedAt: 1,
+  };
+
+  it('accepts fill and free modes for saved games and characters', () => {
+    expect(gameSchema.parse({ ...baseGame, coverFit: 'free' }).coverFit).toBe(
+      'free',
+    );
+    expect(
+      characterSchema.parse({
+        id: 'character-1',
+        gameId: baseGame.id,
+        name: 'Ryu',
+        portraitFit: 'fill',
+        createdAt: 1,
+        updatedAt: 1,
+      }).portraitFit,
+    ).toBe('fill');
+  });
+
+  it('rejects unsupported cover modes', () => {
+    expect(() => gameSchema.parse({ ...baseGame, coverFit: 'stretch' })).toThrow();
   });
 });

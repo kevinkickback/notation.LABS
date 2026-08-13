@@ -127,6 +127,7 @@ export function ComboFormDialog({
   const comboTagsId = useId();
   const comboDemoUrlId = useId();
   const comboDescriptionId = useId();
+  const comboDescriptionHelpId = useId();
   const tagSuggestionsId = useId();
 
   const parsedNotationTokens = useMemo(
@@ -614,11 +615,18 @@ export function ComboFormDialog({
               <Label htmlFor={comboDescriptionId}>Description</Label>
               <Textarea
                 id={comboDescriptionId}
+                aria-describedby={comboDescriptionHelpId}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 placeholder="Works in the corner after any starter..."
               />
+              <p
+                id={comboDescriptionHelpId}
+                className="mt-1.5 text-xs text-muted-foreground"
+              >
+                Multiple lines and Markdown are supported.
+              </p>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-border p-3">

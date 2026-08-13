@@ -37,7 +37,7 @@ export function NotationGuide({
             Combo Notation Guide
           </DialogTitle>
           <DialogDescription>
-            Complete reference for all supported notation types and syntax
+            Reference for common notation supported by Notation Labs
           </DialogDescription>
         </DialogHeader>
 
@@ -100,6 +100,11 @@ export function NotationGuide({
                     index={4}
                     notation="+"
                     meaning="Press buttons simultaneously"
+                  />
+                  <NotationRow
+                    index={5}
+                    notation="xx"
+                    meaning="Cancel the previous move into a special move"
                   />
                 </div>
               </div>
@@ -205,6 +210,11 @@ export function NotationGuide({
                 <p className="text-sm text-muted-foreground">
                   5 = Neutral position (no directional input)
                 </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Numeric directions and motions apply to Standard input mode.
+                  In NRS / Tekken mode, 1–4 are attack buttons; use aliases such
+                  as qcf. or dp. for motions.
+                </p>
               </div>
             </TabsContent>
 
@@ -281,7 +291,7 @@ export function NotationGuide({
                   <NotationRow index={5} notation="[X]" meaning="Hold input" />
                   <NotationRow
                     index={6}
-                    notation="(sequence)xN"
+                    notation="(sequence)xN or (sequence) xN"
                     meaning="Repeat sequence N amount of times"
                   />
                   <NotationRow
