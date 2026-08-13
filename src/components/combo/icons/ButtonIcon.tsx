@@ -3,6 +3,7 @@ import type { IconStyle } from '@/lib/types';
 
 interface ButtonIconProps {
   button: string;
+  label?: string;
   size?: number;
   color?: string;
   className?: string;
@@ -20,6 +21,7 @@ function resolveShape(
 
 export function ButtonIcon({
   button,
+  label,
   size = 36,
   color = 'currentColor',
   className = '',
@@ -38,7 +40,7 @@ export function ButtonIcon({
 
   return (
     <svg {...svgProps} role="img" aria-labelledby={titleId}>
-      <title id={titleId}>{`Button ${button}`}</title>
+      <title id={titleId}>{label ?? `Button ${button}`}</title>
       {shape === 'circle' && (
         <>
           <circle

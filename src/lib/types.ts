@@ -12,6 +12,7 @@ export type {
   IconStyle,
   MotionIconStyle,
   NotationColors,
+  NotationProfile,
   TokenType,
   UserSettings,
 } from './schemas';

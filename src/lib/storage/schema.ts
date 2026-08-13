@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { migrateLegacyNotationProfile } from '../notationProfiles';
 import type { Character, Combo, Game, UserSettings } from '../types';
 
 export interface DemoVideo {
@@ -71,3 +72,19 @@ db.version(5).stores({
   settings: 'id',
   demoVideos: 'id',
 });
+
+db.version(6)
+  .stores({
+    games: 'id, name, createdAt',
+    characters: 'id, gameId, name, createdAt',
+    combos:
+      'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder',
+    settings: 'id',
+    demoVideos: 'id',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('games')
+      .toCollection()
+      .modify((game: Game) => migrateLegacyNotationProfile(game)),
+  );

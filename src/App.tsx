@@ -106,7 +106,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Header />
+      <Header activeGame={selectedGame} />
       <BreadcrumbBar
         selectedGame={selectedGame}
         selectedCharacter={selectedCharacter}

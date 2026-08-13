@@ -18,6 +18,7 @@ export const comboTokenSchema = z.object({
 });
 
 export const coverImageFitSchema = z.enum(['fill', 'free']);
+export const notationProfileSchema = z.enum(['standard', 'nrs', 'tekken']);
 
 export const gameSchema = z.object({
   id: z.string(),
@@ -30,6 +31,8 @@ export const gameSchema = z.object({
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
+  notationProfile: notationProfileSchema.optional(),
+  // Accepted while upgrading databases and importing older backups.
   inputType: z.enum(['numpad', 'button-numbers']).optional(),
   commaStyle: z.enum(['hidden', 'separator']).optional(),
   createdAt: z.number(),
@@ -143,6 +146,7 @@ export type TokenType = ComboToken['type'];
 export type Game = z.infer<typeof gameSchema>;
 export type CharacterLink = z.infer<typeof characterLinkSchema>;
 export type CoverImageFit = z.infer<typeof coverImageFitSchema>;
+export type NotationProfile = z.infer<typeof notationProfileSchema>;
 export type Character = z.infer<typeof characterSchema>;
 export type Combo = z.infer<typeof comboSchema>;
 export type UserSettings = z.infer<typeof settingsSchema>;

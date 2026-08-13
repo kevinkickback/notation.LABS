@@ -68,7 +68,7 @@ describe('GameFormDialog', () => {
     ).not.toBeNull();
   });
 
-  it('uses the accent state for the selected input type', async () => {
+  it('uses accessible accent states and presets for notation styles', async () => {
     const user = userEvent.setup();
     render(
       <GameFormDialog
@@ -78,17 +78,38 @@ describe('GameFormDialog', () => {
       />,
     );
 
-    const standard = screen.getByRole('button', { name: 'Standard' });
-    const numbered = screen.getByRole('button', { name: 'NRS / Tekken' });
+    const standard = screen.getByRole('button', {
+      name: 'Standard / Numpad',
+    });
+    const nrs = screen.getByRole('button', { name: 'NRS' });
+    const tekken = screen.getByRole('button', { name: 'Tekken' });
 
+    expect(screen.getByText('Notation Style')).not.toBeNull();
     expect(standard.getAttribute('aria-pressed')).toBe('true');
     expect(standard.className).toContain('bg-primary');
+    expect(screen.queryByText('2L > 5M > 236H')).toBeNull();
+    expect(screen.queryByText('1 4 1 D B 2 B (hold)')).toBeNull();
+    expect(screen.queryByText('WS1,2 ► uf1 ► f2,3 ► ff3+4')).toBeNull();
 
-    await user.click(numbered);
+    await user.click(nrs);
 
-    expect(numbered.getAttribute('aria-pressed')).toBe('true');
-    expect(numbered.className).toContain('bg-primary');
+    expect(
+      screen.getByText(
+        'For Mortal Kombat, Injustice, and similar games. Numbers are attack buttons; directions use letters.',
+      ),
+    ).not.toBeNull();
+    expect(nrs.getAttribute('aria-pressed')).toBe('true');
+    expect(nrs.className).toContain('bg-primary');
     expect(standard.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByLabelText(/button layout/i).getAttribute('value')).toBe(
+      '1, 2, 3, 4',
+    );
+
+    await user.click(tekken);
+    expect(tekken.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByLabelText(/button layout/i).getAttribute('value')).toBe(
+      '1, 2, 3, 4',
+    );
   });
 
   it('persists free crop mode with the shared cover controls', async () => {

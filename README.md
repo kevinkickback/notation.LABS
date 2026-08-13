@@ -19,7 +19,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ## ✨ Features
 
-- **Various Notation Styles** — Fully supports numpad (`236H`, `623K`), traditional (`qcf`, `dp`), and full (`standing Light Punch`, `quarter circle forward`) notations
+- **Community Notation Styles** — Supports Standard / Numpad, NRS, and Tekken notation with style-aware parsing and icons
 - **Dual Display Modes** — Toggle between custom colored text and visual icon display for combos
 - **Beautiful Organization** — Organize your combos by game and character with cover images
 - **Import / Export** — Backup, restore, and share your entire library or individual combos as JSON
@@ -111,7 +111,7 @@ npm run dev:web
 
 | Notation | Meaning |
 |----------|---------|
-| `>` | Proceed from the previous move to the following move |
+| `>` / `→` / `»` | Proceed from the previous move to the following move |
 | `\|>` / `(Land)` | Indicate that the player must land at that point in the sequence |
 | `,` | Link the previous move into the following move |
 | `~` | Cancel the previous special into a follow-up |
@@ -122,16 +122,19 @@ npm run dev:web
 | `cl.` | Close |
 | `f.` | Far |
 | `j.` | Jumping/Aerial |
+| `nj.` | Neutral Jump |
 | `dj.` | Double Jump |
 | `sj.` | Super Jump |
+| `iad` | Instant Air Dash |
 | `jc.` | Jump Cancel |
 | `sjc.` | Super Jump Cancel |
 | `dd.` / `22` | Double Down |
 | `back dash` / `44` | Back Dash |
 | `dash` / `66` | Forward Dash |
 | `CH` | Counter Hit |
-| `[X]` | Hold input |
-| `(sequence)xN` / `(sequence) xN` | Repeat sequence N amount of times |
+| `[X]` | Hold or charge input X |
+| `]X[` | Release input X |
+| `XxN` / `(sequence)xN` | Repeat an input or sequence N times |
 | `(N)` | Hit N of a move or move must deal N amount of hits |
 | `qcf.` / `236` | Quarter Circle Forward |
 | `qcb.` / `214` | Quarter Circle Back |
@@ -139,10 +142,45 @@ npm run dev:web
 | `rdp.` / `421` | Reverse Dragon Punch |
 | `hcf.` / `41236` | Half Circle Forward |
 | `hcb.` / `63214` | Half Circle Back |
+| `hcbf` | Half Circle Back, then Forward |
 | `2qcf.` / `236236` | Double Quarter Circle Forward |
 | `2qcb.` / `214214` | Double Quarter Circle Back |
+| `360` / `spd` | Full circle motion |
+| `720` / `1080` | Double or triple circle motion |
 
-Numeric directions and motions apply to the Standard input type. In NRS / Tekken mode, `1`–`4` are attack buttons; use aliases such as `qcf.` or `dp.` for motions.
+### Notation Styles
+
+- **Standard / Numpad** — Numbers are directions, including motions such as
+  `236H` and `623K`. Traditional aliases such as `qcf` and `dp` also work.
+- **NRS** — Supports Mortal Kombat, Injustice, and other NRS games. `1`–`4`
+  are attack buttons, direction strings are sequential and case-insensitive,
+  and slash diagonals such as `U/F` remain one input. Common mechanics such as
+  `EX`, `AMP`, `MB`, MK1 input labels, jumps, air states, side swaps, traits,
+  and Kameo inputs are recognized. For example, `DF1` means Down, Forward,
+  then button 1, while `D/F` means a down-forward diagonal.
+- **Tekken** — `1`–`4` are attack buttons, lowercase directions are taps,
+  uppercase directions are holds, and diagonals remain one input. For example,
+  `d/f` is a tap diagonal and `D/F` is a held diagonal. Neutral (`N`), common
+  movement and state abbreviations, held buttons (`*` and `*(max)`), stage
+  interactions, ground positions, and timing separators are also supported.
+  Tekken 7-style notation can use spaces within moves and commas between them,
+  including screw (`S!`). In Tekken 8-style notation, `►`, `>`, `→`, or `»`
+  marks move boundaries and commas remain within moves or strings. Standardized
+  Heat, Rage, God Fist, and side-switch terms are recognized, while custom
+  character stances remain readable as authored text. All four grounded
+  position/facing forms (`FD/FT`, `FD/FA`, `FU/FT`, and `FU/FA`) and
+  throw-escape notation such as `{1+2}` are supported.
+
+Choose a style when adding or editing a game. Existing games that used the
+older **NRS / Tekken** option retain Tekken-compatible behavior; NRS players
+should edit those games and select the new **NRS** style.
+The in-app Notation Guide keeps each style self-contained in clearly
+separated, scrollable sections. Each style includes directional references,
+its complete common and style-specific legend, realistic examples, and live
+text/icon previews.
+Styles enhance recognized notation but do not enforce a closed vocabulary.
+Unknown mechanics and character-specific stances remain available as authored
+text, allowing each style to work with other games and future conventions.
 
 ## 📄 License
 

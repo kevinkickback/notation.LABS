@@ -31,8 +31,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
+import {
+  getNotationProfileDefinition,
+  NOTATION_PROFILES,
+  resolveNotationProfile,
+} from '@/lib/notationProfiles';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import type { CoverImageFit, Game } from '@/lib/types';
+import type { CoverImageFit, Game, NotationProfile } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
 import { CoverSearchDialog } from './CoverSearchDialog';
 
@@ -58,9 +63,8 @@ export function GameFormDialog({
   const [dialogButtonColors, setDialogButtonColors] = useState<
     Record<string, string>
   >({});
-  const [inputType, setInputType] = useState<'numpad' | 'button-numbers'>(
-    'numpad',
-  );
+  const [notationProfile, setNotationProfile] =
+    useState<NotationProfile>('standard');
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,7 +93,7 @@ export function GameFormDialog({
       setCoverPanX(editingGame.coverPanX ?? 50);
       setCoverPanY(editingGame.coverPanY ?? 50);
       setCoverFit(editingGame.coverFit ?? 'fill');
-      setInputType(editingGame.inputType ?? 'numpad');
+      setNotationProfile(resolveNotationProfile(editingGame));
       const existingColors = editingGame.buttonColors || {};
       const initialColors: Record<string, string> = {};
       for (let i = 0; i < editingGame.buttonLayout.length; i++) {
@@ -109,7 +113,7 @@ export function GameFormDialog({
       setCoverPanY(50);
       setCoverFit('fill');
       setDialogButtonColors({});
-      setInputType('numpad');
+      setNotationProfile('standard');
       setCoverSearchOpen(false);
     }
   }, [open, editingGame]);
@@ -131,6 +135,17 @@ export function GameFormDialog({
     onOpenChange(false);
   };
 
+  const handleProfileChange = (nextProfile: NotationProfile) => {
+    const currentDefaults =
+      getNotationProfileDefinition(notationProfile).defaultButtons.join(', ');
+    if (buttonLayout === currentDefaults) {
+      setButtonLayout(
+        getNotationProfileDefinition(nextProfile).defaultButtons.join(', '),
+      );
+    }
+    setNotationProfile(nextProfile);
+  };
+
   const handleAdd = async () => {
     if (!name.trim()) {
       toast.error('Game name is required');
@@ -146,7 +161,7 @@ export function GameFormDialog({
         buttonLayout: buttons,
         buttonColors: { ...dialogButtonColors },
         notes: notes.trim(),
-        inputType: inputType === 'numpad' ? undefined : inputType,
+        notationProfile,
         logoImage: logoImage || undefined,
         coverZoom: coverZoom !== 100 ? coverZoom : undefined,
         coverPanX: coverPanX !== 50 ? coverPanX : undefined,
@@ -177,7 +192,7 @@ export function GameFormDialog({
         buttonLayout: buttons,
         buttonColors: { ...dialogButtonColors },
         notes: notes.trim(),
-        inputType: inputType === 'numpad' ? undefined : inputType,
+        notationProfile,
         logoImage: logoImage || undefined,
         coverZoom: coverZoom !== 100 ? coverZoom : undefined,
         coverPanX: coverPanX !== 50 ? coverPanX : undefined,
@@ -249,7 +264,7 @@ export function GameFormDialog({
             <Card className="gap-3 py-4 shadow-none">
               <CardHeader className="gap-1 px-4">
                 <CardTitle className="text-sm">Game Profile</CardTitle>
-                <CardDescription id={notesHelpId} className="text-xs">
+                <CardDescription className="text-xs">
                   Set the name and artwork shown throughout the app.
                 </CardDescription>
               </CardHeader>
@@ -374,38 +389,30 @@ export function GameFormDialog({
               <CardContent className="space-y-3 px-4">
                 <fieldset>
                   <legend className="text-sm leading-none font-medium">
-                    Input Type
+                    Notation Style
                   </legend>
-                  <div className="mt-1.5 inline-flex gap-0.5 rounded-md border border-border bg-muted p-0.5">
-                    <button
-                      type="button"
-                      aria-pressed={inputType === 'numpad'}
-                      onClick={() => setInputType('numpad')}
-                      className={`rounded px-3 py-1.5 text-sm transition-colors ${
-                        inputType === 'numpad'
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Standard
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={inputType === 'button-numbers'}
-                      onClick={() => setInputType('button-numbers')}
-                      className={`rounded px-3 py-1.5 text-sm transition-colors ${
-                        inputType === 'button-numbers'
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      NRS / Tekken
-                    </button>
+                  <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
+                    {NOTATION_PROFILES.map((profile) => (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        aria-label={profile.label}
+                        aria-pressed={notationProfile === profile.id}
+                        onClick={() => handleProfileChange(profile.id)}
+                        className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                          notationProfile === profile.id
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                            : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        }`}
+                      >
+                        <span className="block text-sm font-medium">
+                          {profile.label}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    {inputType === 'numpad'
-                      ? 'Supports traditional motions (qcf, dp) and numpad directions (236, 623).'
-                      : 'Numbers represent attack buttons instead of directional inputs.'}
+                    {getNotationProfileDefinition(notationProfile).description}
                   </p>
                 </fieldset>
 
@@ -417,11 +424,9 @@ export function GameFormDialog({
                     id={buttonsInputId}
                     value={buttonLayout}
                     onChange={(e) => setButtonLayout(e.target.value)}
-                    placeholder={
-                      inputType === 'button-numbers'
-                        ? '1, 2, 3, 4'
-                        : 'L, M, H, S'
-                    }
+                    placeholder={getNotationProfileDefinition(
+                      notationProfile,
+                    ).defaultButtons.join(', ')}
                   />
                 </div>
 
@@ -458,7 +463,7 @@ export function GameFormDialog({
             <Card className="gap-3 py-4 shadow-none">
               <CardHeader className="gap-1 px-4">
                 <CardTitle className="text-sm">Notes</CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription id={notesHelpId} className="text-xs">
                   Add optional context or reminders about this game. Multiple
                   lines and Markdown are supported.
                 </CardDescription>

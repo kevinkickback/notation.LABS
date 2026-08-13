@@ -2,6 +2,11 @@ import Dexie, { type EntityTable } from 'dexie';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
 import { DEFAULT_SETTINGS, MAX_VIDEO_SIZE_BYTES } from '../defaults';
+import {
+  migrateLegacyNotationProfile,
+  normalizeGameNotationProfile,
+  resolveNotationProfile,
+} from '../notationProfiles';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '../parser';
 import { importDataSchema } from '../schemas';
 import type {
@@ -91,6 +96,22 @@ db.version(5).stores({
   settings: 'id',
   demoVideos: 'id',
 });
+
+db.version(6)
+  .stores({
+    games: 'id, name, createdAt',
+    characters: 'id, gameId, name, createdAt',
+    combos:
+      'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder',
+    settings: 'id',
+    demoVideos: 'id',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('games')
+      .toCollection()
+      .modify((game: Game) => migrateLegacyNotationProfile(game)),
+  );
 
 export function generateId(): string {
   return uuidv4();
@@ -196,7 +217,7 @@ function areStringArraysEqual(a: string[], b: string[]): boolean {
 async function reparseCombosForGame(
   gameId: string,
   buttonLayout: string[],
-  inputType?: Game['inputType'],
+  notationProfile: Game['notationProfile'],
 ): Promise<void> {
   const characters = await db.characters
     .where('gameId')
@@ -219,7 +240,7 @@ async function reparseCombosForGame(
   const reparsedCombos = combos.map((combo) => ({
     ...combo,
     parsedNotation: parseComboNotation(combo.notation, buttonLayout, {
-      inputType,
+      profile: notationProfile,
     }),
   }));
 
@@ -238,10 +259,10 @@ async function reparseStoredCombos(): Promise<void> {
   }
 
   const gameButtonsById = new Map<string, string[]>();
-  const gameInputTypeById = new Map<string, Game['inputType']>();
+  const gameProfileById = new Map<string, Game['notationProfile']>();
   for (const game of games) {
     gameButtonsById.set(game.id, game.buttonLayout);
-    gameInputTypeById.set(game.id, game.inputType);
+    gameProfileById.set(game.id, resolveNotationProfile(game));
   }
 
   const characterGameById = new Map<string, string>();
@@ -252,12 +273,12 @@ async function reparseStoredCombos(): Promise<void> {
   const reparsedCombos = combos.map((combo) => {
     const gameId = characterGameById.get(combo.characterId);
     const customButtons = gameId ? gameButtonsById.get(gameId) : undefined;
-    const inputType = gameId ? gameInputTypeById.get(gameId) : undefined;
+    const notationProfile = gameId ? gameProfileById.get(gameId) : undefined;
 
     return {
       ...combo,
       parsedNotation: parseComboNotation(combo.notation, customButtons, {
-        inputType,
+        profile: notationProfile,
       }),
     };
   });
@@ -287,8 +308,10 @@ export const indexedDbStorage = {
     add: async (game: Omit<Game, 'id' | 'createdAt' | 'updatedAt'>) => {
       const id = generateId();
       const now = Date.now();
+      const { inputType: _legacyInputType, ...currentGame } = game;
       await db.games.add({
-        ...game,
+        ...currentGame,
+        notationProfile: resolveNotationProfile(game),
         id,
         createdAt: now,
         updatedAt: now,
@@ -302,7 +325,11 @@ export const indexedDbStorage = {
         async () => {
           const currentGame = await db.games.get(id);
           const nextButtonLayout = updates.buttonLayout;
-          const nextInputType = updates.inputType;
+          const nextNotationProfile =
+            updates.notationProfile ??
+            (updates.inputType
+              ? resolveNotationProfile({ inputType: updates.inputType })
+              : undefined);
           const shouldReparseCombos =
             currentGame !== undefined &&
             ((nextButtonLayout !== undefined &&
@@ -310,19 +337,25 @@ export const indexedDbStorage = {
                 currentGame.buttonLayout,
                 nextButtonLayout,
               )) ||
-              (nextInputType !== undefined &&
-                nextInputType !== currentGame.inputType));
+              (nextNotationProfile !== undefined &&
+                nextNotationProfile !== resolveNotationProfile(currentGame)));
+
+          const { inputType: _legacyInputType, ...currentUpdates } = updates;
 
           await db.games.update(id, {
-            ...updates,
+            ...currentUpdates,
+            ...(nextNotationProfile
+              ? { notationProfile: nextNotationProfile }
+              : {}),
             updatedAt: Date.now(),
           });
 
           if (shouldReparseCombos) {
             const effectiveLayout =
               nextButtonLayout ?? currentGame.buttonLayout;
-            const effectiveInputType = nextInputType ?? currentGame.inputType;
-            await reparseCombosForGame(id, effectiveLayout, effectiveInputType);
+            const effectiveProfile =
+              nextNotationProfile ?? resolveNotationProfile(currentGame);
+            await reparseCombosForGame(id, effectiveLayout, effectiveProfile);
           }
         },
       );
@@ -883,7 +916,7 @@ export const indexedDbStorage = {
       async () => {
         if (parsed.games) {
           for (const game of parsed.games) {
-            await db.games.put(game);
+            await db.games.put(normalizeGameNotationProfile(game));
           }
         }
         if (parsed.characters) {
@@ -1038,7 +1071,7 @@ export const indexedDbStorage = {
       async () => {
         if (parsed.games) {
           for (const game of parsed.games) {
-            await db.games.put(game);
+            await db.games.put(normalizeGameNotationProfile(game));
           }
         }
         if (parsed.characters) {

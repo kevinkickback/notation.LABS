@@ -57,15 +57,40 @@ const ARROW_ICON_MAP: Record<string, string> = {
   DB: dbhUrl,
   UF: ufhUrl,
   UB: ubhUrl,
-  // Numeric button icons for NRS/Tekken button-numbers mode
+  // Numeric button icons for NRS and Tekken profiles
   '1b': btn1Url,
   '2b': btn2Url,
   '3b': btn3Url,
   '4b': btn4Url,
 };
 
+const HOLD_ARROW_ICON_MAP: Record<string, string> = {
+  '1': dbhUrl,
+  '2': dhUrl,
+  '3': dfhUrl,
+  '4': bhUrl,
+  '6': fhUrl,
+  '7': ubhUrl,
+  '8': uhUrl,
+  '9': ufhUrl,
+  f: fhUrl,
+  b: bhUrl,
+  u: uhUrl,
+  d: dhUrl,
+  'd/f': dfhUrl,
+  'd/b': dbhUrl,
+  'u/f': ufhUrl,
+  'u/b': ubhUrl,
+  df: dfhUrl,
+  db: dbhUrl,
+  uf: ufhUrl,
+  ub: ubhUrl,
+};
+
 interface MotionIconProps {
   motion: string;
+  label?: string;
+  hold?: boolean;
   size?: number;
   color?: string;
   className?: string;
@@ -493,18 +518,43 @@ export const croppedViewBoxMap: Record<string, string> = {
 
 export function MotionIcon({
   motion,
+  label,
+  hold = false,
   size = 48,
   color = 'currentColor',
   className = '',
   iconStyle = 'joystick',
 }: MotionIconProps) {
+  if (motion.toLowerCase() === 'n') {
+    const neutralLabel = label ?? 'Neutral';
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 48 48"
+        className={className}
+        role="img"
+        aria-label={neutralLabel}
+      >
+        <title>{neutralLabel}</title>
+        <circle cx="24" cy="24" r="18" fill={color} opacity="0.16" />
+        <path
+          d="m24 10 3.6 9.1 9.7.6-7.5 6.2 2.4 9.4-8.2-5.2-8.2 5.2 2.4-9.4-7.5-6.2 9.7-.6L24 10Z"
+          fill={color}
+        />
+      </svg>
+    );
+  }
+
   // Arrows style: use SVG assets for single directions; decompose compound
   // motions (236, 41236, etc.) into a sequence of individual direction arrows.
   // Motions containing '0' (360, 720) can't decompose — fall through to joystick.
   if (iconStyle === 'arrows') {
     // Try exact case first (e.g. 'D/F' → hold icon), then lowercase fallback (e.g. 'D/F' → 'd/f').
     const arrowUrl =
-      ARROW_ICON_MAP[motion] ?? ARROW_ICON_MAP[motion.toLowerCase()];
+      (hold ? HOLD_ARROW_ICON_MAP[motion.toLowerCase()] : undefined) ??
+      ARROW_ICON_MAP[motion] ??
+      ARROW_ICON_MAP[motion.toLowerCase()];
     const arrowSize = Math.round(size * 0.8);
     if (arrowUrl) {
       return (
@@ -513,7 +563,7 @@ export function MotionIcon({
             src={arrowUrl}
             width={arrowSize}
             height={arrowSize}
-            alt={motionSVGMap[motion]?.alt ?? `Direction ${motion}`}
+            alt={label ?? motionSVGMap[motion]?.alt ?? `Direction ${motion}`}
           />
         </div>
       );
@@ -533,7 +583,7 @@ export function MotionIcon({
               src={ARROW_ICON_MAP[d]}
               width={arrowSize}
               height={arrowSize}
-              alt={d}
+              alt={label ? `${label}, step ${i + 1}` : d}
             />
           ))}
         </div>
@@ -548,7 +598,8 @@ export function MotionIcon({
     const originalViewBox = motionData.viewBox;
     const viewBox = croppedViewBoxMap[motion] || originalViewBox;
     const motionLabel =
-      motionData.alt.trim() || `Motion ${motion.trim() || 'unknown'}`;
+      label ??
+      (motionData.alt.trim() || `Motion ${motion.trim() || 'unknown'}`);
 
     // Scale pixel dimensions to match the cropped viewBox so content stays the
     // same visual size as it was with the full 184×184 viewBox.
@@ -563,23 +614,28 @@ export function MotionIcon({
     return (
       <div className={`inline-flex items-center gap-0.5 ${className}`}>
         {repeatNumbers.map((repeatNumber) => (
-          <svg
+          <span
             key={`${motion}-${repeatNumber}`}
-            width={renderW}
-            height={renderH}
-            viewBox={viewBox}
-            aria-label={motionLabel}
-            className="inline-block"
+            className="relative inline-flex"
           >
-            <title>{motionLabel}</title>
-            {motionData.children}
-          </svg>
+            <svg
+              width={renderW}
+              height={renderH}
+              viewBox={viewBox}
+              role="img"
+              aria-label={motionLabel}
+              className={`inline-block${hold ? ' motion-icon--hold' : ''}`}
+            >
+              <title>{motionLabel}</title>
+              {motionData.children}
+            </svg>
+          </span>
         ))}
       </div>
     );
   }
 
-  const fallbackLabel = `Motion ${motion.trim() || 'unknown'}`;
+  const fallbackLabel = label ?? `Motion ${motion.trim() || 'unknown'}`;
 
   return (
     <svg
@@ -592,6 +648,7 @@ export function MotionIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      role="img"
       aria-label={fallbackLabel}
     >
       <title>{fallbackLabel}</title>

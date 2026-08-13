@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function addGame(page: Page, name: string): Promise<void> {
+async function addGame(
+  page: Page,
+  name: string,
+  notationProfile?: 'NRS' | 'Tekken',
+): Promise<void> {
   await page
     .getByRole('button', { name: /add your first game|add game/i })
     .first()
@@ -8,6 +12,9 @@ async function addGame(page: Page, name: string): Promise<void> {
 
   await expect(page.getByText('Add New Game')).toBeVisible();
   await page.getByLabel(/game name/i).fill(name);
+  if (notationProfile) {
+    await page.getByRole('button', { name: notationProfile }).click();
+  }
   await page.getByRole('button', { name: /^add game$/i }).click();
 
   await expect(page.locator('h3', { hasText: name }).first()).toBeVisible();
@@ -32,7 +39,9 @@ async function addCombo(
 
   await expect(page.getByText(/add combo for/i)).toBeVisible();
   await page.getByLabel(/combo name/i).fill(name);
-  await page.getByLabel(/^notation/i).fill(notation);
+  await page
+    .getByRole('textbox', { name: 'Notation', exact: true })
+    .fill(notation);
   await page.getByRole('button', { name: /^add combo$/i }).click();
 
   await expect(page.locator('h3', { hasText: name }).first()).toBeVisible();
@@ -73,9 +82,10 @@ test.describe('Core E2E Flows', () => {
     await navigateToComboView(page);
     await addCombo(page, 'Patch Check Combo', '5L > 5H > 214H');
 
-    await page.getByTitle('Multi-select combos').click();
+    await page.getByRole('button', { name: 'More options' }).click();
+    await page.getByRole('menuitem', { name: 'Select Combos' }).click();
     await page.getByRole('button', { name: /^select all$/i }).click();
-    await page.getByRole('button', { name: /^mark outdated \(1\)$/i }).click();
+    await page.getByRole('button', { name: 'Mark Outdated' }).click();
 
     await expect(page.getByText('Outdated')).toBeVisible();
   });
@@ -86,9 +96,10 @@ test.describe('Core E2E Flows', () => {
     await navigateToComboView(page);
     await addCombo(page, 'To Delete', '5L > 236L');
 
-    await page.getByTitle('Multi-select combos').click();
+    await page.getByRole('button', { name: 'More options' }).click();
+    await page.getByRole('menuitem', { name: 'Select Combos' }).click();
     await page.getByRole('button', { name: /^select all$/i }).click();
-    await page.getByRole('button', { name: /^delete \(1\)$/i }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
 
     await expect(page.getByText('Delete 1 combo?')).toBeVisible();
     await page
@@ -98,4 +109,59 @@ test.describe('Core E2E Flows', () => {
 
     await expect(page.getByText(/no combos yet/i)).toBeVisible();
   });
+
+  for (const profileCase of [
+    {
+      profile: 'NRS' as const,
+      game: 'E2E Injustice Game',
+      combo: 'Injustice Route',
+      notation: 'B3 > JI2 > 123 xx BF2 MB',
+      expectedIcons: [
+        'Button 3, Attack 3',
+        'JI, Jump-in attack',
+        'Button 1, Attack 1',
+        'Back',
+        'Forward',
+        'MB, Meter Burn',
+      ],
+    },
+    {
+      profile: 'Tekken' as const,
+      game: 'E2E Tekken Game',
+      combo: 'Tekken Route',
+      notation: 'f,N,D/F+2',
+      expectedIcons: [
+        'Tap Forward',
+        'Neutral',
+        'Hold Down Forward',
+        'Button 2, Right Punch',
+      ],
+    },
+  ]) {
+    test(`saves and reloads ${profileCase.profile} notation and icons`, async ({
+      page,
+    }) => {
+      await page.goto('/');
+      await addGame(page, profileCase.game, profileCase.profile);
+      await page.locator('h3', { hasText: profileCase.game }).first().click();
+      await addCharacter(page, 'E2E Fighter');
+      await page.locator('h3', { hasText: 'E2E Fighter' }).first().click();
+      await addCombo(page, profileCase.combo, profileCase.notation);
+      await page.getByTitle('Icons').click();
+
+      for (const label of profileCase.expectedIcons) {
+        await expect(page.getByRole('img', { name: label }).first()).toBeVisible();
+      }
+
+      await page.reload();
+      await page.locator('h3', { hasText: profileCase.game }).first().click();
+      await page.locator('h3', { hasText: 'E2E Fighter' }).first().click();
+      await expect(
+        page.locator('h3', { hasText: profileCase.combo }).first(),
+      ).toBeVisible();
+      for (const label of profileCase.expectedIcons) {
+        await expect(page.getByRole('img', { name: label }).first()).toBeVisible();
+      }
+    });
+  }
 });

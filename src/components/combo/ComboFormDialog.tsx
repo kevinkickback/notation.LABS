@@ -41,6 +41,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { reportError } from '@/lib/errors';
+import { resolveNotationProfile } from '@/lib/notationProfiles';
 import { parseComboNotation } from '@/lib/parser';
 import {
   generateId,
@@ -133,9 +134,9 @@ export function ComboFormDialog({
   const parsedNotationTokens = useMemo(
     () =>
       parseComboNotation(notation, game.buttonLayout, {
-        inputType: game.inputType,
+        profile: resolveNotationProfile(game),
       }),
-    [notation, game.buttonLayout, game.inputType],
+    [notation, game],
   );
 
   const resetForm = useCallback(() => {

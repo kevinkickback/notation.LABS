@@ -512,6 +512,18 @@ describe('parseComboNotation', () => {
       expect(tokens).toHaveLength(1);
       expect(tokens[0]).toMatchObject({ type: 'modifier', value: '[charge]' });
     });
+
+    it('parses inverse square brackets as a button release', () => {
+      const tokens = parseComboNotation('6[D] > 22]D[', ['D']);
+      const heldButton = tokens.find(
+        (token) => token.type === 'modifier' && token.value.startsWith('['),
+      );
+      expect(heldButton?.value.trim()).toBe('[D]');
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ type: 'modifier', value: ']D[' }),
+      );
+      expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+    });
   });
 
   describe('modifiers', () => {
@@ -967,7 +979,7 @@ describe('parseComboNotation', () => {
         const seps = tokens.filter((t) => t.type === 'separator');
         // Expects at minimum: ',' before 2, '►', ',' before 1
         expect(seps.length).toBeGreaterThanOrEqual(3);
-        expect(seps.some((t) => t.rawValue === '►')).toBe(true);
+        expect(seps.some((t) => t.value === '►')).toBe(true);
       });
 
       it('parses a realistic Tekken combo string', () => {
@@ -1025,6 +1037,88 @@ describe('parseComboNotation', () => {
       it('parses R. as Rage modifier', () => {
         const tokens = parseComboNotation('R. d/f+1', ['1', '2', '3', '4'], mode);
         expect(tokens[0]).toMatchObject({ type: 'modifier', value: 'R.' });
+      });
+
+      it.each([
+        ['W!', 'W!'],
+        ['w!', 'W!'],
+        ['WB!', 'WB!'],
+        ['wb!', 'WB!'],
+        ['WBl!', 'WBl!'],
+        ['WBo!', 'WBo!'],
+        ['F!', 'F!'],
+        ['FBl!', 'FBl!'],
+        ['BB!', 'BB!'],
+        ['S!', 'S!'],
+      ])('parses %s as the Tekken %s mechanic', (input, expected) => {
+        const tokens = parseComboNotation(input, ['1', '2', '3', '4'], mode);
+        expect(tokens).toEqual([
+          expect.objectContaining({
+            type: 'modifier',
+            value: expected,
+            rawValue: input,
+          }),
+        ]);
+      });
+
+      it('prioritizes punctuated wall mechanics over custom button names', () => {
+        const tokens = parseComboNotation('W! WB!', ['W', 'WB'], mode);
+        expect(tokens).toEqual([
+          expect.objectContaining({ type: 'modifier', value: 'W!' }),
+          expect.objectContaining({ type: 'modifier', value: 'WB!' }),
+        ]);
+      });
+
+      it.each([
+        ['AIR', 'AIR'],
+        ['any', 'any'],
+        ['iWS', 'iWS'],
+        ['iWR', 'iWR'],
+        ['cc', 'cc'],
+        ['cd', 'cd'],
+        ['LP', 'LP'],
+        ['WGF', 'WGF'],
+        ['TGF', 'TGF'],
+        ['EWGF', 'EWGF'],
+        ['OTGF', 'OTGF'],
+        ['ETGF', 'ETGF'],
+        ['During Heat', 'During Heat'],
+        ['Heat Burst', 'Heat Burst'],
+        ['Heat Smash', 'Heat Smash'],
+        ['Rage Art', 'Rage Art'],
+      ])('parses Tekken legend term %s as %s', (input, expected) => {
+        const tokens = parseComboNotation(input, ['1', '2', '3', '4'], mode);
+        expect(tokens).toEqual([
+          expect.objectContaining({ type: 'modifier', value: expected }),
+        ]);
+      });
+
+      it('parses Tekken button holds without changing repeat syntax', () => {
+        const held = parseComboNotation('1* 2*(max)', ['1', '2', '3', '4'], mode);
+        expect(
+          held
+            .filter((token) => token.type === 'modifier')
+            .map((token) => token.value),
+        ).toEqual(['*', '*(max)']);
+
+        const repeated = parseComboNotation('1*2', ['1', '2', '3', '4'], mode);
+        expect(repeated).toContainEqual(
+          expect.objectContaining({ type: 'repeat-end', repeatCount: 2 }),
+        );
+      });
+
+      it('recognizes omitted inputs and side switches', () => {
+        const notation = '(f,2,2),1*(max) ► (Switch) ► (...)';
+        const tokens = parseComboNotation(notation, ['1', '2', '3', '4'], mode);
+
+        expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+        expect(tokens.map((token) => token.rawValue).join('')).toBe(notation);
+        expect(tokens).toContainEqual(
+          expect.objectContaining({ type: 'modifier', value: '(Switch)' }),
+        );
+        expect(tokens).toContainEqual(
+          expect.objectContaining({ type: 'modifier', value: '(...)' }),
+        );
       });
 
       it('parses {} curly braces as throw-escape modifier', () => {
@@ -1225,6 +1319,79 @@ describe('notation guide compatibility', () => {
   });
 });
 
+describe('profile guide parser coverage', () => {
+  const commonSamples = [
+    '1+2',
+    '1 > 2',
+    '1 → 2',
+    '1 » 2',
+    '1 |> 2',
+    '1 (Land) 2',
+    '1x3',
+    '(1 > 2)x3',
+    '(3)',
+    'CH',
+    '(whiff)',
+  ];
+
+  const profileCases = [
+    {
+      profile: 'standard' as const,
+      buttons: ['L', 'M', 'H'],
+      samples: [
+        '1 2 3 4 5 6 7 8 9',
+        '236 qcf 214 qcb 623 dp 421 rdp 41236 hcf 63214 hcb',
+        '236236 2qcf 214214 2qcb 360 spd 720 1080',
+        '22 66 44 88 dd ff bb uu hcbf',
+        '[L] ]L[',
+        'L,M L xx M L~M',
+        'jc. sjc. dl. j. sj. dj. nj. cr. st. cl. f. iad tk.',
+      ],
+    },
+    {
+      profile: 'nrs' as const,
+      buttons: ['1', '2', '3', '4'],
+      samples: [
+        'F B U D U/F U/B D/F D/B DF1 df1 114',
+        '1 xx 2 1~2 1,2',
+        'TH BL FL S K FB EX DELAY (DELAY)',
+        '(hold) (swap side) J JF JB AIR (AIR)',
+        'Block Grab Throw DASH BACK DASH EN AMP KB PB',
+        'NJP NJK JIP JIK RUN RC SH MD MB JI Trait Interactable',
+      ],
+    },
+    {
+      profile: 'tekken' as const,
+      buttons: ['1', '2', '3', '4'],
+      samples: [
+        'f d/f d d/b b u/b u u/f F D/F D D/B B U/B U U/F',
+        'df db uf ub DF DB UF UB N dp ff fff bb dash',
+        '1 ► 2,3 1* 2*(max) f<1 1:2 1~2',
+        '(...) (Switch) 1_2 1=2',
+        'WS FC BT WR SS SSL SSR SWL SWR iWS iWR',
+        'cc cd LP AIR any H. R.',
+        'During Heat Heat Burst Heat Smash Rage Art',
+        'W! WB! WBl! WBo! F! FBl! BB! S!',
+        'WGF TGF EWGF OTGF ETGF',
+        'FD/FT FD/FA FU/FT FU/FA {1+2}',
+      ],
+    },
+  ];
+
+  it.each(profileCases)(
+    'parses every $profile guide form without unknown tokens',
+    ({ profile, buttons, samples }) => {
+      for (const sample of [...commonSamples, ...samples]) {
+        const tokens = parseComboNotation(sample, buttons, { profile });
+        const unknownTokens = tokens.filter((token) => token.type === 'unknown');
+
+        expect(tokens.length, `${profile}: ${sample}`).toBeGreaterThan(0);
+        expect(unknownTokens, `${profile}: ${sample}`).toEqual([]);
+      }
+    },
+  );
+});
+
 describe('getTokenColor', () => {
   const colors = {
     direction: '#ff0000',
@@ -1279,6 +1446,15 @@ describe('getTokenColor', () => {
     };
     const buttonColors = { D: '#123456' };
     expect(getTokenColor(token, colors, buttonColors)).toBe('#123456');
+  });
+
+  it('uses button color for released button modifiers', () => {
+    const token = {
+      type: 'modifier' as const,
+      value: ']D[',
+      rawValue: ']D[',
+    };
+    expect(getTokenColor(token, colors, { D: '#123456' })).toBe('#123456');
   });
 
   it('returns separator color for CH modifier', () => {
@@ -1339,5 +1515,264 @@ describe('getMotionName', () => {
 
   it('returns the raw motion for unknown motions', () => {
     expect(getMotionName('999')).toBe('999');
+  });
+});
+
+describe('community notation profiles', () => {
+  it('preserves Tekken 7 spaces between inputs within each move', () => {
+    const notation = 'd d/f f 1 , U/F N 4';
+    const tokens = parseComboNotation(notation, ['1', '2', '3', '4'], {
+      profile: 'tekken',
+    });
+
+    expect(tokens.map((token) => token.rawValue).join('')).toBe(notation);
+    expect(tokens.some((token) => token.type === 'unknown')).toBe(false);
+  });
+
+  it('parses the documented half-circle-back-forward motion', () => {
+    expect(parseComboNotation('hcbf')).toEqual([
+      expect.objectContaining({ type: 'motion', value: '63214' }),
+      expect.objectContaining({ type: 'direction', value: '6' }),
+    ]);
+  });
+
+  it('does not collapse spaced Tekken button inputs into a repeat', () => {
+    const tokens = parseComboNotation('1 1', ['1', '2', '3', '4'], {
+      profile: 'tekken',
+    });
+
+    expect(tokens.map((token) => token.type)).toEqual(['button', 'button']);
+    expect(tokens.map((token) => token.rawValue).join('')).toBe('1 1');
+  });
+
+  const nrsOptions = { profile: 'nrs' as const };
+  const tekkenOptions = { profile: 'tekken' as const };
+
+  it.each([
+    '114 xx DF3, B21F2, B21 xx BF4 AMP',
+    'F32 xx DB1, NJP, B12',
+    'F12~B+K, 4~B+K, B2, J21, DB1, J12, 3~BF3 EX',
+    'F 2 2 D B 2 EX B (HOLD) , B K , (AIR) 1 2 2',
+    '1 2 D F 2 EX , (SWAP SIDE) , (AIR) 1 , JF 1 2 2 B D 4',
+    'B 2 1 , B K , F 2 , B F 2 EX , (SWAP SIDE) (DELAY) JF 2 4 , D B 2',
+    'B F 1 B F 2 (HOLD) U/F D 3 (HOLD) K , 3 (HOLD) , B F 4 2 B TH K , F 3',
+  ])('parses Mortal Kombat community notation through NRS: %s', (notation) => {
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4', 'K'],
+      nrsOptions,
+    );
+
+    expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+  });
+
+  it('keeps NRS dial strings and sequential directions distinct', () => {
+    const tokens = parseComboNotation(
+      '114 xx DF3',
+      ['1', '2', '3', '4', 'K'],
+      nrsOptions,
+    );
+
+    expect(tokens.slice(0, 3).map(({ type, value }) => ({ type, value }))).toEqual([
+      { type: 'button', value: '1' },
+      { type: 'button', value: '1' },
+      { type: 'button', value: '4' },
+    ]);
+    expect(
+      tokens
+        .filter((token) => token.type === 'direction')
+        .map((token) => token.value),
+    ).toEqual(['d', 'f']);
+    expect(tokens.some((token) => token.type === 'repeat-start')).toBe(false);
+  });
+
+  it('treats NRS direction capitalization equivalently', () => {
+    const uppercase = parseComboNotation('DF1', [], nrsOptions);
+    const lowercase = parseComboNotation('df1', [], nrsOptions);
+
+    expect(uppercase.map(({ type, value }) => ({ type, value }))).toEqual(
+      lowercase.map(({ type, value }) => ({ type, value })),
+    );
+    expect(uppercase.map((token) => token.rawValue)).toEqual(['D', 'F', '1']);
+  });
+
+  it.each(['B3 > JI2 > 123 xx BF2 MB', 'F3, JI3, 223, Trait']) (
+    'parses Injustice community notation through NRS: %s',
+    (notation) => {
+      const tokens = parseComboNotation(notation, ['1', '2', '3', '4'], nrsOptions);
+
+      expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+    },
+  );
+
+  it.each([
+    'f,N,d,d/f+2',
+    'D/F+1,2,1,2',
+    'WS1,2 ► uf1 ► f2,3 ► ff3+4',
+    'CH 1+2 ► n2,b ► df1 ► f2,3',
+    'd d/f f 1 , U/F N 4 , d d/f f 1 , f 1 , d d/f f 1 , f 3 2 , f f f 2 3 W! , d d/f f 2+3 , SSR f 2+3',
+    'FD/FT 3+4',
+    'During Heat ► f,N,d,d/f,2*(max) ► dash ► Heat Burst ► 1,2,WBl! ► Rage Art',
+    'AIR, iWS 1 2, cd 2 S!, f f 3 F!, any',
+  ])('parses Tekken community notation: %s', (notation) => {
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4'],
+      tekkenOptions,
+    );
+
+    expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+  });
+
+  it('supports MK1 slash diagonals without changing compact NRS sequences', () => {
+    const tokens = parseComboNotation(
+      'DF1 D/F1 U/F3',
+      ['1', '2', '3', '4', 'K'],
+      nrsOptions,
+    );
+
+    expect(
+      tokens
+        .filter((token) => token.type === 'direction')
+        .map((token) => token.value),
+    ).toEqual(['d', 'f', 'd/f', 'u/f']);
+  });
+
+  it('recognizes MK1 legend buttons, states, and annotations', () => {
+    const notation =
+      'TH BL FL K FB EX DELAY J JF JB AIR DASH BACK DASH (HOLD) (SWAP SIDE)';
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4'],
+      nrsOptions,
+    );
+
+    expect(tokens.map((token) => token.rawValue).join('')).toBe(notation);
+    expect(
+      tokens
+        .filter((token) => token.type === 'button')
+        .map((token) => token.value),
+    ).toEqual(['TH', 'BL', 'FL', 'K']);
+    expect(
+      tokens
+        .filter((token) => token.type === 'modifier')
+        .map((token) => token.value),
+    ).toEqual([
+      'FB',
+      'EX',
+      'DELAY',
+      'J',
+      'JF',
+      'JB',
+      'AIR',
+      'DASH',
+      'BACK DASH',
+      '(hold)',
+      '(swap side)',
+    ]);
+  });
+
+  it('recognizes documented NRS named inputs and parenthetical aliases', () => {
+    const tokens = parseComboNotation(
+      'Block Grab Throw (AIR) (DELAY)',
+      ['1', '2', '3', '4'],
+      nrsOptions,
+    );
+
+    expect(
+      tokens
+        .filter((token) => token.type === 'modifier')
+        .map((token) => token.value),
+    ).toEqual(['Block', 'Grab', 'Throw', 'AIR', 'DELAY']);
+    expect(tokens.some((token) => token.type === 'unknown')).toBe(false);
+  });
+
+  it('preserves NRS-style character stances and future terms verbatim', () => {
+    const notation = 'SENTO STANCE 4, AIRBORNE MODE 1, VX! 2';
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4'],
+      nrsOptions,
+    );
+
+    expect(tokens.map((token) => token.rawValue).join('')).toBe(notation);
+    expect(
+      tokens
+        .filter((token) => token.type === 'unknown')
+        .map((token) => token.value),
+    ).toEqual(['SENTO STANCE', 'AIRBORNE MODE', 'VX', '!']);
+    expect(
+      tokens
+        .filter((token) => token.type === 'button')
+        .map((token) => token.value),
+    ).toEqual(['4', '1', '2']);
+  });
+
+  it('preserves character-specific Tekken stances as authored text', () => {
+    const notation = 'Hunting,d,1+2 ► Updraft:3';
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4'],
+      tekkenOptions,
+    );
+
+    expect(tokens.map((token) => token.rawValue).join('')).toBe(notation);
+    expect(
+      tokens
+        .filter((token) => token.type === 'unknown')
+        .map((token) => token.value),
+    ).toEqual(['Hunting', 'Updraft']);
+  });
+
+  it('preserves future Tekken-style mechanics without requiring a game name', () => {
+    const notation = 'FUTURE STANCE 4, VX! 2';
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4'],
+      tekkenOptions,
+    );
+
+    expect(tokens.map((token) => token.rawValue).join('')).toBe(notation);
+    expect(
+      tokens
+        .filter((token) => token.type === 'unknown')
+        .map((token) => token.value),
+    ).toEqual(['FUTURE STANCE', 'VX', '!']);
+  });
+
+  it('preserves Tekken tap, hold, diagonal, and neutral semantics', () => {
+    const tokens = parseComboNotation(
+      'f,N,D/F+1',
+      ['1', '2', '3', '4'],
+      tekkenOptions,
+    );
+    const directions = tokens.filter((token) => token.type === 'direction');
+
+    expect(directions.map(({ value, rawValue }) => ({ value, rawValue }))).toEqual([
+      { value: 'f', rawValue: 'f' },
+      { value: 'N', rawValue: 'N' },
+      { value: 'D/F', rawValue: 'D/F' },
+    ]);
+  });
+
+  it('preserves documented compact Tekken held diagonals', () => {
+    const tokens = parseComboNotation(
+      'DF DB UF UB',
+      ['1', '2', '3', '4'],
+      tekkenOptions,
+    );
+
+    expect(
+      tokens
+        .filter((token) => token.type === 'direction')
+        .map((token) => token.value),
+    ).toEqual(['DF', 'DB', 'UF', 'UB']);
+  });
+
+  it('keeps Standard parsing unchanged when its profile is explicit', () => {
+    const notation = '2L > 5M > 236H';
+    expect(
+      parseComboNotation(notation, ['L', 'M', 'H'], { profile: 'standard' }),
+    ).toEqual(parseComboNotation(notation, ['L', 'M', 'H']));
   });
 });

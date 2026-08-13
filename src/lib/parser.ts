@@ -1,7 +1,7 @@
-import type { ComboToken } from './types';
+import type { ComboToken, NotationProfile } from './types';
 
 // Bump when parser behavior changes and stored combo tokens need refreshing.
-export const COMBO_NOTATION_PARSER_VERSION = 4;
+export const COMBO_NOTATION_PARSER_VERSION = 10;
 
 // Ordered from longest to shortest semantic motions so numeric tokens prefer
 // complete motion matches before falling back to individual directions.
@@ -215,6 +215,70 @@ const SPECIAL_MODIFIERS: Record<string, string> = {
   'r.': 'R.',
 };
 
+const NRS_MODIFIERS: Record<string, string> = {
+  air: 'AIR',
+  amp: 'AMP',
+  'back dash': 'BACK DASH',
+  backdash: 'BACK DASH',
+  block: 'Block',
+  dash: 'DASH',
+  delay: 'DELAY',
+  delayed: 'DELAY',
+  en: 'EN',
+  ex: 'EX',
+  fb: 'FB',
+  grab: 'Grab',
+  j: 'J',
+  jb: 'JB',
+  jf: 'JF',
+  jik: 'JIK',
+  jip: 'JIP',
+  ji: 'JI',
+  kb: 'KB',
+  md: 'MD',
+  mb: 'MB',
+  njk: 'NJK',
+  njp: 'NJP',
+  pb: 'PB',
+  rc: 'RC',
+  run: 'RUN',
+  sh: 'SH',
+  interactable: 'Interactable',
+  trait: 'Trait',
+  throw: 'Throw',
+};
+
+const NRS_PARENTHETICALS: Readonly<Record<string, string>> = {
+  hold: '(hold)',
+  swapside: '(swap side)',
+  air: 'AIR',
+  delay: 'DELAY',
+};
+
+const TEKKEN_MODIFIERS: Record<string, string> = {
+  air: 'AIR',
+  any: 'any',
+  iws: 'iWS',
+  'instant while standing': 'iWS',
+  iwr: 'iWR',
+  'instant while running': 'iWR',
+  cc: 'cc',
+  'crouch cancel': 'cc',
+  cd: 'cd',
+  'crouch dash': 'cd',
+  lp: 'LP',
+  'low parry': 'LP',
+  wgf: 'WGF',
+  tgf: 'TGF',
+  ewgf: 'EWGF',
+  otgf: 'OTGF',
+  etgf: 'ETGF',
+  'during heat': 'During Heat',
+  'heat burst': 'Heat Burst',
+  'heat smash': 'Heat Smash',
+  'rage art': 'Rage Art',
+};
+
 const SEPARATORS = [
   '►',
   '|>',
@@ -245,7 +309,25 @@ const LETTER_DIR_COMPOUNDS = [
   'ub',
   'db',
 ];
+const NRS_LETTER_DIR_COMPOUNDS = LETTER_DIR_COMPOUNDS.filter((direction) =>
+  direction.includes('/'),
+);
 const LETTER_DIR_CARDINALS = ['n', 'f', 'b', 'u', 'd'];
+const TEKKEN_MECHANICS: Record<string, string> = {
+  '*(max)': '*(max)',
+  'wbl!': 'WBl!',
+  'wbo!': 'WBo!',
+  'fbl!': 'FBl!',
+  'wb!': 'WB!',
+  'bb!': 'BB!',
+  'w!': 'W!',
+  'f!': 'F!',
+  's!': 'S!',
+  '*': '*',
+};
+const SORTED_TEKKEN_MECHANICS = Object.keys(TEKKEN_MECHANICS).sort(
+  (a, b) => b.length - a.length,
+);
 // Common Tekken stance/state tokens mapped to their canonical display form.
 const LETTER_DIR_STANCES: Record<string, string> = {
   swl: 'SWL',
@@ -267,6 +349,12 @@ const SORTED_ALL_MODIFIERS = Object.keys({
   ...STANCE_MODIFIERS,
   ...SPECIAL_MODIFIERS,
 }).sort((a, b) => b.length - a.length);
+const SORTED_NRS_MODIFIERS = Object.keys(NRS_MODIFIERS).sort(
+  (a, b) => b.length - a.length,
+);
+const SORTED_TEKKEN_MODIFIERS = Object.keys(TEKKEN_MODIFIERS).sort(
+  (a, b) => b.length - a.length,
+);
 const MULTI_STEP_ALIASES: Record<
   string,
   Array<{ type: 'motion' | 'direction'; value: string }>
@@ -300,26 +388,42 @@ const SORTED_MOTIONS = [...MOTIONS].sort((a, b) => b.length - a.length);
 export function parseComboNotation(
   notation: string,
   customButtons: string[] = [],
-  options?: { inputType?: 'numpad' | 'button-numbers' },
+  options?: {
+    profile?: NotationProfile;
+    inputType?: 'numpad' | 'button-numbers';
+  },
 ): ComboToken[] {
-  const isNrsMode = options?.inputType === 'button-numbers';
+  const profile =
+    options?.profile ??
+    (options?.inputType === 'button-numbers' ? 'tekken' : 'standard');
+  const isButtonNumberProfile = profile !== 'standard';
+  const isNrs = profile === 'nrs';
+  const isTekken = profile === 'tekken';
   const tokens: ComboToken[] = [];
-  // In button-numbers mode without explicit buttons, skip COMMON_BUTTONS so
-  // single letters (f, b, d, u) are free to be parsed as directions.
+  // Numbered profiles skip the Standard button set so direction letters stay
+  // available to their profile grammar.
   const allButtons =
     customButtons.length > 0
       ? [...customButtons]
-      : isNrsMode
+      : isButtonNumberProfile
         ? []
         : [...COMMON_BUTTONS];
-  // In NRS/4-button mode, 1-4 are named buttons, not numpad directions.
-  if (isNrsMode) {
+  // Numbered profiles reserve 1–4 for attacks rather than directions.
+  if (isButtonNumberProfile) {
     allButtons.push('1', '2', '3', '4');
   }
+  if (isNrs) {
+    allButtons.push('K', 'S', 'TH', 'BL', 'FL', 'BLOCK', 'GRAB', 'THROW');
+  }
   const sortedButtons = [...allButtons].sort((a, b) => b.length - a.length);
-  const activeDirections = isNrsMode
+  const activeDirections = isButtonNumberProfile
     ? DIRECTIONS.filter((d) => Number(d) > 4)
     : DIRECTIONS;
+  const activeModifierKeys = isNrs
+    ? [...SORTED_NRS_MODIFIERS, ...SORTED_ALL_MODIFIERS]
+    : isTekken
+      ? [...SORTED_TEKKEN_MODIFIERS, ...SORTED_ALL_MODIFIERS]
+      : SORTED_ALL_MODIFIERS;
 
   const isAsciiLetter = (value: string | undefined): boolean => {
     if (!value) {
@@ -405,7 +509,12 @@ export function parseComboNotation(
         // Also include a space + lone trailing digit when the digit is not
         // followed by more alphanumerics (e.g. "SUPER 1" stays as one label,
         // but "ENDER 5B" still parses as unknown + direction + button).
-        if (isAsciiLetter(prevChar) && nextChar && /[0-9]/.test(nextChar)) {
+        if (
+          !isButtonNumberProfile &&
+          isAsciiLetter(prevChar) &&
+          nextChar &&
+          /[0-9]/.test(nextChar)
+        ) {
           const charAfterDigit = end + 2 < input.length ? input[end + 2] : '';
           if (!charAfterDigit || /[^a-zA-Z0-9]/.test(charAfterDigit)) {
             end += 2;
@@ -518,8 +627,19 @@ export function parseComboNotation(
   const input = notation.trim();
 
   while (i < input.length) {
-    if (input[i] === ' ') {
-      i++;
+    if (/\s/.test(input[i])) {
+      const whitespaceStart = i;
+      while (i < input.length && /\s/.test(input[i])) {
+        i++;
+      }
+      // Numbered-button notation commonly uses spaces between individual
+      // inputs. Preserve authored whitespace without changing icon grammar.
+      if (isButtonNumberProfile && tokens.length > 0) {
+        tokens[tokens.length - 1].rawValue += input.substring(
+          whitespaceStart,
+          i,
+        );
+      }
       continue;
     }
 
@@ -572,9 +692,37 @@ export function parseComboNotation(
             .toLowerCase()
             .replace(/\s+/g, '');
 
-          if (isNotationLikeParenthetical(content)) {
+          if (normalizedParenthetical === '...' && isTekken) {
+            const fullText = input.substring(i, closeParenIndex + 1);
             tokens.push({
-              type: 'unknown',
+              type: 'modifier',
+              value: '(...)',
+              rawValue: fullText,
+            });
+            i = closeParenIndex + 1;
+          } else if (normalizedParenthetical === 'switch' && isTekken) {
+            const fullText = input.substring(i, closeParenIndex + 1);
+            tokens.push({
+              type: 'modifier',
+              value: '(Switch)',
+              rawValue: fullText,
+            });
+            i = closeParenIndex + 1;
+          } else if (isNrs && NRS_PARENTHETICALS[normalizedParenthetical]) {
+            const fullText = input.substring(i, closeParenIndex + 1);
+            tokens.push({
+              type: 'modifier',
+              value: NRS_PARENTHETICALS[normalizedParenthetical],
+              rawValue: fullText,
+            });
+            i = closeParenIndex + 1;
+          } else if (
+            isTekken &&
+            (isNotationLikeParenthetical(content) ||
+              /^[1-4]$/.test(content.trim()))
+          ) {
+            tokens.push({
+              type: 'modifier',
               value: '(',
               rawValue: '(',
             });
@@ -585,7 +733,7 @@ export function parseComboNotation(
             );
             tokens.push(...nestedTokens);
             tokens.push({
-              type: 'unknown',
+              type: 'modifier',
               value: ')',
               rawValue: ')',
             });
@@ -611,6 +759,32 @@ export function parseComboNotation(
 
           matched = true;
         }
+      }
+    }
+    if (matched) continue;
+
+    // Inverse brackets delimit a button release (e.g. ]D[). Resolve the
+    // complete token before individual punctuation can become unknown text.
+    if (input[i] === ']') {
+      const openBracketIndex = input.indexOf('[', i + 1);
+      const releaseContent = input.substring(i + 1, openBracketIndex);
+      if (
+        openBracketIndex > i + 1 &&
+        !releaseContent.includes(']') &&
+        !releaseContent.includes('[')
+      ) {
+        let tokenEnd = openBracketIndex + 1;
+        while (tokenEnd < input.length && input[tokenEnd] === ' ') {
+          tokenEnd++;
+        }
+        const fullText = input.substring(i, tokenEnd);
+        tokens.push({
+          type: 'modifier',
+          value: fullText,
+          rawValue: fullText,
+        });
+        i = tokenEnd;
+        matched = true;
       }
     }
     if (matched) continue;
@@ -646,37 +820,82 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    // Compound letter directions (d/f, u/f, etc.) must be resolved before '/' is
-    // consumed as a separator — only active in button-numbers mode.
-    if (isNrsMode) {
-      // Ground positions (FD/FT, FU/FA, etc.) also contain '/' and must be checked first.
-      const groundPositions: Record<string, string> = {
-        'fd/ft': 'FD/FT',
-        'fd/fa': 'FD/FA',
-        'fu/ft': 'FU/FT',
-        'fu/fa': 'FU/FA',
-      };
-      for (const [key, value] of Object.entries(groundPositions)) {
-        if (input.substring(i, i + key.length).toLowerCase() === key) {
+    // Punctuation makes these Tekken mechanics unambiguous, so resolve them
+    // before customizable button names such as W or WB.
+    if (isTekken) {
+      for (const mechanicKey of SORTED_TEKKEN_MECHANICS) {
+        if (
+          input.substring(i, i + mechanicKey.length).toLowerCase() ===
+          mechanicKey
+        ) {
           tokens.push({
             type: 'modifier',
-            value,
-            rawValue: input.substring(i, i + key.length),
+            value: TEKKEN_MECHANICS[mechanicKey],
+            rawValue: input.substring(i, i + mechanicKey.length),
           });
-          i += key.length;
+          i += mechanicKey.length;
           matched = true;
           break;
         }
       }
-      if (matched) continue;
+    }
+    if (matched) continue;
 
-      for (const dir of LETTER_DIR_COMPOUNDS) {
+    // Tekken compact dashes are motions; case remains meaningful for ordinary
+    // directions, so only lowercase shorthand is normalized here.
+    if (isTekken) {
+      const compactDash = input.substring(i).match(/^(fff|ff|bb)/);
+      if (compactDash) {
+        const rawDash = compactDash[1];
+        tokens.push({
+          type: 'motion',
+          value: rawDash === 'bb' ? '44' : rawDash === 'fff' ? '666' : '66',
+          rawValue: rawDash,
+        });
+        i += rawDash.length;
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // Slash diagonals must be resolved before '/' is consumed as a separator.
+    if (isButtonNumberProfile) {
+      // Ground positions (FD/FT, FU/FA, etc.) also contain '/' and must be checked first.
+      if (isTekken) {
+        const groundPositions: Record<string, string> = {
+          'fd/ft': 'FD/FT',
+          'fd/fa': 'FD/FA',
+          'fu/ft': 'FU/FT',
+          'fu/fa': 'FU/FA',
+        };
+        for (const [key, value] of Object.entries(groundPositions)) {
+          if (input.substring(i, i + key.length).toLowerCase() === key) {
+            tokens.push({
+              type: 'modifier',
+              value,
+              rawValue: input.substring(i, i + key.length),
+            });
+            i += key.length;
+            matched = true;
+            break;
+          }
+        }
+        if (matched) continue;
+      }
+
+      const profileCompounds = isTekken
+        ? LETTER_DIR_COMPOUNDS
+        : NRS_LETTER_DIR_COMPOUNDS;
+      for (const dir of profileCompounds) {
         if (input.substring(i, i + dir.length).toLowerCase() === dir) {
           const rawDir = input.substring(i, i + dir.length);
+          const canonicalDirection =
+            isTekken && rawDir === rawDir.toUpperCase()
+              ? rawDir.toUpperCase()
+              : rawDir.toLowerCase();
           tokens.push({
             type: 'direction',
-            // Preserve original case: D/F = hold, d/f = tap
-            value: rawDir,
+            value: canonicalDirection,
             rawValue: rawDir,
           });
           i += dir.length;
@@ -705,7 +924,7 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    for (const modKey of SORTED_ALL_MODIFIERS) {
+    for (const modKey of activeModifierKeys) {
       const normalizedInput = input
         .substring(i, i + modKey.length)
         .toLowerCase()
@@ -717,7 +936,10 @@ export function parseComboNotation(
         hasLetterBoundaryForWordToken(input, i, modKey.length, modKey)
       ) {
         const normalizedValue =
-          STANCE_MODIFIERS[modKey] || SPECIAL_MODIFIERS[modKey];
+          (isTekken ? TEKKEN_MODIFIERS[modKey] : undefined) ||
+          (isNrs ? NRS_MODIFIERS[modKey] : undefined) ||
+          STANCE_MODIFIERS[modKey] ||
+          SPECIAL_MODIFIERS[modKey];
         tokens.push({
           type: 'modifier',
           value: normalizedValue,
@@ -775,9 +997,9 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    // Numeric motions (236, 214, etc.) disabled in button-numbers mode
+    // Numeric motions (236, 214, etc.) are disabled in numbered-button profiles
     // since those digits are named buttons or cardinal directions.
-    if (!isNrsMode) {
+    if (!isButtonNumberProfile) {
       for (const motion of SORTED_MOTIONS) {
         if (input.substring(i, i + motion.length) === motion) {
           tokens.push({
@@ -808,6 +1030,26 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
+    // NRS letter directions are sequential and case-insensitive.
+    // Only consume a compact direction run when it is followed by notation
+    // syntax, which prevents ordinary words from being split into directions.
+    if (isNrs) {
+      const directionRun = input
+        .substring(i)
+        .match(/^[fbud]+(?=[1-4+~,:=_<>\s]|$)/i);
+      if (directionRun) {
+        const rawDirection = input[i];
+        tokens.push({
+          type: 'direction',
+          value: rawDirection.toLowerCase(),
+          rawValue: rawDirection,
+        });
+        i++;
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
     for (const btn of sortedButtons) {
       if (
         input.substring(i, i + btn.length).toUpperCase() ===
@@ -827,9 +1069,9 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    // Cardinal letter directions and stances — button-numbers mode only, checked
+    // Cardinal letter directions and stances — Tekken only, checked
     // after custom buttons so game-defined 'F'/'B' buttons take priority.
-    if (isNrsMode) {
+    if (isTekken) {
       for (const stanceKey of SORTED_LETTER_DIR_STANCES) {
         if (
           input.substring(i, i + stanceKey.length).toLowerCase() ===
@@ -877,7 +1119,11 @@ export function parseComboNotation(
     i += unknownChar.length;
   }
 
-  // Collapse consecutive identical buttons into repeat groups (e.g. LLL → L×3)
+  if (isNrs) {
+    return tokens;
+  }
+
+  // Collapse consecutive identical buttons into repeat groups (e.g. LLL → L×3).
   const collapsed: ComboToken[] = [];
   for (let t = 0; t < tokens.length; t++) {
     const token = tokens[t];
@@ -885,6 +1131,7 @@ export function parseComboNotation(
       let count = 1;
       while (
         t + count < tokens.length &&
+        !/\s$/.test(tokens[t + count - 1].rawValue) &&
         tokens[t + count].type === 'button' &&
         tokens[t + count].value === token.value
       ) {
@@ -936,11 +1183,17 @@ export function getTokenColor(
       if (token.value.startsWith('(')) {
         return colors.separator || '#6c727e';
       }
-      if (token.value.startsWith('[')) {
+      if (token.value.startsWith('[') || token.value.startsWith(']')) {
         const trimmed = token.value.trim();
-        if (trimmed.endsWith(']')) {
-          const bracketContent = trimmed.slice(1, -1).trim();
-          const upperContent = bracketContent.toUpperCase();
+        const delimitedButtonMatch = trimmed.match(
+          /^(?:\[([^[\]]+)\]|\]([^[\]]+)\[)$/,
+        );
+        if (delimitedButtonMatch) {
+          const upperContent = (
+            delimitedButtonMatch[1] ?? delimitedButtonMatch[2]
+          )
+            .trim()
+            .toUpperCase();
           if (buttonColors?.[upperContent]) {
             return buttonColors[upperContent];
           }
