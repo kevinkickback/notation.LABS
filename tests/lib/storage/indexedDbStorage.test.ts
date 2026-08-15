@@ -408,6 +408,21 @@ describe('indexedDbStorage.combos', () => {
     expect(id).toBeDefined();
   });
 
+  it('clears legacy video references on ordinary writes', async () => {
+    const id = await indexedDbStorage.combos.add({
+      ...comboData(),
+      demoUrl: 'local-video://legacy-video',
+      demoFileName: 'legacy.mp4',
+      demoVideoTitle: 'Legacy video',
+    });
+
+    const combo = await indexedDbStorage.combos.get(id);
+    assertDefined(combo);
+    expect(combo.demoUrl).toBeUndefined();
+    expect(combo.demoFileName).toBeUndefined();
+    expect(combo.demoVideoTitle).toBeUndefined();
+  });
+
   it('retrieves a combo by id', async () => {
     const id = await indexedDbStorage.combos.add(comboData());
     const combo = await indexedDbStorage.combos.get(id);
@@ -637,71 +652,6 @@ describe('indexedDbStorage.combos', () => {
     const all = await indexedDbStorage.combos.getAll();
     expect(all).toHaveLength(2);
   });
-
-  describe('search', () => {
-    beforeEach(async () => {
-      await indexedDbStorage.combos.add({
-        ...comboData(),
-        name: 'Hadouken Combo',
-        notation: '236P',
-        description: 'Basic fireball combo',
-        tags: ['fireball', 'easy'],
-      });
-      await indexedDbStorage.combos.add({
-        ...comboData(),
-        name: 'Shoryuken Punish',
-        notation: '623HP',
-        description: 'Anti-air punish',
-        tags: ['anti-air', 'advanced'],
-      });
-      await indexedDbStorage.combos.add({
-        ...comboData(),
-        name: 'Throw Loop',
-        notation: '6LP+LK',
-        description: 'Command grab setup',
-        tags: ['grab', 'loop'],
-      });
-    });
-
-    it('searches by combo name', async () => {
-      const results = await indexedDbStorage.combos.search('hadouken');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Hadouken Combo');
-    });
-
-    it('searches by notation', async () => {
-      const results = await indexedDbStorage.combos.search('623');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Shoryuken Punish');
-    });
-
-    it('searches by description', async () => {
-      const results = await indexedDbStorage.combos.search('basic');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Hadouken Combo');
-    });
-
-    it('searches by tags', async () => {
-      const results = await indexedDbStorage.combos.search('loop');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Throw Loop');
-    });
-
-    it('search is case-insensitive', async () => {
-      const results = await indexedDbStorage.combos.search('HADOUKEN');
-      expect(results).toHaveLength(1);
-    });
-
-    it('returns empty array for no matches', async () => {
-      const results = await indexedDbStorage.combos.search('nonexistent');
-      expect(results).toHaveLength(0);
-    });
-
-    it('returns multiple matches', async () => {
-      const results = await indexedDbStorage.combos.search('6');
-      expect(results.length).toBeGreaterThanOrEqual(1);
-    });
-  });
 });
 
 describe('indexedDbStorage.settings', () => {
@@ -717,7 +667,6 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.videoPlayerSize).toBe('lg');
     expect(settings.gameCardSize).toBe(180);
     expect(settings.characterCardSize).toBe(180);
-    expect(settings.showChangelogBeforeUpdate).toBe(true);
   });
 
   it('auto-initializes settings in DB on first get', async () => {
@@ -1216,14 +1165,12 @@ describe('indexedDbStorage.import', () => {
         notationColors: { direction: '#fff', separator: '#ccc' },
         displayMode: 'visual-icons',
         iconStyle: 'round',
-        uiTheme: 'default',
         comboScale: 2.5,
         autoUpdate: true,
         confirmBeforeDelete: true,
         videoPlayerSize: 'lg',
         gameCardSize: 180,
         characterCardSize: 180,
-        showChangelogBeforeUpdate: true,
       },
     });
 
@@ -1232,6 +1179,14 @@ describe('indexedDbStorage.import', () => {
     assertDefined(raw);
     expect(raw.comboScale).toBe(2.5);
     expect(raw.displayMode).toBe('visual-icons');
+    expect(raw).not.toHaveProperty('uiTheme');
+    expect(raw).not.toHaveProperty('showChangelogBeforeUpdate');
+
+    const exported = JSON.parse(
+      await (await indexedDbStorage.export()).text(),
+    );
+    expect(exported.settings).not.toHaveProperty('uiTheme');
+    expect(exported.settings).not.toHaveProperty('showChangelogBeforeUpdate');
   });
 
   it('does not import settings unless includeSettings is true', async () => {

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { searchIGDB } from '@/lib/igdb';
+import { searchIgdbGames } from '@/lib/providers/igdbProvider';
 
-describe('searchIGDB', () => {
+describe('searchIgdbGames', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe('searchIGDB', () => {
       json: async () => results,
     });
 
-    await expect(searchIGDB('street fighter')).resolves.toEqual([
+    await expect(searchIgdbGames('street fighter')).resolves.toEqual([
       {
         igdbId: 7,
         name: 'Street Fighter 6',
@@ -45,7 +45,7 @@ describe('searchIGDB', () => {
   it('throws a descriptive error when the worker request fails', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
 
-    await expect(searchIGDB('guilty gear')).rejects.toThrow(
+    await expect(searchIgdbGames('guilty gear')).rejects.toThrow(
       'IGDB search failed: 503',
     );
   });

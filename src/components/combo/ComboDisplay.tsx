@@ -1,10 +1,10 @@
 import { type ReactNode, useMemo } from 'react';
+import { getTokenColor } from '@/components/combo/comboDisplayUtils';
 import { useSettings } from '@/context/SettingsContext';
 import {
   getButtonAccessibilityLabel,
   getMechanicAccessibilityLabel,
 } from '@/lib/notationProfiles';
-import { getTokenColor } from '@/lib/parser';
 import type { ComboToken, Game } from '@/lib/types';
 import {
   DIRECTION_MODIFIERS,

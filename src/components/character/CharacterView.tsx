@@ -1,6 +1,7 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
+import { EntityNoteDialog } from '@/components/shared/EntityNoteDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import {
   AlertDialog,
@@ -12,27 +13,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import { useCharacterComboStatistics } from '@/hooks/useCharacterComboStatistics';
 import { useCharacterDelete } from '@/hooks/useCharacterDelete';
 import { useCharacterFilters } from '@/hooks/useCharacterFilters';
 import { useCharacterOperations } from '@/hooks/useCharacterOperations';
-import { useCharacterSelection } from '@/hooks/useCharacterSelection';
 import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
+import { useSelection } from '@/hooks/useSelection';
 import { updateGame } from '@/lib/application/gameCommands';
+import { reportError } from '@/lib/errors';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 import { CharacterFormDialog } from './CharacterFormDialog';
@@ -59,7 +50,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(game.notes || '');
 
-  const selection = useCharacterSelection();
+  const selection = useSelection();
   const viewMode = useCharacterViewMode(settings.characterCardSize);
   const deleteState = useCharacterDelete();
   const operations = useCharacterOperations();
@@ -157,7 +148,8 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       });
       toast.success('Note updated');
       setNoteDialogOpen(false);
-    } catch {
+    } catch (error) {
+      reportError('CharacterView.handleSaveNote', error);
       toast.error('Failed to update note');
     }
   }, [game.id, noteDraft]);
@@ -370,31 +362,15 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         game={game}
       />
 
-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Note</DialogTitle>
-            <DialogDescription>
-              Update notes for {game.name}. Markdown is supported.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor={gameNoteEditorId}>Note</Label>
-            <Textarea
-              id={gameNoteEditorId}
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              rows={8}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSaveNote()}>Save Note</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EntityNoteDialog
+        open={noteDialogOpen}
+        onOpenChange={setNoteDialogOpen}
+        editorId={gameNoteEditorId}
+        entityName={game.name}
+        value={noteDraft}
+        onValueChange={setNoteDraft}
+        onSave={() => void handleSaveNote()}
+      />
     </div>
   );
 }

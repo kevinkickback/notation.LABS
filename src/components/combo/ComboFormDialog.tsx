@@ -204,41 +204,32 @@ export function ComboFormDialog({
     outdated: outdated || undefined,
   });
 
-  const handleAdd = async () => {
+  const handleSubmit = async () => {
     if (!name.trim() || !notation.trim()) {
       toast.error('Name and notation are required');
       return;
     }
 
     try {
-      await createCombo(
-        {
-          characterId: character.id,
-          ...buildComboPayload(),
-        },
-        pendingVideo,
+      const payload = buildComboPayload();
+      if (editingCombo) {
+        await updateCombo(editingCombo.id, payload, pendingVideo);
+      } else {
+        await createCombo(
+          {
+            characterId: character.id,
+            ...payload,
+          },
+          pendingVideo,
+        );
+      }
+      toast.success(editingCombo ? 'Combo updated' : 'Combo added');
+      handleDialogOpenChange(false);
+    } catch (err) {
+      reportError('ComboFormDialog.handleSubmit', err);
+      toast.error(
+        editingCombo ? 'Failed to update combo' : 'Failed to add combo',
       );
-      toast.success('Combo added');
-      handleDialogOpenChange(false);
-    } catch (err) {
-      reportError('ComboFormDialog.handleAdd', err);
-      toast.error('Failed to add combo');
-    }
-  };
-
-  const handleUpdate = async () => {
-    if (!editingCombo || !name.trim() || !notation.trim()) {
-      toast.error('Name and notation are required');
-      return;
-    }
-
-    try {
-      await updateCombo(editingCombo.id, buildComboPayload(), pendingVideo);
-      toast.success('Combo updated');
-      handleDialogOpenChange(false);
-    } catch (err) {
-      reportError('ComboFormDialog.handleUpdate', err);
-      toast.error('Failed to update combo');
     }
   };
 
@@ -338,7 +329,7 @@ export function ComboFormDialog({
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
           onSubmit={(event) => {
             event.preventDefault();
-            void (editingCombo ? handleUpdate() : handleAdd());
+            void handleSubmit();
           }}
         >
           <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">

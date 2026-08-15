@@ -1,6 +1,4 @@
-import Dexie, { type EntityTable } from 'dexie';
 import JSZip from 'jszip';
-import { v4 as uuidv4 } from 'uuid';
 import {
   type BackupImportPlan,
   normalizeBackupImport,
@@ -20,30 +18,28 @@ import {
   MAX_VIDEO_SIZE_BYTES,
   MAX_ZIP_BACKUP_BYTES,
 } from '../defaults';
-import {
-  migrateLegacyNotationProfile,
-  resolveNotationProfile,
-} from '../notationProfiles';
+import { resolveNotationProfile } from '../notationProfiles';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '../parser';
-import { importDataSchema } from '../schemas';
+import { importDataSchema, settingsSchema } from '../schemas';
 import type {
   Character,
   Combo,
   Game,
-  LegacyGame,
   NotationColors,
   UserSettings,
 } from '../types';
+import { type DemoVideo, db } from './database';
+import {
+  getCanonicalLocalVideoId,
+  sanitizeCanonicalVideoReference,
+  sanitizeRuntimeVideoReference,
+} from './videoReferences';
 
 const ZIP_BACKUP_METADATA_FILE = 'backup.json';
 const ZIP_BACKUP_VIDEO_DIR = 'videos';
 
-export interface DemoVideo {
-  id: string;
-  data: ArrayBuffer;
-  mimeType: string;
-  fileName: string;
-}
+export type { DemoVideo } from './database';
+export { db } from './database';
 
 export interface ZipImportProgress {
   phase: 'loading' | 'videos' | 'finalizing';
@@ -167,88 +163,8 @@ function validatePendingVideoReference(
   }
 }
 
-const db = new Dexie('FightingGameComboTracker') as Dexie & {
-  games: EntityTable<Game, 'id'>;
-  characters: EntityTable<Character, 'id'>;
-  combos: EntityTable<Combo, 'id'>;
-  settings: EntityTable<UserSettings & { id: number }, 'id'>;
-  demoVideos: EntityTable<DemoVideo, 'id'>;
-};
-
-db.version(1).stores({
-  games: 'id, name, createdAt',
-  characters: 'id, gameId, name, createdAt',
-  combos: 'id, characterId, name, notation, createdAt, updatedAt, *tags',
-  settings: 'id',
-});
-
-db.version(2)
-  .stores({
-    games: 'id, name, createdAt',
-    characters: 'id, gameId, name, createdAt',
-    combos:
-      'id, characterId, name, notation, createdAt, updatedAt, *tags, sortOrder',
-    settings: 'id',
-  })
-  .upgrade((tx) => {
-    return tx
-      .table('combos')
-      .toCollection()
-      .modify((combo) => {
-        if (combo.sortOrder === undefined) {
-          combo.sortOrder = combo.createdAt;
-        }
-      });
-  });
-
-db.version(3).stores({
-  games: 'id, name, createdAt',
-  characters: 'id, gameId, name, createdAt',
-  combos:
-    'id, characterId, name, notation, createdAt, updatedAt, *tags, sortOrder',
-  settings: 'id',
-  demoVideos: 'id',
-});
-
-// Version 4: no schema changes — reserved for future migration.
-// Dexie requires strictly increasing version numbers; this bump
-// holds the slot without modifying any table definitions.
-db.version(4).stores({
-  games: 'id, name, createdAt',
-  characters: 'id, gameId, name, createdAt',
-  combos:
-    'id, characterId, name, notation, createdAt, updatedAt, *tags, sortOrder',
-  settings: 'id',
-  demoVideos: 'id',
-});
-
-db.version(5).stores({
-  games: 'id, name, createdAt',
-  characters: 'id, gameId, name, createdAt',
-  combos:
-    'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder',
-  settings: 'id',
-  demoVideos: 'id',
-});
-
-db.version(6)
-  .stores({
-    games: 'id, name, createdAt',
-    characters: 'id, gameId, name, createdAt',
-    combos:
-      'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder',
-    settings: 'id',
-    demoVideos: 'id',
-  })
-  .upgrade((tx) =>
-    tx
-      .table('games')
-      .toCollection()
-      .modify((game: LegacyGame) => migrateLegacyNotationProfile(game)),
-  );
-
 export function generateId(): string {
-  return uuidv4();
+  return crypto.randomUUID();
 }
 
 /**
@@ -263,12 +179,7 @@ const OKLCH_TO_HEX: Record<string, string> = {
 };
 
 export function getLocalVideoId(demoUrl?: string): string | null {
-  if (!demoUrl?.startsWith('local:')) {
-    return null;
-  }
-
-  const videoId = demoUrl.slice('local:'.length);
-  return videoId || null;
+  return getCanonicalLocalVideoId(demoUrl);
 }
 
 function collectLocalVideoIds(combos: Array<Pick<Combo, 'demoUrl'>>): string[] {
@@ -311,17 +222,7 @@ function sanitizeComboLocalVideo<T extends Combo>(
   combo: T,
   availableVideoIds: Set<string>,
 ): T {
-  const videoId = getLocalVideoId(combo.demoUrl);
-  if (!videoId || availableVideoIds.has(videoId)) {
-    return combo;
-  }
-
-  return {
-    ...combo,
-    demoUrl: undefined,
-    demoFileName: undefined,
-    demoVideoTitle: undefined,
-  };
+  return sanitizeCanonicalVideoReference(combo, availableVideoIds);
 }
 
 function sanitizeCombosLocalVideos(
@@ -675,6 +576,7 @@ export const indexedDbStorage = {
     add: async (
       combo: Omit<Combo, 'id' | 'createdAt' | 'updatedAt' | 'sortOrder'>,
     ) => {
+      const sanitizedCombo = sanitizeRuntimeVideoReference(combo);
       const id = generateId();
       const now = Date.now();
       await db.transaction('rw', db.combos, async () => {
@@ -687,7 +589,7 @@ export const indexedDbStorage = {
           -1,
         );
         await db.combos.add({
-          ...combo,
+          ...sanitizedCombo,
           id,
           sortOrder: maxOrder + 1,
           createdAt: now,
@@ -700,7 +602,8 @@ export const indexedDbStorage = {
       combo: Omit<Combo, 'id' | 'createdAt' | 'updatedAt' | 'sortOrder'>,
       video?: DemoVideo,
     ) => {
-      validatePendingVideoReference(combo.demoUrl, video);
+      const sanitizedCombo = sanitizeRuntimeVideoReference(combo);
+      validatePendingVideoReference(sanitizedCombo.demoUrl, video);
       const id = generateId();
       const now = Date.now();
       await db.transaction('rw', [db.combos, db.demoVideos], async () => {
@@ -716,7 +619,7 @@ export const indexedDbStorage = {
           await db.demoVideos.add(video);
         }
         await db.combos.add({
-          ...combo,
+          ...sanitizedCombo,
           id,
           sortOrder: maxOrder + 1,
           createdAt: now,
@@ -726,8 +629,9 @@ export const indexedDbStorage = {
       return id;
     },
     update: async (id: string, updates: Partial<Combo>) => {
+      const sanitizedUpdates = sanitizeRuntimeVideoReference(updates);
       await db.combos.update(id, {
-        ...updates,
+        ...sanitizedUpdates,
         updatedAt: Date.now(),
       });
     },
@@ -736,6 +640,7 @@ export const indexedDbStorage = {
       updates: Partial<Combo>,
       video?: DemoVideo,
     ) => {
+      const sanitizedUpdates = sanitizeRuntimeVideoReference(updates);
       await db.transaction('rw', [db.combos, db.demoVideos], async () => {
         const current = await db.combos.get(id);
         if (!current) {
@@ -743,14 +648,16 @@ export const indexedDbStorage = {
         }
 
         const nextDemoUrl =
-          'demoUrl' in updates ? updates.demoUrl : current.demoUrl;
+          'demoUrl' in sanitizedUpdates
+            ? sanitizedUpdates.demoUrl
+            : current.demoUrl;
         validatePendingVideoReference(nextDemoUrl, video);
 
         if (video) {
           await db.demoVideos.add(video);
         }
         const updated = await db.combos.update(id, {
-          ...updates,
+          ...sanitizedUpdates,
           updatedAt: Date.now(),
         });
         if (updated !== 1) {
@@ -820,26 +727,6 @@ export const indexedDbStorage = {
           await db.combos.bulkPut(reorderedCombos);
         }
       });
-    },
-    search: async (query: string) => {
-      const trimmedQuery = query.trim().toLowerCase();
-      if (!trimmedQuery) {
-        return [];
-      }
-
-      // Filter combos with substring matching (consistent with in-memory search)
-      const results = await db.combos
-        .filter((combo) => {
-          return (
-            combo.name.toLowerCase().includes(trimmedQuery) ||
-            combo.notation.toLowerCase().includes(trimmedQuery) ||
-            combo.description?.toLowerCase().includes(trimmedQuery) ||
-            combo.tags.some((t) => t.toLowerCase().includes(trimmedQuery))
-          );
-        })
-        .toArray();
-
-      return results.sort((a, b) => a.sortOrder - b.sortOrder);
     },
   },
 
@@ -1005,6 +892,9 @@ export const indexedDbStorage = {
       { games, characters, combos },
       filter,
     ));
+    const exportSettings = settings
+      ? settingsSchema.parse(settings)
+      : undefined;
 
     let sanitizedCombos = combos;
 
@@ -1050,7 +940,7 @@ export const indexedDbStorage = {
             games,
             characters,
             combos: sanitizedCombos,
-            settings,
+            settings: exportSettings,
             demoVideos,
           },
           null,
@@ -1075,7 +965,7 @@ export const indexedDbStorage = {
             games,
             characters,
             combos: sanitizedCombos,
-            settings,
+            settings: exportSettings,
           },
           null,
           2,
@@ -1308,5 +1198,3 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   }
   return bytes.buffer;
 }
-
-export { db };

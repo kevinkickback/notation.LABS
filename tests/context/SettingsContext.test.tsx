@@ -1,10 +1,15 @@
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SettingsProvider } from '@/context/SettingsContext';
+import {
+  SettingsProvider,
+  useSettings,
+  useSettingsActions,
+} from '@/context/SettingsContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
-const { useLiveQueryMock } = vi.hoisted(() => ({
+const { settingsUpdateMock, useLiveQueryMock } = vi.hoisted(() => ({
+  settingsUpdateMock: vi.fn(),
   useLiveQueryMock: vi.fn(),
 }));
 const initMock = vi.fn();
@@ -21,6 +26,8 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     settings: {
       init: (...args: unknown[]) => initMock(...args),
       get: (...args: unknown[]) => getMock(...args),
+      update: (...args: unknown[]) => settingsUpdateMock(...args),
+      setNotesOverride: vi.fn(),
     },
   },
 }));
@@ -40,6 +47,7 @@ vi.mock('@/lib/errors', () => ({
 describe('SettingsContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    settingsUpdateMock.mockResolvedValue(undefined);
     useLiveQueryMock.mockReturnValue(DEFAULT_SETTINGS);
     getMock.mockResolvedValue(DEFAULT_SETTINGS);
     initMock.mockResolvedValue(undefined);
@@ -47,6 +55,23 @@ describe('SettingsContext', () => {
     document.documentElement.style.removeProperty('--accent-color');
     document.documentElement.classList.remove('dark');
   });
+
+  function SettingsConsumer() {
+    const settings = useSettings();
+    const { setSetting } = useSettingsActions();
+
+    return (
+      <>
+        <span>{settings.accentColor}</span>
+        <button
+          type="button"
+          onClick={() => void setSetting('accentColor', '#abcdef')}
+        >
+          Change accent
+        </button>
+      </>
+    );
+  }
 
   it('applies saved presentation settings to the document', () => {
     useLiveQueryMock.mockReturnValue({
@@ -151,5 +176,61 @@ describe('SettingsContext', () => {
         expect.any(Error),
       );
     });
+  });
+
+  it('applies settings optimistically while persistence is pending', async () => {
+    let resolvePersistence: (() => void) | undefined;
+    settingsUpdateMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePersistence = resolve;
+        }),
+    );
+
+    render(
+      <SettingsProvider>
+        <SettingsConsumer />
+      </SettingsProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change accent' }));
+    expect(screen.getByText('#abcdef')).not.toBeNull();
+    expect(
+      document.documentElement.style.getPropertyValue('--accent-color'),
+    ).toBe('#abcdef');
+
+    await act(async () => resolvePersistence?.());
+  });
+
+  it('rolls back optimistic settings and reports persistence failures', async () => {
+    let rejectPersistence: ((error: Error) => void) | undefined;
+    settingsUpdateMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPersistence = reject;
+        }),
+    );
+
+    render(
+      <SettingsProvider>
+        <SettingsConsumer />
+      </SettingsProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change accent' }));
+    expect(screen.getByText('#abcdef')).not.toBeNull();
+
+    await act(async () => rejectPersistence?.(new Error('write failed')));
+
+    expect(
+      screen.getByText(DEFAULT_SETTINGS.accentColor ?? '#3b82f6'),
+    ).not.toBeNull();
+    expect(reportErrorMock).toHaveBeenCalledWith(
+      'SettingsProvider.setSetting',
+      expect.any(Error),
+    );
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'Failed to save setting: write failed',
+    );
   });
 });

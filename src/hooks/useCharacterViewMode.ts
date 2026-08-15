@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { setSetting } from '@/lib/application/settingsCommands';
+import { useState } from 'react';
+import { usePersistedCardSize } from '@/hooks/usePersistedCardSize';
 
 const clampCharSize = (v: number) => Math.min(300, Math.max(120, v));
 
@@ -8,18 +8,11 @@ const clampCharSize = (v: number) => Math.min(300, Math.max(120, v));
  */
 export function useCharacterViewMode(initialCardSize: number) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [cardSize, setCardSize] = useState(() =>
-    clampCharSize(initialCardSize),
+  const { cardSize, handleCardSizeChange } = usePersistedCardSize(
+    'characterCardSize',
+    initialCardSize,
+    clampCharSize,
   );
-
-  useEffect(() => {
-    setCardSize(clampCharSize(initialCardSize));
-  }, [initialCardSize]);
-
-  const handleCardSizeChange = async (size: number) => {
-    setCardSize(size);
-    await setSetting('characterCardSize', size);
-  };
 
   return {
     viewMode,

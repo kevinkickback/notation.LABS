@@ -40,14 +40,15 @@ vi.mock('@/context/SettingsContext', () => ({
     notationColors: { direction: '#fff', separator: '#ccc' },
     displayMode: 'colored-text',
     iconStyle: 'round',
-    uiTheme: 'default',
     comboScale: 1,
     autoUpdate: true,
     confirmBeforeDelete: true,
     videoPlayerSize: 'lg',
     gameCardSize: 180,
     characterCardSize: 180,
-    showChangelogBeforeUpdate: true,
+  }),
+  useSettingsActions: vi.fn().mockReturnValue({
+    setSetting: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 

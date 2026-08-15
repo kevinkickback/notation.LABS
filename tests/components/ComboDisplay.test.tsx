@@ -13,14 +13,12 @@ vi.mock('@/context/SettingsContext', () => ({
         iconStyle: 'round',
         motionIconStyle: 'joystick',
         characterCardOrientation: 'landscape',
-        uiTheme: 'default',
         comboScale: 1,
         autoUpdate: true,
         confirmBeforeDelete: false,
         videoPlayerSize: 'lg',
         gameCardSize: 180,
         characterCardSize: 180,
-        showChangelogBeforeUpdate: true,
     }),
 }));
 

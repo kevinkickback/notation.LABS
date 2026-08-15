@@ -31,7 +31,6 @@ vi.mock('@/hooks/useSettings', () => ({
     notationColors: { direction: '#fff', separator: '#ccc' },
     displayMode: 'colored-text',
     iconStyle: 'round',
-    uiTheme: 'default',
     comboScale: 1,
     autoUpdate: true,
     confirmBeforeDelete: true,
@@ -39,7 +38,6 @@ vi.mock('@/hooks/useSettings', () => ({
     gameCardSize: 180,
     characterCardSize: 180,
     notesDefaultOpen: false,
-    showChangelogBeforeUpdate: true,
   }),
 }));
 

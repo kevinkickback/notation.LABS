@@ -1,4 +1,5 @@
 import { normalizeGameNotationProfile } from '@/lib/notationProfiles';
+import { sanitizeImportedVideoReference } from '@/lib/storage/videoReferences';
 import type {
   BackupImportData,
   Character,
@@ -22,29 +23,6 @@ export interface BackupImportPlan {
   videos: ResolvedBackupVideo[];
 }
 
-function getLocalVideoId(url?: string): string | undefined {
-  if (!url) return undefined;
-  if (url.startsWith('local:')) return url.slice('local:'.length) || undefined;
-  if (url.startsWith('local-video://')) {
-    return url.slice('local-video://'.length) || undefined;
-  }
-  return undefined;
-}
-
-function sanitizeComboVideo(
-  combo: Combo,
-  availableVideoIds: Set<string>,
-): Combo {
-  const videoId = getLocalVideoId(combo.demoUrl);
-  if (!videoId || availableVideoIds.has(videoId)) return combo;
-  return {
-    ...combo,
-    demoUrl: undefined,
-    demoFileName: undefined,
-    demoVideoTitle: undefined,
-  };
-}
-
 export function normalizeBackupImport(
   data: BackupImportData,
   options: {
@@ -57,7 +35,7 @@ export function normalizeBackupImport(
     games: (data.games ?? []).map(normalizeGameNotationProfile),
     characters: data.characters ?? [],
     combos: (data.combos ?? []).map((combo) =>
-      sanitizeComboVideo(combo, availableVideoIds),
+      sanitizeImportedVideoReference(combo, availableVideoIds),
     ),
     settings: options.includeSettings ? data.settings : undefined,
     videos: options.videos,

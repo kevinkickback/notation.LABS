@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  getNotesOverrides,
-  removeNotesOverride as removeNotesOverrideCommand,
-  setNotesOverride,
-} from '@/lib/application/settingsCommands';
+import { useSettingsActions } from '@/context/SettingsContext';
 import { reportError } from '@/lib/errors';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 function resolveShowNotes(
   entityId: string,
@@ -22,6 +19,7 @@ export function useNotesOverride(
   entityId: string,
   defaultOpen: boolean,
 ): [boolean, () => void] {
+  const { setNotesOverride } = useSettingsActions();
   const [showNotes, setShowNotes] = useState(defaultOpen);
 
   useEffect(() => {
@@ -29,7 +27,7 @@ export function useNotesOverride(
 
     const loadOverrides = async () => {
       try {
-        const overrides = await getNotesOverrides();
+        const overrides = await indexedDbStorage.settings.getNotesOverrides();
         if (!isActive) {
           return;
         }
@@ -57,18 +55,14 @@ export function useNotesOverride(
         try {
           await setNotesOverride(entityId, next !== defaultOpen);
         } catch (error) {
+          setShowNotes((latest) => (latest === next ? !next : latest));
           reportError('useNotesOverride.handleToggle', error);
         }
       })();
 
       return next;
     });
-  }, [defaultOpen, entityId]);
+  }, [defaultOpen, entityId, setNotesOverride]);
 
   return [showNotes, handleToggle];
-}
-
-/** Removes the notes override entry for a deleted entity. */
-export async function removeNotesOverride(entityId: string): Promise<void> {
-  await removeNotesOverrideCommand(entityId);
 }

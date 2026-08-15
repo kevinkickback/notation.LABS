@@ -22,11 +22,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
+import { useCoverEditor } from '@/hooks/useCoverEditor';
 import {
   createCharacter,
   updateCharacter,
 } from '@/lib/application/characterCommands';
-import type { Character, CoverImageFit, Game } from '@/lib/types';
+import { reportError } from '@/lib/errors';
+import type { Character, Game } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
 
@@ -47,11 +49,23 @@ export function CharacterFormDialog({
   const orientation = settings.characterCardOrientation ?? 'landscape';
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
-  const [portraitImage, setPortraitImage] = useState('');
-  const [portraitZoom, setPortraitZoom] = useState(100);
-  const [portraitPanX, setPortraitPanX] = useState(50);
-  const [portraitPanY, setPortraitPanY] = useState(50);
-  const [portraitFit, setPortraitFit] = useState<CoverImageFit>('fill');
+  const {
+    image: portraitImage,
+    setImage: setPortraitImage,
+    zoom: portraitZoom,
+    setZoom: setPortraitZoom,
+    panX: portraitPanX,
+    setPanX: setPortraitPanX,
+    panY: portraitPanY,
+    setPanY: setPortraitPanY,
+    fit: portraitFit,
+    setFit: setPortraitFit,
+    initialize: initializePortrait,
+    reset: resetPortrait,
+    resetTransform: resetPortraitTransform,
+    applyImage: applyPortraitImage,
+    serialize: serializePortrait,
+  } = useCoverEditor();
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const charNameId = useId();
@@ -62,78 +76,59 @@ export function CharacterFormDialog({
     if (open && editingCharacter) {
       setName(editingCharacter.name);
       setNotes(editingCharacter.notes || '');
-      setPortraitImage(editingCharacter.portraitImage || '');
-      setPortraitZoom(editingCharacter.portraitZoom || 100);
-      setPortraitPanX(editingCharacter.portraitPanX ?? 50);
-      setPortraitPanY(editingCharacter.portraitPanY ?? 50);
-      setPortraitFit(editingCharacter.portraitFit ?? 'fill');
+      initializePortrait({
+        image: editingCharacter.portraitImage,
+        zoom: editingCharacter.portraitZoom,
+        panX: editingCharacter.portraitPanX,
+        panY: editingCharacter.portraitPanY,
+        fit: editingCharacter.portraitFit,
+      });
     } else if (!open) {
       setName('');
       setNotes('');
-      setPortraitImage('');
-      setPortraitZoom(100);
-      setPortraitPanX(50);
-      setPortraitPanY(50);
-      setPortraitFit('fill');
+      resetPortrait();
       setImageSearchOpen(false);
     }
-  }, [open, editingCharacter]);
+  }, [open, editingCharacter, initializePortrait, resetPortrait]);
 
-  const handleAdd = async () => {
-    if (!name.trim()) {
-      toast.error('Character name is required');
-      return;
-    }
-    try {
-      await createCharacter({
-        gameId: game.id,
-        name: name.trim(),
-        notes: notes.trim(),
-        portraitImage: portraitImage || undefined,
-        portraitZoom: portraitZoom !== 100 ? portraitZoom : undefined,
-        portraitPanX: portraitPanX !== 50 ? portraitPanX : undefined,
-        portraitPanY: portraitPanY !== 50 ? portraitPanY : undefined,
-        portraitFit: portraitFit !== 'fill' ? portraitFit : undefined,
-      });
-      toast.success('Character added');
-      onOpenChange(false);
-    } catch {
-      toast.error('Failed to add character');
-    }
+  const buildCharacterPayload = () => {
+    const portrait = serializePortrait();
+    return {
+      name: name.trim(),
+      notes: notes.trim(),
+      portraitImage: portrait.image,
+      portraitZoom: portrait.zoom,
+      portraitPanX: portrait.panX,
+      portraitPanY: portrait.panY,
+      portraitFit: portrait.fit,
+    };
   };
 
-  const handleEdit = async () => {
-    if (!editingCharacter) return;
+  const handleSubmit = async () => {
     if (!name.trim()) {
       toast.error('Character name is required');
       return;
     }
     try {
-      await updateCharacter(editingCharacter.id, {
-        name: name.trim(),
-        notes: notes.trim(),
-        portraitImage: portraitImage || undefined,
-        portraitZoom: portraitZoom !== 100 ? portraitZoom : undefined,
-        portraitPanX: portraitPanX !== 50 ? portraitPanX : undefined,
-        portraitPanY: portraitPanY !== 50 ? portraitPanY : undefined,
-        portraitFit: portraitFit !== 'fill' ? portraitFit : undefined,
-      });
-      toast.success('Character updated');
+      const payload = buildCharacterPayload();
+      if (editingCharacter) {
+        await updateCharacter(editingCharacter.id, payload);
+      } else {
+        await createCharacter({ gameId: game.id, ...payload });
+      }
+      toast.success(editingCharacter ? 'Character updated' : 'Character added');
       onOpenChange(false);
-    } catch {
-      toast.error('Failed to update character');
+    } catch (error) {
+      reportError('CharacterFormDialog.handleSubmit', error);
+      toast.error(
+        editingCharacter
+          ? 'Failed to update character'
+          : 'Failed to add character',
+      );
     }
   };
 
   const handleImageSelect = () => imageInputRef.current?.click();
-
-  const applyPortraitImage = (image: string) => {
-    setPortraitImage(image);
-    setPortraitZoom(100);
-    setPortraitPanX(50);
-    setPortraitPanY(50);
-    setPortraitFit('fill');
-  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -169,7 +164,7 @@ export function CharacterFormDialog({
             className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
             onSubmit={(event) => {
               event.preventDefault();
-              void (editingCharacter ? handleEdit() : handleAdd());
+              void handleSubmit();
             }}
           >
             <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
@@ -258,12 +253,7 @@ export function CharacterFormDialog({
                         onZoomChange={setPortraitZoom}
                         onFocalXChange={setPortraitPanX}
                         onFocalYChange={setPortraitPanY}
-                        onReset={() => {
-                          setPortraitZoom(100);
-                          setPortraitPanX(50);
-                          setPortraitPanY(50);
-                          setPortraitFit('fill');
-                        }}
+                        onReset={resetPortraitTransform}
                       />
                     ) : (
                       <div className="flex flex-col justify-center gap-1.5 h-full">

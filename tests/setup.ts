@@ -1,4 +1,18 @@
+import { afterEach, beforeEach, vi } from 'vitest';
+
 // jest-dom matchers removed; using only Vitest and Testing Library
+
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...args) => {
+    throw new Error(`Unexpected console.error: ${args.map(String).join(' ')}`);
+  });
+});
+
+afterEach(() => {
+  consoleErrorSpy.mockRestore();
+});
 
 const originalEmitWarning = process.emitWarning.bind(process);
 process.emitWarning = ((warning: unknown, ...args: unknown[]) => {

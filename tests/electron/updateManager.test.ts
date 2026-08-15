@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isUpdateEligible } from '../../electron/updatePolicy';
 
 type LoadUpdateManagerOptions = {
   isPackaged?: boolean;
@@ -83,6 +84,27 @@ afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
   vi.resetModules();
+});
+
+describe('isUpdateEligible', () => {
+  it.each([
+    ['1.1.0', '1.0.0', true],
+    ['1.0.1', '1.0', false],
+    ['2.0.0', '1.9.9', true],
+    ['1.0.0', '1.0.0-beta.2', true],
+    ['1.0.0-beta.10', '1.0.0-beta.2', true],
+    ['1.0.0-beta.2', '1.0.0-beta.10', false],
+    ['2.0.0-beta.1', '1.0.0', false],
+    ['not-a-version', '1.0.0', false],
+    ['1.1.0', 'invalid-current', false],
+  ])(
+    'evaluates candidate %s against current %s',
+    (candidateVersion, currentVersion, expected) => {
+      expect(isUpdateEligible(candidateVersion, currentVersion)).toBe(
+        expected,
+      );
+    },
+  );
 });
 
 describe('updateManager', () => {

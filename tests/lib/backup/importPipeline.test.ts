@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeBackupImport } from '@/lib/backup/importPipeline';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
-import type { BackupImportData } from '@/lib/types';
+import type { BackupImportData, Combo } from '@/lib/types';
 
 const baseImport: BackupImportData = {
   version: 1,
@@ -74,6 +74,33 @@ describe('normalizeBackupImport', () => {
     expect(plan.combos[0].demoUrl).toBe('local:missing-video');
     expect(plan.settings).toEqual(DEFAULT_SETTINGS);
     expect(plan.videos).toHaveLength(1);
+  });
+
+  it('normalizes available legacy video references at import', () => {
+    const plan = normalizeBackupImport(
+      {
+        ...baseImport,
+        combos: [
+          {
+            ...baseImport.combos?.[0],
+            demoUrl: 'local-video://missing-video',
+          } as Combo,
+        ],
+      },
+      {
+        includeSettings: false,
+        videos: [
+          {
+            id: 'missing-video',
+            fileName: 'available.mp4',
+            mimeType: 'video/mp4',
+            data: new ArrayBuffer(1),
+          },
+        ],
+      },
+    );
+
+    expect(plan.combos[0].demoUrl).toBe('local:missing-video');
   });
 
   it('rejects orphaned records before application', () => {

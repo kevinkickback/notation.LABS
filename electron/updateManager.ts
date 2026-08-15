@@ -11,6 +11,7 @@ import {
   type UpdateStatus,
 } from '../src/lib/updater/ipcContract';
 import { isSafeExternalUrl } from './security';
+import { isUpdateEligible } from './updatePolicy';
 
 const GITHUB_OWNER = 'kevinkickback';
 const GITHUB_REPO = 'notation.LABS';
@@ -24,35 +25,6 @@ let isPortableMode = false;
 
 const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 const STARTUP_CHECK_DELAY = 3000; // 3 seconds after launch
-
-function compareSemver(a: string, b: string): number {
-  const [aCore, aPre = ''] = a.split('-', 2);
-  const [bCore, bPre = ''] = b.split('-', 2);
-  const aParts = aCore.split('.').map((part) => parseInt(part, 10) || 0);
-  const bParts = bCore.split('.').map((part) => parseInt(part, 10) || 0);
-  const maxLength = Math.max(aParts.length, bParts.length);
-
-  for (let index = 0; index < maxLength; index++) {
-    const aValue = aParts[index] ?? 0;
-    const bValue = bParts[index] ?? 0;
-    if (aValue !== bValue) {
-      return aValue > bValue ? 1 : -1;
-    }
-  }
-
-  if (!aPre && bPre) {
-    return 1;
-  }
-  if (aPre && !bPre) {
-    return -1;
-  }
-
-  if (aPre === bPre) {
-    return 0;
-  }
-
-  return aPre > bPre ? 1 : -1;
-}
 
 function detectPortableMode(): boolean {
   return !!process.env.PORTABLE_EXECUTABLE_DIR;
@@ -193,7 +165,7 @@ async function checkForUpdatePortable(): Promise<UpdateStatus> {
     };
     const latestVersion = (data.tag_name ?? '').replace(/^v/, '');
 
-    if (latestVersion && compareSemver(latestVersion, currentVersion) > 0) {
+    if (isUpdateEligible(latestVersion, currentVersion)) {
       const status: UpdateStatus = {
         status: 'available',
         version: latestVersion,
@@ -241,7 +213,7 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
     const checkResult = await autoUpdater.checkForUpdates();
     const nextVersion = checkResult?.updateInfo?.version;
 
-    if (nextVersion && compareSemver(nextVersion, app.getVersion()) > 0) {
+    if (nextVersion && isUpdateEligible(nextVersion, app.getVersion())) {
       const status: UpdateStatus = {
         status: 'available',
         version: nextVersion,

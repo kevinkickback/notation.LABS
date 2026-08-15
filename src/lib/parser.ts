@@ -891,23 +891,3 @@ export function getTokenColor(
       return colors.direction || '#bdceef';
   }
 }
-
-/**
- * Converts motion notation to a human-readable name.
- */
-export function getMotionName(motion: string): string {
-  const names: Record<string, string> = {
-    '236': 'Quarter Circle Forward',
-    '214': 'Quarter Circle Back',
-    '623': 'Dragon Punch',
-    '41236': 'Half Circle Forward',
-    '63214': 'Half Circle Back',
-    '22': 'Down Down',
-    '66': 'Forward Forward',
-    '44': 'Back Back',
-    '88': 'Up Up',
-    '360': 'Full Circle',
-    '720': 'Double Circle',
-  };
-  return names[motion] || motion;
-}

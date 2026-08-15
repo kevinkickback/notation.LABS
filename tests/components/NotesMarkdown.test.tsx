@@ -2,12 +2,11 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { CharacterViewNotes } from '@/components/character/CharacterViewNotes';
-import { ComboViewNotes } from '@/components/combo/ComboViewNotes';
 
 describe('Notes markdown rendering', () => {
-    it('renders markdown formatting inside combo notes', () => {
+    it('renders markdown formatting inside character notes', () => {
         render(
-            <ComboViewNotes
+            <CharacterViewNotes
                 notes={'Use **drive rush** to extend confirms.'}
                 isOpen={true}
                 onToggle={() => { }}

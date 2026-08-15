@@ -18,9 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useSettings } from '@/context/SettingsContext';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { getGames, updateGame } from '@/lib/application/gameCommands';
-import { setSetting } from '@/lib/application/settingsCommands';
 import { DEFAULT_BUTTON_PALETTE, DEFAULT_SETTINGS } from '@/lib/defaults';
 import type { Game, NotationColors } from '@/lib/types';
 
@@ -28,6 +27,7 @@ const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
 
 export function ColorCustomization() {
   const settings = useSettings();
+  const { setSetting } = useSettingsActions();
   const [tempColors, setTempColors] = useState<NotationColors>(
     settings.notationColors,
   );
@@ -81,7 +81,7 @@ export function ColorCustomization() {
   };
 
   const handleApply = async () => {
-    await setSetting('notationColors', tempColors);
+    if (!(await setSetting('notationColors', tempColors))) return;
 
     if (selectedGameId && selectedGame) {
       await updateGame(selectedGameId, {
@@ -96,7 +96,7 @@ export function ColorCustomization() {
 
   const handleReset = async () => {
     setTempColors(DEFAULT_COLORS);
-    await setSetting('notationColors', DEFAULT_COLORS);
+    if (!(await setSetting('notationColors', DEFAULT_COLORS))) return;
 
     if (selectedGameId && selectedGame) {
       const defaultLayout = [...selectedGame.buttonLayout];

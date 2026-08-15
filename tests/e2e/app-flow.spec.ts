@@ -107,7 +107,10 @@ test.describe('Core E2E Flows', () => {
     await page.getByRole('button', { name: /^select all$/i }).click();
     await page.getByRole('button', { name: 'Mark Outdated' }).click();
 
-    await expect(page.getByText('Outdated')).toBeVisible();
+    const comboMetadata = page
+      .locator('h3', { hasText: 'Patch Check Combo' })
+      .locator('..');
+    await expect(comboMetadata.getByText('Outdated', { exact: true })).toBeVisible();
   });
 
   test('deletes selected combos through confirmation dialog', async ({

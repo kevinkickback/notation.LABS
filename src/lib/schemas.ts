@@ -48,7 +48,6 @@ const gameFields = {
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
-  commaStyle: z.enum(['hidden', 'separator']).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 };
@@ -123,7 +122,6 @@ export const settingsSchema = z.object({
     .catchall(z.string()),
   displayMode: z.enum(['colored-text', 'visual-icons']),
   iconStyle: z.enum(['round', 'square', 'hexagon']),
-  uiTheme: z.string(),
   comboScale: z.number(),
   autoUpdate: z.boolean(),
   confirmBeforeDelete: z.boolean(),
@@ -133,9 +131,6 @@ export const settingsSchema = z.object({
   notesDefaultOpen: z.boolean().default(false),
   notesOverrides: z.array(z.string()).optional(),
   parsedNotationVersion: z.number().int().nonnegative().default(0),
-  lastUpdateCheck: z.number().optional(),
-  lastSeenVersion: z.string().optional(),
-  showChangelogBeforeUpdate: z.boolean(),
   accentColor: z.string().optional(),
   characterCardOrientation: z
     .enum(['landscape', 'portrait'])

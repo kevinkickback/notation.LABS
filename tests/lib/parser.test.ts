@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GUIDE_PARSER_SAMPLES } from '@/lib/notationGuideData';
-import { parseComboNotation, getTokenColor, getMotionName } from '@/lib/parser';
+import { getTokenColor } from '@/components/combo/comboDisplayUtils';
+import { parseComboNotation } from '@/lib/parser';
 
 describe('parseComboNotation', () => {
   describe('directions', () => {
@@ -1574,55 +1575,6 @@ describe('getTokenColor', () => {
   });
 });
 
-describe('getMotionName', () => {
-  it('returns "Quarter Circle Forward" for 236', () => {
-    expect(getMotionName('236')).toBe('Quarter Circle Forward');
-  });
-
-  it('returns "Quarter Circle Back" for 214', () => {
-    expect(getMotionName('214')).toBe('Quarter Circle Back');
-  });
-
-  it('returns "Dragon Punch" for 623', () => {
-    expect(getMotionName('623')).toBe('Dragon Punch');
-  });
-
-  it('returns "Half Circle Forward" for 41236', () => {
-    expect(getMotionName('41236')).toBe('Half Circle Forward');
-  });
-
-  it('returns "Full Circle" for 360', () => {
-    expect(getMotionName('360')).toBe('Full Circle');
-  });
-
-  it('returns "Double Circle" for 720', () => {
-    expect(getMotionName('720')).toBe('Double Circle');
-  });
-
-  it('returns "Down Down" for 22', () => {
-    expect(getMotionName('22')).toBe('Down Down');
-  });
-
-  it('returns "Forward Forward" for 66', () => {
-    expect(getMotionName('66')).toBe('Forward Forward');
-  });
-
-  it('returns "Back Back" for 44', () => {
-    expect(getMotionName('44')).toBe('Back Back');
-  });
-
-  it('returns "Up Up" for 88', () => {
-    expect(getMotionName('88')).toBe('Up Up');
-  });
-
-  it('returns "Half Circle Back" for 63214', () => {
-    expect(getMotionName('63214')).toBe('Half Circle Back');
-  });
-
-  it('returns the raw motion for unknown motions', () => {
-    expect(getMotionName('999')).toBe('999');
-  });
-});
 
 describe('community notation profiles', () => {
   it.each([

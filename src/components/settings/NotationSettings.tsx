@@ -15,8 +15,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
-import { useSettings } from '@/context/SettingsContext';
-import { setSetting } from '@/lib/application/settingsCommands';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { parseComboNotation } from '@/lib/parser';
 import type {
   DisplayMode,
@@ -36,6 +35,7 @@ const SCALE_LABELS: Record<number, string> = {
 
 export function NotationSettings() {
   const settings = useSettings();
+  const { setSetting } = useSettingsActions();
   const displayModeBaseId = useId();
   const iconStyleBaseId = useId();
   const coloredTextId = `${displayModeBaseId}-colored-text`;

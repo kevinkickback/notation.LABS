@@ -28,9 +28,9 @@ import { ChangelogModal } from '@/components/updates/ChangelogModal';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
-import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
+import { FONT_OPTIONS } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import type { FontFamily, UserSettings } from '@/lib/types';
+import type { FontFamily } from '@/lib/types';
 
 export function GeneralSettings() {
   const settings = useSettings();
@@ -41,7 +41,7 @@ export function GeneralSettings() {
     downloadUpdate,
     reset: resetUpdater,
   } = useUpdater();
-  const [accent, setAccent] = useState<string>(
+  const [accentDraft, setAccentDraft] = useState<string>(
     settings.accentColor || '#3b82f6',
   );
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -70,18 +70,8 @@ export function GeneralSettings() {
   }, []);
 
   useEffect(() => {
-    setAccent(settings.accentColor || '#3b82f6');
+    setAccentDraft(settings.accentColor || '#3b82f6');
   }, [settings.accentColor]);
-
-  const updateSetting = async <K extends keyof UserSettings>(
-    key: K,
-    value: UserSettings[K],
-  ) => {
-    await setSetting(key, value);
-    if (key === 'accentColor') {
-      setAccent(value as string);
-    }
-  };
 
   const handleInstallUpdate = useCallback(async () => {
     setShowChangelog(false);
@@ -201,30 +191,21 @@ export function GeneralSettings() {
             <div className="flex items-center gap-3">
               <input
                 type="color"
-                value={accent}
+                value={settings.accentColor || '#3b82f6'}
                 onChange={(e) => {
-                  setAccent(e.target.value);
-                  updateSetting('accentColor', e.target.value);
-                  document.documentElement.style.setProperty(
-                    '--accent-color',
-                    e.target.value,
-                  );
+                  void setSetting('accentColor', e.target.value);
                 }}
                 className="w-10 h-10 rounded border border-border shadow-sm cursor-pointer"
                 aria-label="Accent color picker"
               />
               <input
                 type="text"
-                value={accent}
+                value={accentDraft}
                 onChange={(e) => {
                   const value = e.target.value;
-                  setAccent(value);
+                  setAccentDraft(value);
                   if (CSS.supports('color', value)) {
-                    updateSetting('accentColor', value);
-                    document.documentElement.style.setProperty(
-                      '--accent-color',
-                      value,
-                    );
+                    void setSetting('accentColor', value);
                   }
                 }}
                 className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
@@ -242,12 +223,7 @@ export function GeneralSettings() {
             <Select
               value={settings.colorTheme}
               onValueChange={(v) => {
-                updateSetting('colorTheme', v as 'light' | 'dark');
-                if (v === 'dark') {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
+                void setSetting('colorTheme', v as 'light' | 'dark');
               }}
             >
               <SelectTrigger className="w-32">
@@ -270,11 +246,7 @@ export function GeneralSettings() {
               value={settings.fontFamily}
               onValueChange={(v) => {
                 const font = v as FontFamily;
-                updateSetting('fontFamily', font);
-                document.documentElement.style.setProperty(
-                  '--app-font-family',
-                  getFontFamilyCSS(font),
-                );
+                void setSetting('fontFamily', font);
               }}
             >
               <SelectTrigger className="w-44">
@@ -303,7 +275,7 @@ export function GeneralSettings() {
             <Select
               value={settings.characterCardOrientation ?? 'landscape'}
               onValueChange={(v) =>
-                updateSetting(
+                void setSetting(
                   'characterCardOrientation',
                   v as 'landscape' | 'portrait',
                 )
@@ -342,7 +314,7 @@ export function GeneralSettings() {
               <Switch
                 checked={settings.autoUpdate ?? true}
                 onCheckedChange={(v) => {
-                  updateSetting('autoUpdate', v);
+                  void setSetting('autoUpdate', v);
                   toast.success(
                     v ? 'Auto-update enabled' : 'Auto-update disabled',
                   );
@@ -448,7 +420,7 @@ export function GeneralSettings() {
             <Switch
               checked={settings.confirmBeforeDelete ?? true}
               onCheckedChange={(v) => {
-                updateSetting('confirmBeforeDelete', v);
+                void setSetting('confirmBeforeDelete', v);
                 toast.success(
                   v
                     ? 'Delete confirmation enabled'
@@ -467,7 +439,7 @@ export function GeneralSettings() {
             </div>
             <Switch
               checked={settings.notesDefaultOpen ?? false}
-              onCheckedChange={(v) => updateSetting('notesDefaultOpen', v)}
+              onCheckedChange={(v) => void setSetting('notesDefaultOpen', v)}
             />
           </div>
         </CardContent>
