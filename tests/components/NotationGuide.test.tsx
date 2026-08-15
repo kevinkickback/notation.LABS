@@ -79,12 +79,19 @@ describe('NotationGuide', () => {
     ).not.toBeNull();
     expect(screen.getByText('WS / FC / BT / WR')).not.toBeNull();
     expect(screen.getByText('iWS / iWR')).not.toBeNull();
-    expect(screen.getByText('F! / FBl! / BB! / S!')).not.toBeNull();
+    expect(screen.getByText('B! / S! / T!')).not.toBeNull();
+    expect(screen.getByText('F! / FB! / FBl! / BB!')).not.toBeNull();
+    expect(screen.getByText('hFC / SW')).not.toBeNull();
+    expect(screen.getByText('CL / OTG / JG / KND')).not.toBeNull();
+    expect(screen.getByText('P / J / H / R')).not.toBeNull();
     expect(
       screen.getByText('WGF / TGF / EWGF / OTGF / ETGF'),
     ).not.toBeNull();
     expect(
       screen.getByText('FD/FT / FD/FA / FU/FT / FU/FA'),
+    ).not.toBeNull();
+    expect(
+      screen.getByText('FDFT / FDFA / FUFT / FUFA'),
     ).not.toBeNull();
     expect(screen.getByText('{1+2}')).not.toBeNull();
     expect(screen.getByText('CH')).not.toBeNull();
@@ -134,6 +141,8 @@ describe('NotationGuide', () => {
     expect(screen.queryByText('[X]')).toBeNull();
     expect(screen.queryByText(']X[')).toBeNull();
     expect(screen.getByText('TH / BL / FL / S / K')).not.toBeNull();
+    expect(screen.getByText('FP / BP / FK / BK')).not.toBeNull();
+    expect(screen.getByText('FS / SS / KM')).not.toBeNull();
     expect(screen.getByText('(hold) / (swap side)')).not.toBeNull();
     expect(screen.getByText('J / JF / JB / AIR / (AIR)')).not.toBeNull();
     expect(screen.getByText('Block / Grab / Throw')).not.toBeNull();
@@ -176,6 +185,7 @@ describe('NotationGuide', () => {
     expect(screen.getByText(']X[')).not.toBeNull();
     expect(screen.getByText('Release input X')).not.toBeNull();
     expect(screen.getByText('XxN / (sequence)xN')).not.toBeNull();
+    expect(screen.getByText('A or B / (A or B)')).not.toBeNull();
     expect(screen.getByText('(N)')).not.toBeNull();
     expect(screen.getByText('j. / sj. / dj. / nj.')).not.toBeNull();
     expect(screen.getByText('cr. / st. / cl. / f.')).not.toBeNull();
@@ -261,6 +271,7 @@ describe('NotationGuide', () => {
       expect(new Set(terms).size).toBe(terms.length);
       expect(syntaxCard?.textContent).toContain('CH');
       expect(syntaxCard?.textContent).toContain('XxN / (sequence)xN');
+      expect(syntaxCard?.textContent).toContain('A or B / (A or B)');
       expect(syntaxCard?.textContent).toContain('> / → / »');
     }
   });

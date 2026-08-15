@@ -25,7 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MAX_JSON_BACKUP_BYTES } from '@/lib/defaults';
+import { MAX_JSON_BACKUP_BYTES, MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import {
   indexedDbStorage,
@@ -232,6 +232,11 @@ export function Header({ activeGame }: { activeGame?: Game }) {
       toast.error(
         'Backup file is too large for JSON import. Export fewer videos or use filters.',
       );
+      e.target.value = '';
+      return;
+    }
+    if (isZipBackup && file.size > MAX_ZIP_BACKUP_BYTES) {
+      toast.error('Backup zip exceeds the 512 MB import limit.');
       e.target.value = '';
       return;
     }

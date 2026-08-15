@@ -45,6 +45,7 @@ export function GeneralSettings() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [updateIsPortable, setUpdateIsPortable] = useState(false);
   const [showCurrentChangelog, setShowCurrentChangelog] = useState(false);
   const [updateChangelog, setUpdateChangelog] = useState('');
   const [currentChangelog, setCurrentChangelog] = useState('');
@@ -75,13 +76,31 @@ export function GeneralSettings() {
     }
   };
 
-  const handleInstallUpdate = useCallback(() => {
+  const handleInstallUpdate = useCallback(async () => {
     setShowChangelog(false);
-    setShowProgress(true);
-    if (window.electronAPI?.downloadUpdate) {
-      window.electronAPI.downloadUpdate();
+    const downloadUpdate = window.electronAPI?.downloadUpdate;
+    if (!downloadUpdate) {
+      toast.error('Updates are unavailable in this environment.');
+      return;
     }
-  }, []);
+
+    if (!updateIsPortable) {
+      setShowProgress(true);
+    }
+    try {
+      const result = await downloadUpdate();
+      if (!result.success) {
+        setShowProgress(false);
+        setUpdateStatus('error');
+        toast.error(result.error ?? 'Could not start the update.');
+      }
+    } catch (err) {
+      setShowProgress(false);
+      setUpdateStatus('error');
+      reportError('GeneralSettings.handleInstallUpdate', err);
+      toast.error('Could not start the update.');
+    }
+  }, [updateIsPortable]);
 
   const handleProgressModalOpenChange = useCallback((open: boolean) => {
     setShowProgress(open);
@@ -117,6 +136,7 @@ export function GeneralSettings() {
         setUpdateStatus('available');
         setUpdateVersion(result.data.version);
         setUpdateChangelog(result.data.changelog ?? '');
+        setUpdateIsPortable(result.data.isPortable);
         setShowChangelog(true);
         return;
       }
@@ -430,6 +450,7 @@ export function GeneralSettings() {
         version={updateVersion ?? ''}
         onOpenChange={setShowChangelog}
         onInstall={handleInstallUpdate}
+        installLabel={updateIsPortable ? 'Open Download Page' : undefined}
       />
       <UpdateProgressModal
         open={showProgress}

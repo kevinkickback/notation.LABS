@@ -27,6 +27,7 @@ function App() {
   );
   const [showAutoChangelog, setShowAutoChangelog] = useState(false);
   const [showAutoProgress, setShowAutoProgress] = useState(false);
+  const [autoUpdatePortable, setAutoUpdatePortable] = useState(false);
 
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -50,6 +51,7 @@ function App() {
       try {
         setAutoUpdateVersion(data.version);
         setAutoUpdateChangelog(data.changelog);
+        setAutoUpdatePortable(data.isPortable);
         toast.info(`Update v${data.version} available`, {
           action: {
             label: 'View',
@@ -62,22 +64,41 @@ function App() {
       }
     });
 
-    if (settings.autoUpdate && window.electronAPI.setAutoCheck) {
-      void window.electronAPI.setAutoCheck(true).catch((err) => {
-        reportError('App.setAutoCheck', err);
-      });
-    }
-
     return unsub;
+  }, []);
+
+  useEffect(() => {
+    const setAutoCheck = window.electronAPI?.setAutoCheck;
+    if (!setAutoCheck) return;
+
+    void setAutoCheck(settings.autoUpdate).catch((err) => {
+      reportError('App.setAutoCheck', err);
+    });
   }, [settings.autoUpdate]);
 
-  const handleAutoInstall = useCallback(() => {
+  const handleAutoInstall = useCallback(async () => {
     setShowAutoChangelog(false);
-    setShowAutoProgress(true);
-    if (window.electronAPI?.downloadUpdate) {
-      window.electronAPI.downloadUpdate();
+    const downloadUpdate = window.electronAPI?.downloadUpdate;
+    if (!downloadUpdate) {
+      toast.error('Updates are unavailable in this environment.');
+      return;
     }
-  }, []);
+
+    if (!autoUpdatePortable) {
+      setShowAutoProgress(true);
+    }
+    try {
+      const result = await downloadUpdate();
+      if (!result.success) {
+        setShowAutoProgress(false);
+        toast.error(result.error ?? 'Could not start the update.');
+      }
+    } catch (err) {
+      setShowAutoProgress(false);
+      reportError('App.handleAutoInstall', err);
+      toast.error('Could not start the update.');
+    }
+  }, [autoUpdatePortable]);
 
   const games = useLiveQuery(indexedDbStorage.games.getAll, []);
   const characters = useLiveQuery(
@@ -136,6 +157,7 @@ function App() {
         version={autoUpdateVersion ?? ''}
         changelog={autoUpdateChangelog}
         onInstall={handleAutoInstall}
+        installLabel={autoUpdatePortable ? 'Open Download Page' : undefined}
       />
 
       <UpdateProgressModal

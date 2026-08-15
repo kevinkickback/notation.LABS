@@ -15,7 +15,13 @@ import { reportError, toUserMessage } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { UserSettings } from '@/lib/types';
 
-const SettingsContext = createContext<UserSettings>(DEFAULT_SETTINGS);
+const INITIAL_SETTINGS: UserSettings = {
+  ...DEFAULT_SETTINGS,
+  // Avoid scheduling update checks until persisted preferences hydrate.
+  autoUpdate: false,
+};
+
+const SettingsContext = createContext<UserSettings>(INITIAL_SETTINGS);
 
 function ReparseProgressModal() {
   return (
@@ -60,14 +66,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Pure read - safe inside useLiveQuery.
-  const settings = useLiveQuery(
-    indexedDbStorage.settings.get,
-    [],
-    DEFAULT_SETTINGS,
-  );
+  const settings = useLiveQuery(indexedDbStorage.settings.get, []);
 
   return (
-    <SettingsContext.Provider value={settings ?? DEFAULT_SETTINGS}>
+    <SettingsContext.Provider value={settings ?? INITIAL_SETTINGS}>
       {children}
       {isReparsing && <ReparseProgressModal />}
     </SettingsContext.Provider>

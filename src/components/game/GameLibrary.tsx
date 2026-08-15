@@ -98,13 +98,15 @@ export function GameLibrary({ games }: GameLibraryProps) {
     if (settings.confirmBeforeDelete) {
       deleteState.setDeleteTarget(game);
     } else {
-      await deleteState.handleDeleteGame(game);
-      setSelectedIds((prev) => {
-        if (!prev.has(game.id)) return prev;
-        const next = new Set(prev);
-        next.delete(game.id);
-        return next;
-      });
+      const deleted = await deleteState.handleDeleteGame(game);
+      if (deleted) {
+        setSelectedIds((prev) => {
+          if (!prev.has(game.id)) return prev;
+          const next = new Set(prev);
+          next.delete(game.id);
+          return next;
+        });
+      }
     }
   };
 
@@ -112,13 +114,17 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const handleConfirmedDelete = async () => {
     if (deleteState.deleteTarget) {
       const deletedId = deleteState.deleteTarget.id;
-      await deleteState.handleDeleteGame(deleteState.deleteTarget);
-      setSelectedIds((prev) => {
-        if (!prev.has(deletedId)) return prev;
-        const next = new Set(prev);
-        next.delete(deletedId);
-        return next;
-      });
+      const deleted = await deleteState.handleDeleteGame(
+        deleteState.deleteTarget,
+      );
+      if (deleted) {
+        setSelectedIds((prev) => {
+          if (!prev.has(deletedId)) return prev;
+          const next = new Set(prev);
+          next.delete(deletedId);
+          return next;
+        });
+      }
     }
   };
 
@@ -142,9 +148,11 @@ export function GameLibrary({ games }: GameLibraryProps) {
       return;
     }
     const selectedGames = games.filter((g) => selectedIds.has(g.id));
-    await deleteState.handleBulkDeleteGames(selectedGames);
-    setSelectedIds(new Set());
-    setIsSelecting(false);
+    const deleted = await deleteState.handleBulkDeleteGames(selectedGames);
+    if (deleted) {
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+    }
   };
 
   const selectedCascadeCounts = useMemo(() => {
@@ -284,7 +292,10 @@ export function GameLibrary({ games }: GameLibraryProps) {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleConfirmedDelete}
+                onClick={async (event) => {
+                  event.preventDefault();
+                  await handleConfirmedDelete();
+                }}
               >
                 Delete
               </AlertDialogAction>
@@ -312,14 +323,18 @@ export function GameLibrary({ games }: GameLibraryProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
+              onClick={async (event) => {
+                event.preventDefault();
                 const selectedGames = games.filter((g) =>
                   selectedIds.has(g.id),
                 );
-                await deleteState.handleBulkDeleteGames(selectedGames);
-                setBulkDeleteConfirm(false);
-                setSelectedIds(new Set());
-                setIsSelecting(false);
+                const deleted =
+                  await deleteState.handleBulkDeleteGames(selectedGames);
+                if (deleted) {
+                  setBulkDeleteConfirm(false);
+                  setSelectedIds(new Set());
+                  setIsSelecting(false);
+                }
               }}
             >
               Delete Selected ({selectedIds.size})

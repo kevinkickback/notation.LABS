@@ -16,6 +16,7 @@ export type UpdateCheckResult =
       status: 'available';
       version: string;
       changelog: string | null;
+      isPortable: boolean;
     }
   | { status: 'not-available' }
   | { status: 'error'; error: string };

@@ -9,6 +9,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     characters: {
       delete: vi.fn().mockResolvedValue(undefined),
+      bulkDelete: vi.fn().mockResolvedValue(undefined),
     },
     settings: {
       update: vi.fn().mockResolvedValue(undefined),
@@ -71,6 +72,8 @@ vi.mock('sonner', () => ({
   },
 }));
 
+vi.mock('@/lib/errors', () => ({ reportError: vi.fn() }));
+
 const now = Date.now();
 
 const mockGame: Game = {
@@ -115,6 +118,30 @@ describe('CharacterView', () => {
       screen.getByRole('button', { name: /delete selected \(2\)/i }),
     );
 
-    expect(indexedDbStorage.characters.delete).toHaveBeenCalledTimes(2);
+    expect(indexedDbStorage.characters.bulkDelete).toHaveBeenCalledWith([
+      'char-1',
+      'char-2',
+    ]);
+    expect(indexedDbStorage.characters.delete).not.toHaveBeenCalled();
+  });
+
+  it('preserves the bulk selection and confirmation when deletion fails', async () => {
+    vi.mocked(indexedDbStorage.characters.bulkDelete).mockRejectedValueOnce(
+      new Error('write failed'),
+    );
+    const user = userEvent.setup();
+    render(<CharacterView game={mockGame} characters={mockCharacters} />);
+
+    await user.click(screen.getByRole('button', { name: /more options/i }));
+    await user.click(screen.getByText('Select Characters'));
+    await user.click(screen.getByRole('button', { name: /select all/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+    await user.click(
+      screen.getByRole('button', { name: /delete selected \(2\)/i }),
+    );
+
+    expect(
+      screen.getByRole('button', { name: /delete selected \(2\)/i }),
+    ).not.toBeNull();
   });
 });

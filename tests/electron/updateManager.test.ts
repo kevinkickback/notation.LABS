@@ -107,6 +107,7 @@ describe('updateManager', () => {
       status: 'available',
       version: '2.0.0',
       changelog: 'Bug fixes and balance updates',
+      isPortable: false,
     });
     expect(context.mainWindow.webContents.send).toHaveBeenCalledWith(
       'update-available',
@@ -165,6 +166,7 @@ describe('updateManager', () => {
       status: 'available',
       version: '1.1.0',
       changelog: 'Portable release notes',
+      isPortable: true,
     });
     expect(context.shellOpenExternal).toHaveBeenCalledWith(
       'https://github.com/kevinkickback/notation.LABS/releases/tag/v1.1.0',

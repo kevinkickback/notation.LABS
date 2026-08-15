@@ -68,12 +68,15 @@ const COMMON_LABELED_MECHANICS = new Set([
   'dj.',
   'dl.',
   'iad',
+  'hjc.',
   'j.',
   'jc.',
   'nj.',
   'sj.',
   'sjc.',
   'tk.',
+  'OTG',
+  'FC',
 ]);
 
 const PROFILE_LABELED_MECHANICS: Record<
@@ -118,6 +121,12 @@ export function shouldRenderMechanicBadge(
 export function isLiteralParenUnknown(token: ComboToken): boolean {
   return (
     token.type === 'unknown' && (token.value === '(' || token.value === ')')
+  );
+}
+
+export function isStructuralGroupingParen(token: ComboToken): boolean {
+  return (
+    token.type === 'modifier' && (token.value === '(' || token.value === ')')
   );
 }
 

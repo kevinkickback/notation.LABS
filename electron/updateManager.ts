@@ -21,6 +21,7 @@ export interface UpdateStatus {
     | 'error';
   version?: string;
   changelog?: string;
+  isPortable?: boolean;
   error?: string;
   progress?: ProgressInfo;
 }
@@ -132,6 +133,7 @@ export function initAutoUpdater() {
       status: 'available',
       version: info.version,
       changelog: changelog ?? undefined,
+      isPortable: isPortableMode,
     };
     setStatus(status);
     sendToRenderer('update-available', {
@@ -204,6 +206,7 @@ async function checkForUpdatePortable(): Promise<UpdateStatus> {
         status: 'available',
         version: latestVersion,
         changelog: data.body ?? undefined,
+        isPortable: true,
       };
       setStatus(status);
       sendToRenderer('update-available', {
@@ -255,6 +258,7 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
           currentStatus.version === nextVersion
             ? currentStatus.changelog
             : undefined,
+        isPortable: false,
       };
       setStatus(status);
       return status;

@@ -35,14 +35,20 @@ export function CharacterSearchDialog({
   const [hasSearched, setHasSearched] = useState(false);
   const prevOpenRef = useRef(false);
   const resultsCacheRef = useRef<Map<string, ImageSearchResult[]>>(new Map());
+  const requestIdRef = useRef(0);
+  const searchControllerRef = useRef<AbortController | null>(null);
 
   const handleSearch = useCallback(
     async (query?: string) => {
       const q = (typeof query === 'string' ? query : inputValue).trim();
       if (!q) return;
 
+      const requestId = ++requestIdRef.current;
+      searchControllerRef.current?.abort();
+
       const cached = resultsCacheRef.current.get(q);
       if (cached) {
+        setLoading(false);
         setError(null);
         setResults(cached);
         setHasSearched(true);
@@ -53,27 +59,49 @@ export function CharacterSearchDialog({
       setError(null);
       setResults([]);
       setHasSearched(true);
+      const controller = new AbortController();
+      searchControllerRef.current = controller;
       try {
         const res = await fetch(`${ddgApiBase}/image-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: q }),
+          signal: controller.signal,
         });
+        if (requestId !== requestIdRef.current) return;
         if (!res.ok) {
           setError('Search failed');
           return;
         }
-        const data: ImageSearchResult[] = await res.json();
+        const data: unknown = await res.json();
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid image search response');
+        }
+        if (requestId !== requestIdRef.current) return;
         resultsCacheRef.current.set(q, data);
-        setResults(data);
+        setResults(data as ImageSearchResult[]);
       } catch {
+        if (controller.signal.aborted || requestId !== requestIdRef.current) {
+          return;
+        }
         setError('Image search failed. Check your internet connection.');
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [ddgApiBase, inputValue],
   );
+
+  useEffect(() => {
+    if (!open) {
+      requestIdRef.current += 1;
+      searchControllerRef.current?.abort();
+      setLoading(false);
+    }
+    return () => searchControllerRef.current?.abort();
+  }, [open]);
 
   // Only reset and re-search when dialog opens with a changed or uncached query
   useEffect(() => {

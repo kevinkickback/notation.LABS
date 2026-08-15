@@ -31,7 +31,7 @@ Pushes to `dev` and pull requests into `main` run dependency auditing, version c
    npm run test:e2e
    ```
 
-4. Commit and push the version, changelog, and release-ready changes to `dev`.
+4. Commit and push the version, changelog, and release-ready changes to `dev`. This must include any updated build assets (icons, NSIS artwork in `build/`) — the Windows installer build will fail at package time if referenced files like `build/installerHeader.bmp` or `build/installerSidebar.bmp` are missing from the repo.
 5. Open and merge a pull request from `dev` into `main` after CI repeats and passes the checks.
 6. Update local `main`, create the version tag on that verified commit, and push it:
 

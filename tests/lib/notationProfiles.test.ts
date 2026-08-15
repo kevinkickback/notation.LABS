@@ -43,6 +43,12 @@ describe('notation profiles', () => {
     expect(getMechanicAccessibilityLabel('tekken', 'S!')).toBe(
       'S!, Screw attack',
     );
+    expect(getMechanicAccessibilityLabel('tekken', 'T!')).toBe(
+      'T!, Tornado attack',
+    );
+    expect(getMechanicAccessibilityLabel('tekken', 'CL')).toBe(
+      'CL, Clean hit',
+    );
     expect(getMechanicAccessibilityLabel('tekken', '*(max)')).toBe(
       '*(max), Hold the preceding button to maximum level',
     );

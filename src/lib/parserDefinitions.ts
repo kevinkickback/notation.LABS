@@ -191,6 +191,10 @@ export const SPECIAL_MODIFIERS: Record<string, string> = {
   'super-jump-cancel': 'sjc.',
   'sjc.': 'sjc.',
   sjc: 'sjc.',
+  'high jump cancel': 'hjc.',
+  highjumpcancel: 'hjc.',
+  'hjc.': 'hjc.',
+  hjc: 'hjc.',
   delay: 'dl.',
   delayed: 'dl.',
   'dl.': 'dl.',
@@ -205,6 +209,8 @@ export const SPECIAL_MODIFIERS: Record<string, string> = {
   hold: '[hold]',
   holding: '[hold]',
   release: '[release]',
+  otg: 'OTG',
+  fc: 'FC',
   // Tekken 8 game-state prefixes
   'h.': 'H.',
   'r.': 'R.',
@@ -272,6 +278,14 @@ export const TEKKEN_MODIFIERS: Record<string, string> = {
   'heat burst': 'Heat Burst',
   'heat smash': 'Heat Smash',
   'rage art': 'Rage Art',
+  cl: 'CL',
+  otg: 'OTG',
+  jg: 'JG',
+  knd: 'KND',
+  p: 'P',
+  j: 'J',
+  h: 'H',
+  r: 'R',
 };
 
 export const SEPARATORS = [
@@ -287,7 +301,11 @@ export const SEPARATORS = [
   '_',
   '<',
   '»',
+  '/\\',
+  '#',
+  '.',
   'xx',
+  'or',
   'link',
   'linked',
   '/',
@@ -318,6 +336,9 @@ export const TEKKEN_MECHANICS: Record<string, string> = {
   'w!': 'W!',
   'f!': 'F!',
   's!': 'S!',
+  't!': 'T!',
+  'b!': 'B!',
+  'fb!': 'FB!',
   '*': '*',
 };
 export const SORTED_TEKKEN_MECHANICS = Object.keys(TEKKEN_MECHANICS).sort(
@@ -334,6 +355,8 @@ export const LETTER_DIR_STANCES: Record<string, string> = {
   fc: 'FC',
   wr: 'WR',
   bt: 'BT',
+  hfc: 'hFC',
+  sw: 'SW',
 };
 export const SORTED_LETTER_DIR_STANCES = Object.keys(LETTER_DIR_STANCES).sort(
   (a, b) => b.length - a.length,

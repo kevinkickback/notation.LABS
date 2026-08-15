@@ -43,13 +43,19 @@ export function CoverSearchDialog({
     >
   >(new Map());
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const requestIdRef = useRef(0);
+  const searchControllerRef = useRef<AbortController | null>(null);
 
   const handleSearch = useCallback(async (query?: string) => {
     const q = (query ?? searchQueryRef.current).trim();
     if (!q) return;
 
+    const requestId = ++requestIdRef.current;
+    searchControllerRef.current?.abort();
+
     const cached = resultsCacheRef.current.get(q);
     if (cached) {
+      setLoading(false);
       setError(null);
       setResults(cached.results);
       setThumbnails(cached.thumbnails);
@@ -62,9 +68,15 @@ export function CoverSearchDialog({
     setResults([]);
     setThumbnails({});
     setHasSearched(true);
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
 
     try {
-      const rawData: RawIGDBApiResult[] = await searchIGDB(q);
+      const rawData: RawIGDBApiResult[] = await searchIGDB(
+        q,
+        controller.signal,
+      );
+      if (requestId !== requestIdRef.current) return;
       const data: IGDBSearchResult[] = (rawData || []).map(
         (g: RawIGDBApiResult) => {
           const coverId = g.coverImageId ?? g.cover?.image_id ?? null;
@@ -89,13 +101,35 @@ export function CoverSearchDialog({
       setResults(data);
       setThumbnails(thumbs);
     } catch (err) {
+      if (controller.signal.aborted || requestId !== requestIdRef.current) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Search failed';
       setError(msg);
       setResults([]);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      requestIdRef.current += 1;
+      searchControllerRef.current?.abort();
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      setLoading(false);
+    }
+    return () => {
+      searchControllerRef.current?.abort();
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [open]);
 
   const debouncedSearch = useCallback(
     (query?: string) => {

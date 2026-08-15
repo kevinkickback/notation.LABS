@@ -140,9 +140,12 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
     [filters],
   );
 
-  const handleBulkDelete = useCallback(() => {
-    deleteState.handleBulkDelete(selection.selectedIds);
-  }, [deleteState, selection.selectedIds]);
+  const handleBulkDelete = useCallback(async () => {
+    const deleted = await deleteState.handleBulkDelete(selection.selectedIds);
+    if (deleted) {
+      selection.clearSelection();
+    }
+  }, [deleteState, selection.selectedIds, selection.clearSelection]);
 
   const handleBulkMarkOutdated = useCallback(async () => {
     await operations.handleBulkMarkOutdated(selection.selectedIds, true);
@@ -411,11 +414,16 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={() => {
+              onClick={async (event) => {
+                event.preventDefault();
                 if (deleteState.deleteTarget) {
-                  deleteState.executeDelete(deleteState.deleteTarget);
+                  const deleted = await deleteState.executeDelete(
+                    deleteState.deleteTarget,
+                  );
+                  if (deleted) {
+                    deleteState.setDeleteTarget(null);
+                  }
                 }
-                deleteState.setDeleteTarget(null);
               }}
             >
               Delete
@@ -443,10 +451,15 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={async () => {
-                await deleteState.executeBulkDelete(selection.selectedIds);
-                deleteState.setBulkDeleteConfirm(false);
-                selection.clearSelection();
+              onClick={async (event) => {
+                event.preventDefault();
+                const deleted = await deleteState.executeBulkDelete(
+                  selection.selectedIds,
+                );
+                if (deleted) {
+                  deleteState.setBulkDeleteConfirm(false);
+                  selection.clearSelection();
+                }
               }}
             >
               Delete ({selection.selectedIds.size})

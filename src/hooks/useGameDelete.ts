@@ -15,15 +15,17 @@ export function useGameDelete() {
       await indexedDbStorage.games.delete(game.id);
       toast.success(`"${game.name}" deleted`);
       setDeleteTarget(null);
+      return true;
     } catch (err) {
       reportError('useGameDelete.handleDeleteGame', err);
       toast.error('Failed to delete game');
+      return false;
     }
   };
 
   const handleBulkDeleteGames = async (games: Game[]) => {
     if (games.length === 0) {
-      return;
+      return false;
     }
 
     try {
@@ -32,9 +34,11 @@ export function useGameDelete() {
         `${games.length} game${games.length > 1 ? 's' : ''} deleted`,
       );
       setDeleteTarget(null);
+      return true;
     } catch (err) {
       reportError('useGameDelete.handleBulkDeleteGames', err);
       toast.error('Failed to delete selected games');
+      return false;
     }
   };
 

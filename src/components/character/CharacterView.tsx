@@ -106,13 +106,16 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
   );
 
   const handleDeleteCharacter = async (character: Character) => {
-    await deleteState.handleDeleteCharacter(character);
-    selection.setSelectedIds((prev) => {
-      if (!prev.has(character.id)) return prev;
-      const next = new Set(prev);
-      next.delete(character.id);
-      return next;
-    });
+    const deleted = await deleteState.handleDeleteCharacter(character);
+    if (deleted) {
+      selection.setSelectedIds((prev) => {
+        if (!prev.has(character.id)) return prev;
+        const next = new Set(prev);
+        next.delete(character.id);
+        return next;
+      });
+    }
+    return deleted;
   };
 
   const handleCharacterSelect = (characterId: string) => {
@@ -137,13 +140,14 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       setBulkDeleteConfirm(true);
       return;
     }
-    for (const id of selection.selectedIds) {
-      const character = characters.find((c) => c.id === id);
-      if (character) {
-        await handleDeleteCharacter(character);
-      }
+    const selectedCharacters = characters.filter((character) =>
+      selection.selectedIds.has(character.id),
+    );
+    const deleted =
+      await deleteState.handleBulkDeleteCharacters(selectedCharacters);
+    if (deleted) {
+      selection.clearSelection();
     }
-    selection.clearSelection();
   };
 
   const openNoteDialog = useCallback(() => {
@@ -313,9 +317,10 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
+                onClick={async (event) => {
+                  event.preventDefault();
                   if (deleteState.deleteTarget) {
-                    void handleDeleteCharacter(deleteState.deleteTarget);
+                    await handleDeleteCharacter(deleteState.deleteTarget);
                   }
                 }}
               >
@@ -343,15 +348,19 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
-                for (const id of selection.selectedIds) {
-                  const character = characters.find((c) => c.id === id);
-                  if (character) {
-                    await handleDeleteCharacter(character);
-                  }
+              onClick={async (event) => {
+                event.preventDefault();
+                const selectedCharacters = characters.filter((character) =>
+                  selection.selectedIds.has(character.id),
+                );
+                const deleted =
+                  await deleteState.handleBulkDeleteCharacters(
+                    selectedCharacters,
+                  );
+                if (deleted) {
+                  setBulkDeleteConfirm(false);
+                  selection.clearSelection();
                 }
-                setBulkDeleteConfirm(false);
-                selection.clearSelection();
               }}
             >
               Delete Selected ({selection.selectedIds.size})

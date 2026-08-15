@@ -18,16 +18,18 @@ export function useComboDelete({ confirmBeforeDelete }: ComboDeleteOptions) {
     try {
       await indexedDbStorage.combos.delete(comboId);
       toast.success('Combo deleted');
+      return true;
     } catch (err) {
       reportError('useComboDelete.executeDelete', err);
       toast.error('Failed to delete combo');
+      return false;
     }
   };
 
   const handleDelete = async (comboId: string) => {
     if (confirmBeforeDelete) {
       setDeleteTarget(comboId);
-      return;
+      return false;
     }
     await executeDelete(comboId);
   };
@@ -38,19 +40,21 @@ export function useComboDelete({ confirmBeforeDelete }: ComboDeleteOptions) {
       toast.success(
         `${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} deleted`,
       );
+      return true;
     } catch (err) {
       reportError('useComboDelete.executeBulkDelete', err);
       toast.error('Failed to delete combos');
+      return false;
     }
   };
 
   const handleBulkDelete = (selectedIds: Set<string>) => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0) return false;
     if (confirmBeforeDelete) {
       setBulkDeleteConfirm(true);
-      return;
+      return false;
     }
-    void executeBulkDelete(selectedIds);
+    return executeBulkDelete(selectedIds);
   };
 
   return {

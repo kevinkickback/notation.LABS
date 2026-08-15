@@ -31,10 +31,12 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { MAX_VIDEO_SIZE_BYTES } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
 import { resolveNotationProfile } from '@/lib/notationProfiles';
 import { parseComboNotation } from '@/lib/parser';
 import {
+  type DemoVideo,
   generateId,
   getLocalVideoId,
   indexedDbStorage,
@@ -42,7 +44,6 @@ import {
 import type { Character, Combo, Game } from '@/lib/types';
 import { extractYouTubeVideoId } from '@/lib/utils';
 
-const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 const SOFT_WARN_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_VIDEO_MIME_TYPES = [
   'video/mp4',
@@ -81,6 +82,7 @@ export function ComboFormDialog({
   const [demoUrl, setDemoUrl] = useState('');
   const [demoFileName, setDemoFileName] = useState('');
   const [demoVideoTitle, setDemoVideoTitle] = useState('');
+  const [pendingVideo, setPendingVideo] = useState<DemoVideo | undefined>();
   const [outdated, setOutdated] = useState(false);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const outdatedToggleId = useId();
@@ -117,8 +119,19 @@ export function ComboFormDialog({
     setDemoUrl('');
     setDemoFileName('');
     setDemoVideoTitle('');
+    setPendingVideo(undefined);
     setOutdated(false);
   }, []);
+
+  const handleDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        resetForm();
+      }
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange, resetForm],
+  );
 
   useEffect(() => {
     if (editingCombo) {
@@ -134,6 +147,7 @@ export function ComboFormDialog({
       setDemoUrl(editingCombo.demoUrl || '');
       setDemoFileName(editingCombo.demoFileName || '');
       setDemoVideoTitle(editingCombo.demoVideoTitle || '');
+      setPendingVideo(undefined);
       setOutdated(editingCombo.outdated || false);
     } else {
       resetForm();
@@ -199,13 +213,15 @@ export function ComboFormDialog({
     }
 
     try {
-      await indexedDbStorage.combos.add({
-        characterId: character.id,
-        ...buildComboPayload(),
-      });
+      await indexedDbStorage.combos.addWithVideo(
+        {
+          characterId: character.id,
+          ...buildComboPayload(),
+        },
+        pendingVideo,
+      );
       toast.success('Combo added');
-      onOpenChange(false);
-      resetForm();
+      handleDialogOpenChange(false);
     } catch (err) {
       reportError('ComboFormDialog.handleAdd', err);
       toast.error('Failed to add combo');
@@ -219,19 +235,13 @@ export function ComboFormDialog({
     }
 
     try {
-      const oldLocalId = getLocalVideoId(editingCombo.demoUrl);
-      const newLocalId = getLocalVideoId(demoUrl);
-      if (oldLocalId && oldLocalId !== newLocalId) {
-        await indexedDbStorage.demoVideos.delete(oldLocalId);
-      }
-
-      await indexedDbStorage.combos.update(
+      await indexedDbStorage.combos.updateWithVideo(
         editingCombo.id,
         buildComboPayload(),
+        pendingVideo,
       );
       toast.success('Combo updated');
-      onOpenChange(false);
-      resetForm();
+      handleDialogOpenChange(false);
     } catch (err) {
       reportError('ComboFormDialog.handleUpdate', err);
       toast.error('Failed to update combo');
@@ -265,17 +275,9 @@ export function ComboFormDialog({
     }
 
     try {
-      const existingLocalId = getLocalVideoId(demoUrl);
-      if (existingLocalId) {
-        const originalLocalId = getLocalVideoId(editingCombo?.demoUrl);
-        if (existingLocalId !== originalLocalId) {
-          await indexedDbStorage.demoVideos.delete(existingLocalId);
-        }
-      }
-
       const buffer = await file.arrayBuffer();
       const videoId = generateId();
-      await indexedDbStorage.demoVideos.add({
+      setPendingVideo({
         id: videoId,
         data: buffer,
         mimeType: file.type,
@@ -336,13 +338,7 @@ export function ComboFormDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => {
-        onOpenChange(isOpen);
-        if (!isOpen) resetForm();
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-2xl flex flex-col overflow-hidden">
         <form
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
@@ -516,6 +512,7 @@ export function ComboFormDialog({
                   onChange={(e) => {
                     setDemoUrl(e.target.value);
                     setDemoFileName('');
+                    setPendingVideo(undefined);
                   }}
                   placeholder="Paste a YouTube URL"
                   disabled={!!localDemoVideoId}
@@ -573,6 +570,7 @@ export function ComboFormDialog({
                       setDemoUrl('');
                       setDemoFileName('');
                       setDemoVideoTitle('');
+                      setPendingVideo(undefined);
                     }}
                   >
                     <XIcon className="w-3 h-3" />
@@ -627,10 +625,7 @@ export function ComboFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                resetForm();
-              }}
+              onClick={() => handleDialogOpenChange(false)}
             >
               Cancel
             </Button>

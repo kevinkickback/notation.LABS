@@ -1,7 +1,17 @@
 import Dexie, { type EntityTable } from 'dexie';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
-import { DEFAULT_SETTINGS, MAX_VIDEO_SIZE_BYTES } from '../defaults';
+import {
+  DEFAULT_SETTINGS,
+  MAX_BACKUP_ENTRY_COUNT,
+  MAX_BACKUP_METADATA_BYTES,
+  MAX_BACKUP_UNCOMPRESSED_BYTES,
+  MAX_BACKUP_VIDEO_BYTES,
+  MAX_BACKUP_VIDEO_COUNT,
+  MAX_JSON_BACKUP_BYTES,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_ZIP_BACKUP_BYTES,
+} from '../defaults';
 import {
   migrateLegacyNotationProfile,
   normalizeGameNotationProfile,
@@ -31,6 +41,122 @@ export interface ZipImportProgress {
   phase: 'loading' | 'videos' | 'finalizing';
   current: number;
   total: number | null;
+}
+
+interface ZipEntryMetadata {
+  uncompressedSize: number;
+}
+
+async function inspectZipCentralDirectory(
+  file: Blob,
+): Promise<Map<string, ZipEntryMetadata>> {
+  const endRecordSize = 22;
+  const maxCommentSize = 65_535;
+  if (file.size < endRecordSize) {
+    throw new Error('Invalid backup zip: end record not found');
+  }
+
+  const tailStart = Math.max(0, file.size - endRecordSize - maxCommentSize);
+  const tail = await file.slice(tailStart).arrayBuffer();
+  const tailView = new DataView(tail);
+  let endRecordOffset = -1;
+  for (let offset = tail.byteLength - endRecordSize; offset >= 0; offset--) {
+    if (tailView.getUint32(offset, true) === 0x06054b50) {
+      const commentLength = tailView.getUint16(offset + 20, true);
+      if (offset + endRecordSize + commentLength === tail.byteLength) {
+        endRecordOffset = offset;
+        break;
+      }
+    }
+  }
+  if (endRecordOffset < 0) {
+    throw new Error('Invalid backup zip: end record not found');
+  }
+
+  const diskNumber = tailView.getUint16(endRecordOffset + 4, true);
+  const directoryDisk = tailView.getUint16(endRecordOffset + 6, true);
+  const diskEntryCount = tailView.getUint16(endRecordOffset + 8, true);
+  const entryCount = tailView.getUint16(endRecordOffset + 10, true);
+  const directorySize = tailView.getUint32(endRecordOffset + 12, true);
+  const directoryOffset = tailView.getUint32(endRecordOffset + 16, true);
+  if (
+    diskNumber !== 0 ||
+    directoryDisk !== 0 ||
+    diskEntryCount !== entryCount ||
+    entryCount === 0xffff ||
+    directorySize === 0xffffffff ||
+    directoryOffset === 0xffffffff
+  ) {
+    throw new Error('Unsupported multi-volume or ZIP64 backup');
+  }
+  if (entryCount > MAX_BACKUP_ENTRY_COUNT) {
+    throw new Error(
+      `Backup zip contains more than ${MAX_BACKUP_ENTRY_COUNT} files`,
+    );
+  }
+  if (directorySize > MAX_BACKUP_METADATA_BYTES) {
+    throw new Error('Backup zip central directory exceeds the size limit');
+  }
+  if (directoryOffset + directorySize > file.size) {
+    throw new Error('Invalid backup zip: central directory is out of bounds');
+  }
+
+  const directory = await file
+    .slice(directoryOffset, directoryOffset + directorySize)
+    .arrayBuffer();
+  const directoryView = new DataView(directory);
+  const decoder = new TextDecoder();
+  const entries = new Map<string, ZipEntryMetadata>();
+  let offset = 0;
+  let totalUncompressedBytes = 0;
+  for (let index = 0; index < entryCount; index++) {
+    if (
+      offset + 46 > directory.byteLength ||
+      directoryView.getUint32(offset, true) !== 0x02014b50
+    ) {
+      throw new Error('Invalid backup zip: malformed central directory');
+    }
+    const uncompressedSize = directoryView.getUint32(offset + 24, true);
+    const fileNameLength = directoryView.getUint16(offset + 28, true);
+    const extraLength = directoryView.getUint16(offset + 30, true);
+    const commentLength = directoryView.getUint16(offset + 32, true);
+    const nextOffset =
+      offset + 46 + fileNameLength + extraLength + commentLength;
+    if (nextOffset > directory.byteLength || uncompressedSize === 0xffffffff) {
+      throw new Error('Invalid backup zip: malformed or ZIP64 entry');
+    }
+
+    const name = decoder.decode(
+      new Uint8Array(directory, offset + 46, fileNameLength),
+    );
+    if (entries.has(name)) {
+      throw new Error(`Backup zip contains duplicate file "${name}"`);
+    }
+    entries.set(name, { uncompressedSize });
+    totalUncompressedBytes += uncompressedSize;
+    if (totalUncompressedBytes > MAX_BACKUP_UNCOMPRESSED_BYTES) {
+      throw new Error('Backup zip exceeds the uncompressed size limit');
+    }
+    offset = nextOffset;
+  }
+
+  if (offset !== directory.byteLength) {
+    throw new Error('Invalid backup zip: central directory size mismatch');
+  }
+  return entries;
+}
+
+function validatePendingVideoReference(
+  demoUrl: string | undefined,
+  video: DemoVideo | undefined,
+): void {
+  if (!video) return;
+  if (video.data.byteLength > MAX_VIDEO_SIZE_BYTES) {
+    throw new Error(`Video "${video.fileName}" exceeds the 50 MB limit`);
+  }
+  if (getLocalVideoId(demoUrl) !== video.id) {
+    throw new Error('Pending video does not match the combo demo URL');
+  }
 }
 
 const db = new Dexie('FightingGameComboTracker') as Dexie & {
@@ -148,6 +274,25 @@ function collectLocalVideoIds(combos: Array<Pick<Combo, 'demoUrl'>>): string[] {
   }
 
   return [...videoIds];
+}
+
+async function deleteUnreferencedLocalVideos(
+  candidateIds: string[],
+): Promise<void> {
+  const uniqueCandidateIds = toUniqueIds(candidateIds);
+  if (uniqueCandidateIds.length === 0) {
+    return;
+  }
+
+  const referencedIds = new Set(
+    collectLocalVideoIds(await db.combos.toArray()),
+  );
+  const unreferencedIds = uniqueCandidateIds.filter(
+    (id) => !referencedIds.has(id),
+  );
+  if (unreferencedIds.length > 0) {
+    await db.demoVideos.bulkDelete(unreferencedIds);
+  }
 }
 
 function toUniqueIds(ids: string[]): string[] {
@@ -378,10 +523,8 @@ export const indexedDbStorage = {
               .anyOf(characterIds)
               .toArray();
             const videoIds = collectLocalVideoIds(combos);
-            if (videoIds.length > 0) {
-              await db.demoVideos.bulkDelete(videoIds);
-            }
             await db.combos.where('characterId').anyOf(characterIds).delete();
+            await deleteUnreferencedLocalVideos(videoIds);
           }
           await db.characters.where('gameId').equals(id).delete();
           await db.games.delete(id);
@@ -415,10 +558,8 @@ export const indexedDbStorage = {
               .anyOf(characterIds)
               .toArray();
             const videoIds = collectLocalVideoIds(combos);
-            if (videoIds.length > 0) {
-              await db.demoVideos.bulkDelete(videoIds);
-            }
             await db.combos.where('characterId').anyOf(characterIds).delete();
+            await deleteUnreferencedLocalVideos(videoIds);
           }
 
           await db.characters.where('gameId').anyOf(uniqueIds).delete();
@@ -467,33 +608,34 @@ export const indexedDbStorage = {
             .equals(id)
             .toArray();
           const videoIds = collectLocalVideoIds(combos);
-          if (videoIds.length > 0) {
-            await db.demoVideos.bulkDelete(videoIds);
-          }
           await db.combos.where('characterId').equals(id).delete();
+          await deleteUnreferencedLocalVideos(videoIds);
           await db.characters.delete(id);
         },
       );
       await indexedDbStorage.settings.removeNotesOverride(id);
     },
     bulkDelete: async (ids: string[]) => {
+      const uniqueIds = toUniqueIds(ids);
+      if (uniqueIds.length === 0) {
+        return;
+      }
+
       await db.transaction(
         'rw',
         [db.characters, db.combos, db.demoVideos],
         async () => {
           const combos = await db.combos
             .where('characterId')
-            .anyOf(ids)
+            .anyOf(uniqueIds)
             .toArray();
           const videoIds = collectLocalVideoIds(combos);
-          if (videoIds.length > 0) {
-            await db.demoVideos.bulkDelete(videoIds);
-          }
-          await db.combos.where('characterId').anyOf(ids).delete();
-          await db.characters.bulkDelete(ids);
+          await db.combos.where('characterId').anyOf(uniqueIds).delete();
+          await deleteUnreferencedLocalVideos(videoIds);
+          await db.characters.bulkDelete(uniqueIds);
         },
       );
-      await indexedDbStorage.settings.removeNotesOverrides(ids);
+      await indexedDbStorage.settings.removeNotesOverrides(uniqueIds);
     },
   },
 
@@ -526,20 +668,82 @@ export const indexedDbStorage = {
       });
       return id;
     },
+    addWithVideo: async (
+      combo: Omit<Combo, 'id' | 'createdAt' | 'updatedAt' | 'sortOrder'>,
+      video?: DemoVideo,
+    ) => {
+      validatePendingVideoReference(combo.demoUrl, video);
+      const id = generateId();
+      const now = Date.now();
+      await db.transaction('rw', [db.combos, db.demoVideos], async () => {
+        const existing = await db.combos
+          .where('characterId')
+          .equals(combo.characterId)
+          .toArray();
+        const maxOrder = existing.reduce(
+          (max, current) => Math.max(max, current.sortOrder ?? 0),
+          -1,
+        );
+        if (video) {
+          await db.demoVideos.add(video);
+        }
+        await db.combos.add({
+          ...combo,
+          id,
+          sortOrder: maxOrder + 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      return id;
+    },
     update: async (id: string, updates: Partial<Combo>) => {
       await db.combos.update(id, {
         ...updates,
         updatedAt: Date.now(),
       });
     },
+    updateWithVideo: async (
+      id: string,
+      updates: Partial<Combo>,
+      video?: DemoVideo,
+    ) => {
+      await db.transaction('rw', [db.combos, db.demoVideos], async () => {
+        const current = await db.combos.get(id);
+        if (!current) {
+          throw new Error(`Combo "${id}" was not found`);
+        }
+
+        const nextDemoUrl =
+          'demoUrl' in updates ? updates.demoUrl : current.demoUrl;
+        validatePendingVideoReference(nextDemoUrl, video);
+
+        if (video) {
+          await db.demoVideos.add(video);
+        }
+        const updated = await db.combos.update(id, {
+          ...updates,
+          updatedAt: Date.now(),
+        });
+        if (updated !== 1) {
+          throw new Error(`Combo "${id}" could not be updated`);
+        }
+
+        const previousVideoId = getLocalVideoId(current.demoUrl);
+        const nextVideoId = getLocalVideoId(nextDemoUrl);
+        if (previousVideoId && previousVideoId !== nextVideoId) {
+          await deleteUnreferencedLocalVideos([previousVideoId]);
+        }
+      });
+    },
     delete: async (id: string) => {
       await db.transaction('rw', [db.combos, db.demoVideos], async () => {
         const combo = await db.combos.get(id);
         const videoId = getLocalVideoId(combo?.demoUrl);
-        if (videoId) {
-          await db.demoVideos.delete(videoId);
-        }
         await db.combos.delete(id);
+        if (videoId) {
+          await deleteUnreferencedLocalVideos([videoId]);
+        }
       });
     },
     bulkDelete: async (ids: string[]) => {
@@ -553,10 +757,8 @@ export const indexedDbStorage = {
           (combo): combo is Combo => combo !== undefined,
         );
         const videoIds = collectLocalVideoIds(combos);
-        if (videoIds.length > 0) {
-          await db.demoVideos.bulkDelete(videoIds);
-        }
         await db.combos.bulkDelete(uniqueIds);
+        await deleteUnreferencedLocalVideos(videoIds);
       });
     },
     markOutdated: async (ids: string[], outdated: boolean) => {
@@ -633,10 +835,10 @@ export const indexedDbStorage = {
       onReparseStart?: () => void;
       onReparseEnd?: () => void;
     }): Promise<void> => {
-      const settings = await db.settings.get(1);
+      let settings = await db.settings.get(1);
       if (!settings) {
         await db.settings.add({ id: 1, ...DEFAULT_SETTINGS });
-        return;
+        settings = { id: 1, ...DEFAULT_SETTINGS };
       }
 
       const pendingSettingsUpdates: Partial<UserSettings> = {};
@@ -852,6 +1054,10 @@ export const indexedDbStorage = {
     includeVideos = false,
     includeSettings = false,
   ) => {
+    if (data.length > MAX_JSON_BACKUP_BYTES) {
+      throw new Error('Backup JSON exceeds the 100 MB import limit');
+    }
+
     let json: unknown;
     try {
       json = JSON.parse(data);
@@ -871,6 +1077,12 @@ export const indexedDbStorage = {
     }
     // Validate individual video sizes. base64 encodes 3 bytes as 4 chars, so
     // decoded byte length ≈ base64Length * 0.75.
+    if ((parsed.demoVideos?.length ?? 0) > MAX_BACKUP_VIDEO_COUNT) {
+      throw new Error(
+        `Backup contains more than ${MAX_BACKUP_VIDEO_COUNT} videos`,
+      );
+    }
+    let totalVideoBytes = 0;
     if (parsed.demoVideos) {
       for (const v of parsed.demoVideos) {
         if (!v.dataBase64) {
@@ -883,6 +1095,10 @@ export const indexedDbStorage = {
           throw new Error(
             `Video "${v.fileName}" exceeds the 50 MB per-video limit`,
           );
+        }
+        totalVideoBytes += decodedBytes;
+        if (totalVideoBytes > MAX_BACKUP_VIDEO_BYTES) {
+          throw new Error('Backup videos exceed the 500 MB aggregate limit');
         }
       }
     }
@@ -928,9 +1144,6 @@ export const indexedDbStorage = {
           for (const combo of sanitizedCombos) {
             await db.combos.put(combo);
           }
-          if (!includeSettings) {
-            await markImportedCombosForReparse();
-          }
         }
         if (includeSettings && parsed.settings) {
           await db.settings.put({
@@ -953,8 +1166,14 @@ export const indexedDbStorage = {
             });
           }
         }
+        if (sanitizedCombos && sanitizedCombos.length > 0) {
+          await markImportedCombosForReparse();
+        }
       },
     );
+    if (sanitizedCombos && sanitizedCombos.length > 0) {
+      await indexedDbStorage.settings.init();
+    }
   },
 
   importZip: async (
@@ -963,11 +1182,21 @@ export const indexedDbStorage = {
     includeSettings = false,
     onProgress?: (progress: ZipImportProgress) => void,
   ) => {
+    if (file.size > MAX_ZIP_BACKUP_BYTES) {
+      throw new Error('Backup zip exceeds the 512 MB import limit');
+    }
+
     onProgress?.({ phase: 'loading', current: 0, total: null });
+    const archiveEntries = await inspectZipCentralDirectory(file);
     const zip = await JSZip.loadAsync(await file.arrayBuffer());
+
     const metadataFile = zip.file(ZIP_BACKUP_METADATA_FILE);
-    if (!metadataFile) {
+    const metadataEntry = archiveEntries.get(ZIP_BACKUP_METADATA_FILE);
+    if (!metadataFile || !metadataEntry) {
       throw new Error('Invalid backup zip: missing backup.json');
+    }
+    if (metadataEntry.uncompressedSize > MAX_BACKUP_METADATA_BYTES) {
+      throw new Error('Backup metadata exceeds the 10 MB import limit');
     }
 
     const metadataText = await metadataFile.async('string');
@@ -987,6 +1216,50 @@ export const indexedDbStorage = {
         includeSettings,
       );
       return;
+    }
+
+    if ((parsed.demoVideos?.length ?? 0) > MAX_BACKUP_VIDEO_COUNT) {
+      throw new Error(
+        `Backup contains more than ${MAX_BACKUP_VIDEO_COUNT} videos`,
+      );
+    }
+
+    const videoIds = new Set<string>();
+    const videoPaths = new Set<string>();
+    let declaredVideoBytes = 0;
+    for (const video of parsed.demoVideos ?? []) {
+      if (videoIds.has(video.id)) {
+        throw new Error(`Backup contains duplicate video id "${video.id}"`);
+      }
+      videoIds.add(video.id);
+
+      let videoBytes = 0;
+      if (video.path) {
+        if (videoPaths.has(video.path)) {
+          throw new Error(
+            `Backup contains duplicate video path "${video.path}"`,
+          );
+        }
+        videoPaths.add(video.path);
+        const entry = archiveEntries.get(video.path);
+        if (!entry || !zip.file(video.path)) {
+          throw new Error(
+            `Video "${video.fileName}" is missing from the backup zip`,
+          );
+        }
+        videoBytes = entry.uncompressedSize;
+      } else if (video.dataBase64) {
+        videoBytes = Math.ceil(video.dataBase64.length * 0.75);
+      }
+      if (videoBytes > MAX_VIDEO_SIZE_BYTES) {
+        throw new Error(
+          `Video "${video.fileName}" exceeds the 50 MB per-video limit`,
+        );
+      }
+      declaredVideoBytes += videoBytes;
+      if (declaredVideoBytes > MAX_BACKUP_VIDEO_BYTES) {
+        throw new Error('Backup videos exceed the 500 MB aggregate limit');
+      }
     }
 
     const videosToImport: DemoVideo[] = [];
@@ -1083,9 +1356,6 @@ export const indexedDbStorage = {
           for (const combo of sanitizedCombos) {
             await db.combos.put(combo);
           }
-          if (!includeSettings) {
-            await markImportedCombosForReparse();
-          }
         }
         if (includeSettings && parsed.settings) {
           await db.settings.put({
@@ -1098,8 +1368,14 @@ export const indexedDbStorage = {
             await db.demoVideos.put(video);
           }
         }
+        if (sanitizedCombos && sanitizedCombos.length > 0) {
+          await markImportedCombosForReparse();
+        }
       },
     );
+    if (sanitizedCombos && sanitizedCombos.length > 0) {
+      await indexedDbStorage.settings.init();
+    }
   },
 };
 

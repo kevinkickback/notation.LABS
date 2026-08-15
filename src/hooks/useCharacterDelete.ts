@@ -15,15 +15,17 @@ export function useCharacterDelete() {
       await indexedDbStorage.characters.delete(character.id);
       toast.success(`"${character.name}" deleted`);
       setDeleteTarget(null);
+      return true;
     } catch (err) {
       reportError('useCharacterDelete.handleDeleteCharacter', err);
       toast.error('Failed to delete character');
+      return false;
     }
   };
 
   const handleBulkDeleteCharacters = async (characters: Character[]) => {
     if (characters.length === 0) {
-      return;
+      return false;
     }
 
     try {
@@ -32,9 +34,11 @@ export function useCharacterDelete() {
         `${characters.length} character${characters.length > 1 ? 's' : ''} deleted`,
       );
       setDeleteTarget(null);
+      return true;
     } catch (err) {
       reportError('useCharacterDelete.handleBulkDeleteCharacters', err);
       toast.error('Failed to delete selected characters');
+      return false;
     }
   };
 

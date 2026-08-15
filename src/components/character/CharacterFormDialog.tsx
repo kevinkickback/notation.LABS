@@ -13,6 +13,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -174,6 +175,11 @@ export function CharacterFormDialog({
                   ? 'Edit Character'
                   : `Add Character to ${game.name}`}
               </DialogTitle>
+              <DialogDescription>
+                {editingCharacter
+                  ? 'Update this character’s name, portrait, and notes.'
+                  : 'Add a character with an optional portrait and notes.'}
+              </DialogDescription>
             </DialogHeader>
             <DialogBody className="-mr-2 space-y-3 pr-2">
               <div>

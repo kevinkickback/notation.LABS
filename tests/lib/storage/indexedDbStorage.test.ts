@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
@@ -489,6 +490,82 @@ describe('indexedDbStorage.combos', () => {
     expect(combo).toBeUndefined();
   });
 
+  it('commits a combo and its pending video together', async () => {
+    const video = {
+      id: 'pending-video',
+      data: new Uint8Array([1, 2, 3]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'demo.mp4',
+    };
+
+    const id = await indexedDbStorage.combos.addWithVideo(
+      { ...comboData(), demoUrl: `local:${video.id}` },
+      video,
+    );
+
+    expect((await indexedDbStorage.combos.get(id))?.demoUrl).toBe(
+      'local:pending-video',
+    );
+    expect(await indexedDbStorage.demoVideos.get(video.id)).toEqual(video);
+  });
+
+  it('replaces local video references atomically and removes the old orphan', async () => {
+    await indexedDbStorage.demoVideos.add({
+      id: 'old-video',
+      data: new Uint8Array([1]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'old.mp4',
+    });
+    const comboId = await indexedDbStorage.combos.add({
+      ...comboData(),
+      demoUrl: 'local:old-video',
+    });
+    const nextVideo = {
+      id: 'new-video',
+      data: new Uint8Array([2]).buffer,
+      mimeType: 'video/webm',
+      fileName: 'new.webm',
+    };
+
+    await indexedDbStorage.combos.updateWithVideo(
+      comboId,
+      { demoUrl: 'local:new-video' },
+      nextVideo,
+    );
+
+    expect((await indexedDbStorage.combos.get(comboId))?.demoUrl).toBe(
+      'local:new-video',
+    );
+    expect(await indexedDbStorage.demoVideos.get('new-video')).toBeDefined();
+    expect(await indexedDbStorage.demoVideos.get('old-video')).toBeUndefined();
+  });
+
+  it('preserves a local video until its final combo reference is deleted', async () => {
+    await indexedDbStorage.demoVideos.add({
+      id: 'shared-video',
+      data: new Uint8Array([1]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'shared.mp4',
+    });
+    const firstId = await indexedDbStorage.combos.add({
+      ...comboData(),
+      demoUrl: 'local:shared-video',
+    });
+    const secondId = await indexedDbStorage.combos.add({
+      ...comboData(),
+      name: 'Shared Demo Combo',
+      demoUrl: 'local:shared-video',
+    });
+
+    await indexedDbStorage.combos.delete(firstId);
+    expect(await indexedDbStorage.demoVideos.get('shared-video')).toBeDefined();
+
+    await indexedDbStorage.combos.delete(secondId);
+    expect(
+      await indexedDbStorage.demoVideos.get('shared-video'),
+    ).toBeUndefined();
+  });
+
   it('reorders combos', async () => {
     const id1 = await indexedDbStorage.combos.add({
       ...comboData(),
@@ -959,6 +1036,40 @@ describe('indexedDbStorage.export', () => {
 });
 
 describe('indexedDbStorage.import', () => {
+  it('rejects oversized zip files before reading them into memory', async () => {
+    const arrayBuffer = vi.fn();
+    const oversizedFile = {
+      size: MAX_ZIP_BACKUP_BYTES + 1,
+      arrayBuffer,
+    } as unknown as Blob;
+
+    await expect(indexedDbStorage.importZip(oversizedFile)).rejects.toThrow(
+      '512 MB import limit',
+    );
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('rejects zip metadata declaring too many videos', async () => {
+    const zip = new JSZip();
+    zip.file(
+      'backup.json',
+      JSON.stringify({
+        version: 3,
+        exported: new Date().toISOString(),
+        demoVideos: Array.from({ length: 101 }, (_, index) => ({
+          id: `video-${index}`,
+          fileName: `${index}.mp4`,
+          mimeType: 'video/mp4',
+          path: `videos/${index}.mp4`,
+        })),
+      }),
+    );
+    const backup = await zip.generateAsync({ type: 'blob' });
+
+    await expect(indexedDbStorage.importZip(backup, true)).rejects.toThrow(
+      'more than 100 videos',
+    );
+  });
   it('imports games, characters, and combos', async () => {
     const data = JSON.stringify({
       version: 1,
@@ -1102,7 +1213,7 @@ describe('indexedDbStorage.import', () => {
     expect(settings.comboScale).toBe(1);
   });
 
-  it('marks parser version stale when importing combos without settings', async () => {
+  it('reparses imported combos immediately when importing without settings', async () => {
     await indexedDbStorage.settings.update({
       parsedNotationVersion: 999,
       colorTheme: 'light',
@@ -1147,8 +1258,12 @@ describe('indexedDbStorage.import', () => {
     await indexedDbStorage.import(data);
 
     const settings = await indexedDbStorage.settings.get();
-    expect(settings.parsedNotationVersion).toBe(0);
+    expect(settings.parsedNotationVersion).toBe(
+      COMBO_NOTATION_PARSER_VERSION,
+    );
     expect(settings.colorTheme).toBe('light');
+    const combo = await indexedDbStorage.combos.get('combo1');
+    expect(combo?.parsedNotation).toEqual(parseComboNotation('A', ['A']));
   });
 
 
@@ -1293,7 +1408,7 @@ describe('indexedDbStorage.import', () => {
     );
   });
 
-  it('marks parser version stale when importing zip combos without settings', async () => {
+  it('reparses imported zip combos immediately without replacing settings', async () => {
     await indexedDbStorage.settings.update({
       parsedNotationVersion: 999,
       colorTheme: 'light',
@@ -1324,7 +1439,9 @@ describe('indexedDbStorage.import', () => {
     await indexedDbStorage.importZip(exportedBlob, true, false);
 
     const settings = await indexedDbStorage.settings.get();
-    expect(settings.parsedNotationVersion).toBe(0);
+    expect(settings.parsedNotationVersion).toBe(
+      COMBO_NOTATION_PARSER_VERSION,
+    );
     expect(settings.colorTheme).toBe('light');
   });
 

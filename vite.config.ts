@@ -37,6 +37,9 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks: {
+            motion: [
+              resolve(projectRoot, 'src/components/combo/icons/MotionIcon.tsx'),
+            ],
             icons: ['@phosphor-icons/react'],
             markdown: ['react-markdown'],
             storage: ['dexie', 'dexie-react-hooks'],
