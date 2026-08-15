@@ -10,9 +10,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { type RawIGDBApiResult, searchIGDB } from '@/lib/igdb';
+import {
+  downloadIgdbCover,
+  getIgdbCoverUrl,
+  searchIgdbGames,
+} from '@/lib/providers/igdbProvider';
 import type { IGDBSearchResult } from '@/lib/types';
-import { fetchImageAsBase64 } from '@/lib/utils';
 
 interface CoverSearchDialogProps {
   open: boolean;
@@ -72,28 +75,15 @@ export function CoverSearchDialog({
     searchControllerRef.current = controller;
 
     try {
-      const rawData: RawIGDBApiResult[] = await searchIGDB(
-        q,
-        controller.signal,
-      );
+      const data = await searchIgdbGames(q, controller.signal);
       if (requestId !== requestIdRef.current) return;
-      const data: IGDBSearchResult[] = (rawData || []).map(
-        (g: RawIGDBApiResult) => {
-          const coverId = g.coverImageId ?? g.cover?.image_id ?? null;
-          const release = g.firstReleaseDate ?? g.first_release_date ?? null;
-          return {
-            igdbId: g.id,
-            name: g.name,
-            coverImageId: coverId,
-            firstReleaseDate: release,
-          };
-        },
-      );
       const thumbs: Record<string, string> = {};
       for (const g of data) {
         if (g.coverImageId) {
-          thumbs[g.coverImageId] =
-            `https://images.igdb.com/igdb/image/upload/t_cover_big/${g.coverImageId}.jpg`;
+          thumbs[g.coverImageId] = getIgdbCoverUrl(
+            g.coverImageId,
+            't_cover_big',
+          );
         }
       }
       resultsCacheRef.current.set(q, { results: data, thumbnails: thumbs });
@@ -174,28 +164,10 @@ export function CoverSearchDialog({
     if (!result.coverImageId || downloading) return;
     setDownloading(result.coverImageId);
     try {
-      // Try IGDB cover sizes in order of quality
-      const sizes = [
-        't_cover_big_2x',
-        't_cover_big',
-        't_cover_small_2x',
-        't_cover_small',
-        't_thumb',
-      ];
-      let found = false;
-      for (const size of sizes) {
-        const url = `https://images.igdb.com/igdb/image/upload/${size}/${result.coverImageId}.jpg`;
-        const dataUrl = await fetchImageAsBase64(
-          'https://igdb.capitol-k.workers.dev/download',
-          url,
-        );
-        if (dataUrl) {
-          onCoverSelect(dataUrl);
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
+      const dataUrl = await downloadIgdbCover(result.coverImageId);
+      if (dataUrl) {
+        onCoverSelect(dataUrl);
+      } else {
         toast.error('Failed to download cover (no available sizes)');
       }
     } catch {

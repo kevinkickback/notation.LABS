@@ -107,6 +107,14 @@ npm install
 npm run dev:web
 ```
 
+#### Local provider proxies
+
+During development, provider adapters use Vite proxies instead of deployed
+workers. `/api/igdb` forwards to `http://localhost:3002` and `/api/image`
+forwards to `http://localhost:3001`; Vite strips the `/api/...` prefix before
+forwarding. Start the corresponding local provider service when testing game
+cover or character image search.
+
 ## 🕹️ Notation Reference
 
 | Notation | Meaning |

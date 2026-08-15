@@ -8,6 +8,7 @@ import { useAppStore } from '@/lib/store';
 const mocks = vi.hoisted(() => ({
   useLiveQuery: vi.fn(),
   useSettings: vi.fn(),
+  useUpdater: vi.fn(),
   toastInfo: vi.fn(),
   reportError: vi.fn(),
   gamesGetAll: vi.fn(),
@@ -21,6 +22,10 @@ vi.mock('dexie-react-hooks', () => ({
 
 vi.mock('@/context/SettingsContext', () => ({
   useSettings: () => mocks.useSettings(),
+}));
+
+vi.mock('@/context/UpdaterContext', () => ({
+  useUpdater: () => mocks.useUpdater(),
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
@@ -164,6 +169,11 @@ describe('App', () => {
       selectedCharacterId: null,
     });
     mocks.useSettings.mockReturnValue(DEFAULT_SETTINGS);
+    mocks.useUpdater.mockReturnValue({
+      status: { status: 'idle' },
+      availabilityEventId: 0,
+      downloadUpdate: vi.fn(),
+    });
     mocks.useLiveQuery.mockImplementation(
       (_query: unknown, dependencies: unknown[]) => {
         if (dependencies.length === 0) return queryData.games;
@@ -198,56 +208,24 @@ describe('App', () => {
     );
   });
 
-  it('applies the saved font, accent, and color theme to the document', () => {
-    mocks.useSettings.mockReturnValue({
-      ...DEFAULT_SETTINGS,
-      fontFamily: 'verdana',
-      accentColor: '#123456',
-      colorTheme: 'dark',
-    });
-
-    render(<App />);
-
-    expect(
-      document.documentElement.style.getPropertyValue('--app-font-family'),
-    ).toBe('Verdana, Geneva, sans-serif');
-    expect(
-      document.documentElement.style.getPropertyValue('--accent-color'),
-    ).toBe('#123456');
-    expect(document.documentElement.classList.contains('dark')).toBe(true);
-  });
-
-  it('subscribes to updates, shows the changelog, and starts the download', async () => {
-    let updateAvailable:
-      | ((data: {
-          version: string;
-          changelog: string | null;
-          isPortable: boolean;
-        }) => void)
-      | undefined;
-    const unsubscribe = vi.fn();
-    const setAutoCheck = vi.fn().mockResolvedValue(undefined);
+  it('shows controller updates and starts the download', async () => {
     const downloadUpdate = vi.fn().mockResolvedValue({
       success: true,
       data: null,
       error: null,
     });
-    const onUpdateAvailable = vi.fn((callback) => {
-      updateAvailable = callback;
-      return unsubscribe;
-    });
-    installElectronApi({ setAutoCheck, downloadUpdate, onUpdateAvailable });
-
-    const { unmount } = render(<App />);
-
-    await waitFor(() => expect(setAutoCheck).toHaveBeenCalledWith(true));
-    act(() => {
-      updateAvailable?.({
+    mocks.useUpdater.mockReturnValue({
+      status: {
+        status: 'available',
         version: '2.0.0',
         changelog: 'Important fixes',
         isPortable: false,
-      });
+      },
+      availabilityEventId: 1,
+      downloadUpdate,
     });
+
+    render(<App />);
 
     expect(mocks.toastInfo).toHaveBeenCalledWith(
       'Update v2.0.0 available',
@@ -264,67 +242,26 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Install update' }));
     expect(downloadUpdate).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Downloading update 2.0.0')).toBeTruthy();
-
-    unmount();
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
-  });
-
-  it('reports auto-check failures without breaking the app shell', async () => {
-    const error = new Error('IPC unavailable');
-    installElectronApi({
-      setAutoCheck: vi.fn().mockRejectedValue(error),
-    });
-
-    render(<App />);
-
-    await waitFor(() => {
-      expect(mocks.reportError).toHaveBeenCalledWith('App.setAutoCheck', error);
-    });
-    expect(screen.getByText('Games: Fighter One')).toBeTruthy();
-  });
-
-  it('forwards a disabled auto-update preference', async () => {
-    mocks.useSettings.mockReturnValue({
-      ...DEFAULT_SETTINGS,
-      autoUpdate: false,
-    });
-    const setAutoCheck = vi.fn().mockResolvedValue(undefined);
-    installElectronApi({ setAutoCheck });
-
-    render(<App />);
-
-    await waitFor(() => expect(setAutoCheck).toHaveBeenCalledWith(false));
   });
 
   it('opens portable release downloads without showing installer progress', async () => {
-    let updateAvailable:
-      | ((data: {
-          version: string;
-          changelog: string | null;
-          isPortable: boolean;
-        }) => void)
-      | undefined;
     const downloadUpdate = vi.fn().mockResolvedValue({
       success: true,
       data: null,
       error: null,
     });
-    installElectronApi({
-      downloadUpdate,
-      onUpdateAvailable: vi.fn((callback) => {
-        updateAvailable = callback;
-        return () => {};
-      }),
-    });
-    render(<App />);
-
-    act(() => {
-      updateAvailable?.({
+    mocks.useUpdater.mockReturnValue({
+      status: {
+        status: 'available',
         version: '2.0.0',
         changelog: 'Portable fixes',
         isPortable: true,
-      });
+      },
+      availabilityEventId: 1,
+      downloadUpdate,
     });
+    render(<App />);
+
     const toastOptions = mocks.toastInfo.mock.calls[0][1] as {
       action: { onClick: () => void };
     };

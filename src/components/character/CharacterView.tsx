@@ -1,4 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
@@ -25,6 +24,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
+import { useCharacterComboStatistics } from '@/hooks/useCharacterComboStatistics';
 import { useCharacterDelete } from '@/hooks/useCharacterDelete';
 import { useCharacterFilters } from '@/hooks/useCharacterFilters';
 import { useCharacterOperations } from '@/hooks/useCharacterOperations';
@@ -32,7 +32,7 @@ import { useCharacterSelection } from '@/hooks/useCharacterSelection';
 import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
-import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateGame } from '@/lib/application/gameCommands';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 import { CharacterFormDialog } from './CharacterFormDialog';
@@ -69,13 +69,8 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     settings.notesDefaultOpen ?? false,
   );
 
-  const combos = useLiveQuery(
-    () =>
-      db.combos
-        .where('characterId')
-        .anyOf(characters.map((c) => c.id))
-        .toArray(),
-    [characters],
+  const combos = useCharacterComboStatistics(
+    characters.map((character) => character.id),
   );
 
   const comboCountByChar = useMemo(() => {
@@ -157,7 +152,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 
   const handleSaveNote = useCallback(async () => {
     try {
-      await indexedDbStorage.games.update(game.id, {
+      await updateGame(game.id, {
         notes: noteDraft.trim(),
       });
       toast.success('Note updated');

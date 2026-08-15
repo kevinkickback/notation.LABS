@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { setSetting } from '@/lib/application/settingsCommands';
 
 /**
  * Manages game view mode (grid/list) and card size
@@ -14,7 +14,7 @@ export function useGameViewMode(initialCardSize: number) {
 
   const handleCardSizeChange = async (size: number) => {
     setCardSize(size);
-    await indexedDbStorage.settings.update({ gameCardSize: size });
+    await setSetting('gameCardSize', size);
   };
 
   return {

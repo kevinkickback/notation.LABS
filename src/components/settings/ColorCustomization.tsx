@@ -19,8 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useSettings } from '@/context/SettingsContext';
+import { getGames, updateGame } from '@/lib/application/gameCommands';
+import { setSetting } from '@/lib/application/settingsCommands';
 import { DEFAULT_BUTTON_PALETTE, DEFAULT_SETTINGS } from '@/lib/defaults';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { Game, NotationColors } from '@/lib/types';
 
 const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
@@ -40,7 +41,7 @@ export function ColorCustomization() {
   const [hexEdits, setHexEdits] = useState<Record<string, string>>({});
 
   const refreshGames = useCallback(async () => {
-    const allGames = await indexedDbStorage.games.getAll();
+    const allGames = await getGames();
     const sorted = allGames
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -80,10 +81,10 @@ export function ColorCustomization() {
   };
 
   const handleApply = async () => {
-    await indexedDbStorage.settings.update({ notationColors: tempColors });
+    await setSetting('notationColors', tempColors);
 
     if (selectedGameId && selectedGame) {
-      await indexedDbStorage.games.update(selectedGameId, {
+      await updateGame(selectedGameId, {
         buttonLayout: tempButtonLayout,
         buttonColors: tempButtonColors,
       });
@@ -95,7 +96,7 @@ export function ColorCustomization() {
 
   const handleReset = async () => {
     setTempColors(DEFAULT_COLORS);
-    await indexedDbStorage.settings.update({ notationColors: DEFAULT_COLORS });
+    await setSetting('notationColors', DEFAULT_COLORS);
 
     if (selectedGameId && selectedGame) {
       const defaultLayout = [...selectedGame.buttonLayout];
@@ -110,7 +111,7 @@ export function ColorCustomization() {
 
       setTempButtonLayout(defaultLayout);
       setTempButtonColors(defaultButtonColors);
-      await indexedDbStorage.games.update(selectedGameId, {
+      await updateGame(selectedGameId, {
         buttonLayout: defaultLayout,
         buttonColors: defaultButtonColors,
       });

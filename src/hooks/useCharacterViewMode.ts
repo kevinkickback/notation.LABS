@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { setSetting } from '@/lib/application/settingsCommands';
 
 const clampCharSize = (v: number) => Math.min(300, Math.max(120, v));
 
@@ -18,7 +18,7 @@ export function useCharacterViewMode(initialCardSize: number) {
 
   const handleCardSizeChange = async (size: number) => {
     setCardSize(size);
-    await indexedDbStorage.settings.update({ characterCardSize: size });
+    await setSetting('characterCardSize', size);
   };
 
   return {

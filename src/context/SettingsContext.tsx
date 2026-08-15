@@ -10,7 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { DEFAULT_SETTINGS } from '@/lib/defaults';
+import {
+  setNotesOverride,
+  setSetting,
+} from '@/lib/application/settingsCommands';
+import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { UserSettings } from '@/lib/types';
@@ -22,6 +26,10 @@ const INITIAL_SETTINGS: UserSettings = {
 };
 
 const SettingsContext = createContext<UserSettings>(INITIAL_SETTINGS);
+const SettingsActionsContext = createContext({
+  setSetting,
+  setNotesOverride,
+});
 
 function ReparseProgressModal() {
   return (
@@ -67,13 +75,36 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Pure read - safe inside useLiveQuery.
   const settings = useLiveQuery(indexedDbStorage.settings.get, []);
+  const currentSettings = settings ?? INITIAL_SETTINGS;
+
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--app-font-family',
+      getFontFamilyCSS(currentSettings.fontFamily),
+    );
+    document.documentElement.style.setProperty(
+      '--accent-color',
+      currentSettings.accentColor || '#3b82f6',
+    );
+    document.documentElement.classList.toggle(
+      'dark',
+      currentSettings.colorTheme === 'dark',
+    );
+  }, [
+    currentSettings.fontFamily,
+    currentSettings.accentColor,
+    currentSettings.colorTheme,
+  ]);
 
   return (
-    <SettingsContext.Provider value={settings ?? INITIAL_SETTINGS}>
-      {children}
-      {isReparsing && <ReparseProgressModal />}
-    </SettingsContext.Provider>
+    <SettingsActionsContext.Provider value={{ setSetting, setNotesOverride }}>
+      <SettingsContext.Provider value={currentSettings}>
+        {children}
+        {isReparsing && <ReparseProgressModal />}
+      </SettingsContext.Provider>
+    </SettingsActionsContext.Provider>
   );
 }
 
 export const useSettings = () => useContext(SettingsContext);
+export const useSettingsActions = () => useContext(SettingsActionsContext);

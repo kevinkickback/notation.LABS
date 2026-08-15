@@ -5,26 +5,15 @@ import {
   type ProgressInfo,
   type UpdateInfo,
 } from 'electron-updater';
+import {
+  UPDATE_EVENT_CHANNELS,
+  type UpdateProgress,
+  type UpdateStatus,
+} from '../src/lib/updater/ipcContract';
 import { isSafeExternalUrl } from './security';
 
 const GITHUB_OWNER = 'kevinkickback';
 const GITHUB_REPO = 'notation.LABS';
-
-export interface UpdateStatus {
-  status:
-    | 'idle'
-    | 'checking'
-    | 'available'
-    | 'not-available'
-    | 'downloading'
-    | 'downloaded'
-    | 'error';
-  version?: string;
-  changelog?: string;
-  isPortable?: boolean;
-  error?: string;
-  progress?: ProgressInfo;
-}
 
 let cancellationToken: CancellationToken | null = null;
 let currentStatus: UpdateStatus = { status: 'idle' };
@@ -124,7 +113,7 @@ export function initAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     setStatus({ status: 'checking' });
-    sendToRenderer('update-checking');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.checking);
   });
 
   autoUpdater.on('update-available', async (info: UpdateInfo) => {
@@ -136,7 +125,7 @@ export function initAutoUpdater() {
       isPortable: isPortableMode,
     };
     setStatus(status);
-    sendToRenderer('update-available', {
+    sendToRenderer(UPDATE_EVENT_CHANNELS.available, {
       version: info.version,
       changelog: changelog ?? null,
       isPortable: isPortableMode,
@@ -145,7 +134,7 @@ export function initAutoUpdater() {
 
   autoUpdater.on('update-not-available', (_info: UpdateInfo) => {
     setStatus({ status: 'not-available' });
-    sendToRenderer('update-not-available');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.notAvailable);
   });
 
   autoUpdater.on('error', (err: Error) => {
@@ -154,22 +143,25 @@ export function initAutoUpdater() {
       error: err.message,
     };
     setStatus(status);
-    sendToRenderer('update-error', { message: err.message });
+    sendToRenderer(UPDATE_EVENT_CHANNELS.error, { message: err.message });
   });
 
   autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-    setStatus({ status: 'downloading', progress });
-    sendToRenderer('download-progress', {
+    const updateProgress: UpdateProgress = {
       percentage: progress.percent,
       bytesPerSecond: progress.bytesPerSecond,
       total: progress.total,
       transferred: progress.transferred,
-    });
+    };
+    setStatus({ status: 'downloading', progress: updateProgress });
+    sendToRenderer(UPDATE_EVENT_CHANNELS.progress, updateProgress);
   });
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     setStatus({ status: 'downloaded', version: info.version });
-    sendToRenderer('update-downloaded', { version: info.version });
+    sendToRenderer(UPDATE_EVENT_CHANNELS.downloaded, {
+      version: info.version,
+    });
   });
 }
 
@@ -179,7 +171,7 @@ async function checkForUpdatePortable(): Promise<UpdateStatus> {
 
   try {
     setStatus({ status: 'checking' });
-    sendToRenderer('update-checking');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.checking);
 
     const response = await net.fetch(url, {
       headers: {
@@ -191,7 +183,7 @@ async function checkForUpdatePortable(): Promise<UpdateStatus> {
     if (!response.ok) {
       const status: UpdateStatus = { status: 'not-available' };
       setStatus(status);
-      sendToRenderer('update-not-available');
+      sendToRenderer(UPDATE_EVENT_CHANNELS.notAvailable);
       return status;
     }
 
@@ -209,7 +201,7 @@ async function checkForUpdatePortable(): Promise<UpdateStatus> {
         isPortable: true,
       };
       setStatus(status);
-      sendToRenderer('update-available', {
+      sendToRenderer(UPDATE_EVENT_CHANNELS.available, {
         version: latestVersion,
         changelog: data.body ?? null,
         isPortable: true,
@@ -219,7 +211,7 @@ async function checkForUpdatePortable(): Promise<UpdateStatus> {
 
     const status: UpdateStatus = { status: 'not-available' };
     setStatus(status);
-    sendToRenderer('update-not-available');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.notAvailable);
     return status;
   } catch (err) {
     const status: UpdateStatus = {
@@ -235,7 +227,7 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
   if (!app.isPackaged) {
     const status: UpdateStatus = { status: 'not-available' };
     setStatus(status);
-    sendToRenderer('update-not-available');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.notAvailable);
     return status;
   }
 
@@ -293,7 +285,7 @@ export async function downloadUpdate(): Promise<void> {
     let progress = 0;
     devSimInterval = setInterval(() => {
       progress += 20;
-      sendToRenderer('download-progress', {
+      sendToRenderer(UPDATE_EVENT_CHANNELS.progress, {
         percentage: Math.min(progress, 100),
         bytesPerSecond: 2_500_000,
         total: 85_000_000,
@@ -302,7 +294,9 @@ export async function downloadUpdate(): Promise<void> {
       if (progress >= 100) {
         if (devSimInterval) clearInterval(devSimInterval);
         devSimInterval = null;
-        sendToRenderer('update-downloaded', { version: mockVersion });
+        sendToRenderer(UPDATE_EVENT_CHANNELS.downloaded, {
+          version: mockVersion,
+        });
       }
     }, 800);
     return;
@@ -329,14 +323,14 @@ export function cancelDownload(): boolean {
     clearInterval(devSimInterval);
     devSimInterval = null;
     setStatus({ status: 'idle' });
-    sendToRenderer('update-cancelled');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.cancelled);
     return true;
   }
   if (cancellationToken) {
     cancellationToken.cancel();
     cancellationToken = null;
     setStatus({ status: 'idle' });
-    sendToRenderer('update-cancelled');
+    sendToRenderer(UPDATE_EVENT_CHANNELS.cancelled);
     return true;
   }
   return false;

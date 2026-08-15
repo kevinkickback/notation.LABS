@@ -2,6 +2,14 @@ import Dexie, { type EntityTable } from 'dexie';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  type BackupImportPlan,
+  normalizeBackupImport,
+} from '../backup/importPipeline';
+import {
+  type BackupFilter,
+  closeBackupSelection,
+} from '../backup/selectionClosure';
+import {
   DEFAULT_SETTINGS,
   MAX_BACKUP_ENTRY_COUNT,
   MAX_BACKUP_METADATA_BYTES,
@@ -14,7 +22,6 @@ import {
 } from '../defaults';
 import {
   migrateLegacyNotationProfile,
-  normalizeGameNotationProfile,
   resolveNotationProfile,
 } from '../notationProfiles';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '../parser';
@@ -23,6 +30,7 @@ import type {
   Character,
   Combo,
   Game,
+  LegacyGame,
   NotationColors,
   UserSettings,
 } from '../types';
@@ -236,7 +244,7 @@ db.version(6)
     tx
       .table('games')
       .toCollection()
-      .modify((game: Game) => migrateLegacyNotationProfile(game)),
+      .modify((game: LegacyGame) => migrateLegacyNotationProfile(game)),
   );
 
 export function generateId(): string {
@@ -446,16 +454,38 @@ async function markImportedCombosForReparse(): Promise<void> {
   await db.settings.update(1, { parsedNotationVersion: 0 });
 }
 
+async function applyBackupImportPlan(plan: BackupImportPlan): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.games, db.characters, db.combos, db.settings, db.demoVideos],
+    async () => {
+      await db.games.bulkPut(plan.games);
+      await db.characters.bulkPut(plan.characters);
+      await db.combos.bulkPut(plan.combos);
+      if (plan.settings) {
+        await db.settings.put({ id: 1, ...plan.settings });
+      }
+      await db.demoVideos.bulkPut(plan.videos);
+      if (plan.combos.length > 0) await markImportedCombosForReparse();
+    },
+  );
+
+  if (plan.combos.length > 0) await indexedDbStorage.settings.init();
+}
+
 export const indexedDbStorage = {
   games: {
     getAll: () => db.games.toArray(),
     get: (id: string) => db.games.get(id),
-    add: async (game: Omit<Game, 'id' | 'createdAt' | 'updatedAt'>) => {
+    add: async (
+      game: Omit<Game, 'id' | 'createdAt' | 'updatedAt' | 'notationProfile'> & {
+        notationProfile?: Game['notationProfile'];
+      },
+    ) => {
       const id = generateId();
       const now = Date.now();
-      const { inputType: _legacyInputType, ...currentGame } = game;
       await db.games.add({
-        ...currentGame,
+        ...game,
         notationProfile: resolveNotationProfile(game),
         id,
         createdAt: now,
@@ -470,11 +500,7 @@ export const indexedDbStorage = {
         async () => {
           const currentGame = await db.games.get(id);
           const nextButtonLayout = updates.buttonLayout;
-          const nextNotationProfile =
-            updates.notationProfile ??
-            (updates.inputType
-              ? resolveNotationProfile({ inputType: updates.inputType })
-              : undefined);
+          const nextNotationProfile = updates.notationProfile;
           const shouldReparseCombos =
             currentGame !== undefined &&
             ((nextButtonLayout !== undefined &&
@@ -485,10 +511,8 @@ export const indexedDbStorage = {
               (nextNotationProfile !== undefined &&
                 nextNotationProfile !== resolveNotationProfile(currentGame)));
 
-          const { inputType: _legacyInputType, ...currentUpdates } = updates;
-
           await db.games.update(id, {
-            ...currentUpdates,
+            ...updates,
             ...(nextNotationProfile
               ? { notationProfile: nextNotationProfile }
               : {}),
@@ -643,6 +667,10 @@ export const indexedDbStorage = {
     getAll: () => db.combos.toArray(),
     getByCharacter: (characterId: string) =>
       db.combos.where('characterId').equals(characterId).sortBy('sortOrder'),
+    getByCharacters: async (characterIds: string[]): Promise<Combo[]> =>
+      characterIds.length > 0
+        ? await db.combos.where('characterId').anyOf(characterIds).toArray()
+        : [],
     get: (id: string) => db.combos.get(id),
     add: async (
       combo: Omit<Combo, 'id' | 'createdAt' | 'updatedAt' | 'sortOrder'>,
@@ -884,6 +912,28 @@ export const indexedDbStorage = {
         notesOverrides: toUniqueIds(entityIds),
       });
     },
+    setNotesOverride: async (
+      entityId: string,
+      isOverride: boolean,
+    ): Promise<void> => {
+      await db.transaction('rw', db.settings, async () => {
+        const settings = await db.settings.get(1);
+        const currentOverrides = settings?.notesOverrides ?? [];
+        const nextOverrides = isOverride
+          ? toUniqueIds([...currentOverrides, entityId])
+          : currentOverrides.filter((id) => id !== entityId);
+
+        if (!settings) {
+          await db.settings.add({
+            id: 1,
+            ...DEFAULT_SETTINGS,
+            notesOverrides: nextOverrides,
+          });
+        } else if (nextOverrides.length !== currentOverrides.length) {
+          await db.settings.update(1, { notesOverrides: nextOverrides });
+        }
+      });
+    },
     removeNotesOverride: async (entityId: string): Promise<void> => {
       await indexedDbStorage.settings.removeNotesOverrides([entityId]);
     },
@@ -936,11 +986,7 @@ export const indexedDbStorage = {
 
   export: async (
     includeVideos = false,
-    filter?: {
-      gameIds?: string[];
-      characterIds?: string[];
-      comboIds?: string[];
-    },
+    filter?: BackupFilter,
     onProgress?: (current: number, total: number) => void,
   ) => {
     let [games, characters, combos, settings] = await db.transaction(
@@ -955,20 +1001,10 @@ export const indexedDbStorage = {
         ]),
     );
 
-    if (filter) {
-      if (filter.gameIds) {
-        const gameIdSet = new Set(filter.gameIds);
-        games = games.filter((g) => gameIdSet.has(g.id));
-      }
-      if (filter.characterIds) {
-        const charIdSet = new Set(filter.characterIds);
-        characters = characters.filter((c) => charIdSet.has(c.id));
-      }
-      if (filter.comboIds) {
-        const comboIdSet = new Set(filter.comboIds);
-        combos = combos.filter((c) => comboIdSet.has(c.id));
-      }
-    }
+    ({ games, characters, combos } = closeBackupSelection(
+      { games, characters, combos },
+      filter,
+    ));
 
     let sanitizedCombos = combos;
 
@@ -1103,77 +1139,17 @@ export const indexedDbStorage = {
       }
     }
 
-    const availableVideoIds = includeVideos
-      ? new Set((parsed.demoVideos ?? []).map((video) => video.id))
-      : new Set<string>();
-    const sanitizedCombos = parsed.combos
-      ? sanitizeCombosLocalVideos(parsed.combos, availableVideoIds)
-      : undefined;
-
-    const gameIds = new Set((parsed.games ?? []).map((game) => game.id));
-    const characterIds = new Set(
-      (parsed.characters ?? []).map((character) => character.id),
+    const videos = includeVideos
+      ? (parsed.demoVideos ?? []).map((video) => ({
+          id: video.id,
+          fileName: video.fileName,
+          mimeType: video.mimeType,
+          data: base64ToArrayBuffer(video.dataBase64 ?? ''),
+        }))
+      : [];
+    await applyBackupImportPlan(
+      normalizeBackupImport(parsed, { includeSettings, videos }),
     );
-    const orphanedCharacters = (parsed.characters ?? []).filter(
-      (character) => !gameIds.has(character.gameId),
-    );
-    const orphanedCombos = (sanitizedCombos ?? []).filter(
-      (combo) => !characterIds.has(combo.characterId),
-    );
-    if (orphanedCharacters.length > 0 || orphanedCombos.length > 0) {
-      throw new Error(
-        `Import has referential integrity issues: ${orphanedCharacters.length} orphaned characters, ${orphanedCombos.length} orphaned combos`,
-      );
-    }
-
-    await db.transaction(
-      'rw',
-      [db.games, db.characters, db.combos, db.settings, db.demoVideos],
-      async () => {
-        if (parsed.games) {
-          for (const game of parsed.games) {
-            await db.games.put(normalizeGameNotationProfile(game));
-          }
-        }
-        if (parsed.characters) {
-          for (const character of parsed.characters) {
-            await db.characters.put(character);
-          }
-        }
-        if (sanitizedCombos) {
-          for (const combo of sanitizedCombos) {
-            await db.combos.put(combo);
-          }
-        }
-        if (includeSettings && parsed.settings) {
-          await db.settings.put({
-            id: 1,
-            ...parsed.settings,
-          });
-        }
-        if (includeVideos && parsed.demoVideos) {
-          for (const v of parsed.demoVideos) {
-            if (!v.dataBase64) {
-              throw new Error(
-                `Video "${v.fileName}" is missing embedded dataBase64 payload`,
-              );
-            }
-            await db.demoVideos.put({
-              id: v.id,
-              fileName: v.fileName,
-              mimeType: v.mimeType,
-              data: base64ToArrayBuffer(v.dataBase64),
-            });
-          }
-        }
-        if (sanitizedCombos && sanitizedCombos.length > 0) {
-          await markImportedCombosForReparse();
-        }
-      },
-    );
-    if (sanitizedCombos && sanitizedCombos.length > 0) {
-      await indexedDbStorage.settings.init();
-    }
   },
 
   importZip: async (
@@ -1315,67 +1291,12 @@ export const indexedDbStorage = {
       total: includeVideos ? (parsed.demoVideos?.length ?? 0) : null,
     });
 
-    const availableVideoIds = includeVideos
-      ? new Set(videosToImport.map((video) => video.id))
-      : new Set<string>();
-    const sanitizedCombos = parsed.combos
-      ? sanitizeCombosLocalVideos(parsed.combos, availableVideoIds)
-      : undefined;
-
-    const gameIds = new Set((parsed.games ?? []).map((game) => game.id));
-    const characterIds = new Set(
-      (parsed.characters ?? []).map((character) => character.id),
+    await applyBackupImportPlan(
+      normalizeBackupImport(parsed, {
+        includeSettings,
+        videos: includeVideos ? videosToImport : [],
+      }),
     );
-    const orphanedCharacters = (parsed.characters ?? []).filter(
-      (character) => !gameIds.has(character.gameId),
-    );
-    const orphanedCombos = (sanitizedCombos ?? []).filter(
-      (combo) => !characterIds.has(combo.characterId),
-    );
-    if (orphanedCharacters.length > 0 || orphanedCombos.length > 0) {
-      throw new Error(
-        `Import has referential integrity issues: ${orphanedCharacters.length} orphaned characters, ${orphanedCombos.length} orphaned combos`,
-      );
-    }
-
-    await db.transaction(
-      'rw',
-      [db.games, db.characters, db.combos, db.settings, db.demoVideos],
-      async () => {
-        if (parsed.games) {
-          for (const game of parsed.games) {
-            await db.games.put(normalizeGameNotationProfile(game));
-          }
-        }
-        if (parsed.characters) {
-          for (const character of parsed.characters) {
-            await db.characters.put(character);
-          }
-        }
-        if (sanitizedCombos) {
-          for (const combo of sanitizedCombos) {
-            await db.combos.put(combo);
-          }
-        }
-        if (includeSettings && parsed.settings) {
-          await db.settings.put({
-            id: 1,
-            ...parsed.settings,
-          });
-        }
-        if (includeVideos) {
-          for (const video of videosToImport) {
-            await db.demoVideos.put(video);
-          }
-        }
-        if (sanitizedCombos && sanitizedCombos.length > 0) {
-          await markImportedCombosForReparse();
-        }
-      },
-    );
-    if (sanitizedCombos && sanitizedCombos.length > 0) {
-      await indexedDbStorage.settings.init();
-    }
   },
 };
 

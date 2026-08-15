@@ -16,8 +16,8 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { useSettings } from '@/context/SettingsContext';
+import { setSetting } from '@/lib/application/settingsCommands';
 import { parseComboNotation } from '@/lib/parser';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type {
   DisplayMode,
   IconStyle,
@@ -48,7 +48,7 @@ export function NotationSettings() {
     key: K,
     value: UserSettings[K],
   ) => {
-    await indexedDbStorage.settings.update({ [key]: value });
+    await setSetting(key, value);
   };
   const sampleTokens = parseComboNotation(SAMPLE_COMBO);
   const scale = settings.comboScale ?? 1;

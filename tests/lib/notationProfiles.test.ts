@@ -4,9 +4,9 @@ import {
   migrateLegacyNotationProfile,
   resolveNotationProfile,
 } from '@/lib/notationProfiles';
-import type { Game } from '@/lib/types';
+import type { LegacyGame } from '@/lib/types';
 
-function legacyGame(inputType: Game['inputType']): Game {
+function legacyGame(inputType: LegacyGame['inputType']): LegacyGame {
   return {
     id: `legacy-${inputType}`,
     name: 'Legacy Game',

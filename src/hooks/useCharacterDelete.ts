@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import {
+  deleteCharacter,
+  deleteCharacters,
+} from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { Character } from '@/lib/types';
 
 /**
@@ -12,7 +15,7 @@ export function useCharacterDelete() {
 
   const handleDeleteCharacter = async (character: Character) => {
     try {
-      await indexedDbStorage.characters.delete(character.id);
+      await deleteCharacter(character.id);
       toast.success(`"${character.name}" deleted`);
       setDeleteTarget(null);
       return true;
@@ -29,7 +32,7 @@ export function useCharacterDelete() {
     }
 
     try {
-      await indexedDbStorage.characters.bulkDelete(characters.map((c) => c.id));
+      await deleteCharacters(characters.map((character) => character.id));
       toast.success(
         `${characters.length} character${characters.length > 1 ? 's' : ''} deleted`,
       );

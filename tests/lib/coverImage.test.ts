@@ -47,6 +47,7 @@ describe('cover image schema fields', () => {
     id: 'game-1',
     name: 'Street Fighter 6',
     buttonLayout: ['L', 'M', 'H'],
+    notationProfile: 'standard',
     createdAt: 1,
     updatedAt: 1,
   };

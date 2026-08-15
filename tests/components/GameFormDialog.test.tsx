@@ -2,16 +2,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameFormDialog } from '@/components/game/GameFormDialog';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateGame } from '@/lib/application/gameCommands';
 import type { Game } from '@/lib/types';
 
-vi.mock('@/lib/storage/indexedDbStorage', () => ({
-  indexedDbStorage: {
-    games: {
-      add: vi.fn().mockResolvedValue('new-game-id'),
-      update: vi.fn().mockResolvedValue(undefined),
-    },
-  },
+vi.mock('@/lib/application/gameCommands', () => ({
+  createGame: vi.fn().mockResolvedValue('new-game-id'),
+  updateGame: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/components/game/CoverSearchDialog', () => ({
@@ -34,6 +30,7 @@ const editingGame: Game = {
   coverPanY: 75,
   coverFit: 'free',
   buttonLayout: ['L', 'M', 'H', 'S'],
+  notationProfile: 'standard',
   createdAt: 1,
   updatedAt: 1,
 };
@@ -125,7 +122,7 @@ describe('GameFormDialog', () => {
     await user.click(screen.getByRole('switch', { name: 'Fill frame' }));
     await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
-    expect(indexedDbStorage.games.update).toHaveBeenCalledWith(
+    expect(updateGame).toHaveBeenCalledWith(
       'game-1',
       expect.objectContaining({ coverFit: 'free' }),
     );

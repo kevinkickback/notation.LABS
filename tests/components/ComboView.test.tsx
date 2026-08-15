@@ -61,6 +61,7 @@ const mockGame: Game = {
   id: 'game-1',
   name: 'Street Fighter 6',
   buttonLayout: ['L', 'M', 'H', 'S'],
+  notationProfile: 'standard',
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };

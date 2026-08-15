@@ -36,6 +36,7 @@ describe('ComboDisplay', () => {
             id: 'game-1',
             name: 'Under Night In-Birth II Sys-Celes',
             buttonLayout: ['A', 'B', 'C', 'D'],
+            notationProfile: 'standard',
             buttonColors: {
                 D: '#123456',
             },
@@ -57,6 +58,7 @@ describe('ComboDisplay', () => {
             id: 'game-2',
             name: 'Custom Fighter',
             buttonLayout: ['L', 'M', 'H'],
+            notationProfile: 'standard',
             buttonColors: {
                 L: '#123456',
                 H: '#abcdef',
@@ -124,6 +126,7 @@ describe('ComboDisplay', () => {
             id: 'game-1',
             name: 'Test Fighter',
             buttonLayout: ['A', 'B', 'C', 'D'],
+            notationProfile: 'standard',
             buttonColors: { D: '#123456' },
             createdAt: Date.now(),
             updatedAt: Date.now(),

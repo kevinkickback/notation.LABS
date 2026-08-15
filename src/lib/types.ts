@@ -1,6 +1,7 @@
 // All entity types are derived from Zod schemas in schemas.ts.
 // This eliminates manual sync between type definitions and validation schemas.
 export type {
+  BackupImportData,
   Character,
   CharacterLink,
   Combo,
@@ -10,6 +11,7 @@ export type {
   FontFamily,
   Game,
   IconStyle,
+  LegacyGame,
   MotionIconStyle,
   NotationColors,
   NotationProfile,

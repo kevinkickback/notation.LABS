@@ -19,7 +19,7 @@ import { NotesMarkdown } from '@/components/shared/NotesMarkdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateCharacter } from '@/lib/application/characterCommands';
 import type { CharacterLink } from '@/lib/types';
 
 export interface CharacterInfoCardRef {
@@ -124,7 +124,7 @@ export const CharacterInfoCard = forwardRef<
         return;
       }
       try {
-        await indexedDbStorage.characters.update(characterId, {
+        await updateCharacter(characterId, {
           links: links.map((l) =>
             l.id === id
               ? {
@@ -164,7 +164,7 @@ export const CharacterInfoCard = forwardRef<
     };
 
     try {
-      await indexedDbStorage.characters.update(characterId, {
+      await updateCharacter(characterId, {
         links: [...links, newLink],
       });
       cancelAdd();
@@ -176,7 +176,7 @@ export const CharacterInfoCard = forwardRef<
   const handleDelete = useCallback(
     async (id: string) => {
       try {
-        await indexedDbStorage.characters.update(characterId, {
+        await updateCharacter(characterId, {
           links: links.filter((l) => l.id !== id),
         });
       } catch {

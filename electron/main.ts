@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IpcMainInvokeEvent } from 'electron';
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
+import { UPDATE_INVOKE_CHANNELS } from '../src/lib/updater/ipcContract';
 import { isPromptableExternalUrl, isSafeExternalUrl } from './security';
 import {
   cancelDownload,
@@ -215,7 +216,7 @@ app.on('ready', async () => {
 
   initAutoUpdater();
 
-  ipcMain.handle('update:check', async (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.check, async (event) => {
     assertTrustedIpcSender(event);
     try {
       const status = await checkForUpdate();
@@ -225,7 +226,7 @@ app.on('ready', async () => {
     }
   });
 
-  ipcMain.handle('update:download', async (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.download, async (event) => {
     assertTrustedIpcSender(event);
     try {
       await downloadUpdate();
@@ -235,7 +236,7 @@ app.on('ready', async () => {
     }
   });
 
-  ipcMain.handle('update:cancel', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.cancel, (event) => {
     assertTrustedIpcSender(event);
     const cancelled = cancelDownload();
     return {
@@ -245,32 +246,35 @@ app.on('ready', async () => {
     };
   });
 
-  ipcMain.handle('update:install', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.install, (event) => {
     assertTrustedIpcSender(event);
     installUpdate();
   });
 
-  ipcMain.handle('update:status', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.status, (event) => {
     assertTrustedIpcSender(event);
     return getUpdateStatus();
   });
 
-  ipcMain.handle('update:set-auto-check', (event, enabled: unknown) => {
-    assertTrustedIpcSender(event);
-    if (typeof enabled !== 'boolean') return;
-    if (enabled) {
-      startAutoCheckSchedule();
-    } else {
-      stopAutoCheckSchedule();
-    }
-  });
+  ipcMain.handle(
+    UPDATE_INVOKE_CHANNELS.setAutoCheck,
+    (event, enabled: unknown) => {
+      assertTrustedIpcSender(event);
+      if (typeof enabled !== 'boolean') return;
+      if (enabled) {
+        startAutoCheckSchedule();
+      } else {
+        stopAutoCheckSchedule();
+      }
+    },
+  );
 
-  ipcMain.handle('update:get-version', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.getVersion, (event) => {
     assertTrustedIpcSender(event);
     return app.getVersion();
   });
 
-  ipcMain.handle('update:get-current-changelog', async (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.getCurrentChangelog, async (event) => {
     assertTrustedIpcSender(event);
     const version = app.getVersion();
     const changelog = await fetchChangelog(version);

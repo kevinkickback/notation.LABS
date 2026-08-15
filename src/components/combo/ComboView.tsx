@@ -54,7 +54,9 @@ import { useComboOperations } from '@/hooks/useComboOperations';
 import { useComboSelection } from '@/hooks/useComboSelection';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateCharacter } from '@/lib/application/characterCommands';
+import { reorderCombos } from '@/lib/application/comboCommands';
+import { setSetting } from '@/lib/application/settingsCommands';
 import type { Character, Combo, DisplayMode, Game } from '@/lib/types';
 
 interface ComboViewProps {
@@ -103,7 +105,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
   );
 
   const handleDisplayModeChange = useCallback(async (mode: DisplayMode) => {
-    await indexedDbStorage.settings.update({ displayMode: mode });
+    await setSetting('displayMode', mode);
   }, []);
 
   const handleDragEnd = useCallback(
@@ -120,7 +122,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
       if (oldIndex === -1 || newIndex === -1) return;
 
       const reordered = arrayMove(filters.filteredCombos, oldIndex, newIndex);
-      await indexedDbStorage.combos.reorder(reordered.map((c) => c.id));
+      await reorderCombos(reordered.map((combo) => combo.id));
     },
     [filters.filteredCombos],
   );
@@ -163,7 +165,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 
   const handleSaveNote = useCallback(async () => {
     try {
-      await indexedDbStorage.characters.update(character.id, {
+      await updateCharacter(character.id, {
         notes: noteDraft.trim(),
       });
       toast.success('Note updated');

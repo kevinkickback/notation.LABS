@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateGame } from '@/lib/application/gameCommands';
 import type { Game } from '@/lib/types';
 
 const DEFAULT_BTN_PALETTE = [
@@ -68,7 +68,7 @@ export function ButtonColorDialog({
           tempGameColors[btn] ||
           DEFAULT_BTN_PALETTE[i % DEFAULT_BTN_PALETTE.length];
       });
-      await indexedDbStorage.games.update(game.id, {
+      await updateGame(game.id, {
         buttonLayout: tempButtonLayout,
         buttonColors: colorsToSave,
       });

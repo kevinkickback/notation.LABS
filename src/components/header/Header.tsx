@@ -25,114 +25,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  createBackup,
+  importJsonBackup,
+  importZipBackup,
+} from '@/lib/application/backupCommands';
+import { saveBackupBlob, triggerBlobDownload } from '@/lib/backup/platformSave';
 import { MAX_JSON_BACKUP_BYTES, MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
-import {
-  indexedDbStorage,
-  type ZipImportProgress,
-} from '@/lib/storage/indexedDbStorage';
+import type { ZipImportProgress } from '@/lib/storage/indexedDbStorage';
 import type { Game } from '@/lib/types';
-
-type SavePickerWindow = Window & {
-  showSaveFilePicker?: (options?: {
-    suggestedName?: string;
-    types?: Array<{
-      description?: string;
-      accept: Record<string, string[]>;
-    }>;
-  }) => Promise<{
-    createWritable: () => Promise<{
-      write: (data: Blob) => Promise<void>;
-      close: () => Promise<void>;
-    }>;
-  }>;
-};
-
-type ExportSaveResult = 'saved' | 'cancelled' | 'unavailable';
 
 function getExportSuccessMessage(includeVideos: boolean): string {
   return includeVideos ? 'Data exported with demo videos' : 'Data exported';
-}
-
-function triggerBlobDownload(blob: Blob, suggestedName: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = suggestedName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  // Do not revoke immediately — large Blob downloads can be truncated.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-async function saveExportBlob(
-  blob: Blob,
-  suggestedName: string,
-  mimeType: string,
-  isDesktop: boolean,
-): Promise<ExportSaveResult> {
-  if (isDesktop) {
-    const buffer = new Uint8Array(await blob.arrayBuffer());
-    const result = await window.electronAPI.saveFile(
-      buffer,
-      suggestedName,
-      mimeType,
-    );
-
-    if (result.success) {
-      return 'saved';
-    }
-
-    if (result.error === 'User cancelled') {
-      return 'cancelled';
-    }
-
-    throw new Error(result.error ?? 'Failed to save exported file');
-  }
-
-  if (mimeType === 'application/json') {
-    return saveBlobWithPicker(blob, suggestedName, mimeType);
-  }
-
-  return 'unavailable';
-}
-
-async function saveBlobWithPicker(
-  blob: Blob,
-  suggestedName: string,
-  mimeType: string,
-): Promise<'saved' | 'cancelled' | 'unavailable'> {
-  const picker = (window as SavePickerWindow).showSaveFilePicker;
-  if (!picker) {
-    return 'unavailable';
-  }
-
-  try {
-    const handle = await picker({
-      suggestedName,
-      types: [
-        {
-          description: 'Notation Labs Backup',
-          accept: {
-            [mimeType]: [suggestedName.endsWith('.zip') ? '.zip' : '.json'],
-          },
-        },
-      ],
-    });
-
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return 'saved';
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      return 'cancelled';
-    }
-
-    // Any other error (SecurityError, file system errors, etc.) falls back to download
-    return 'unavailable';
-  }
 }
 
 export function Header({ activeGame }: { activeGame?: Game }) {
@@ -178,7 +83,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
       const mimeType = includeVideos ? 'application/zip' : 'application/json';
       const successMessage = getExportSuccessMessage(includeVideos);
 
-      const data = await indexedDbStorage.export(
+      const data = await createBackup(
         includeVideos,
         filter,
         includeVideos
@@ -186,7 +91,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
           : undefined,
       );
 
-      const saveResult = await saveExportBlob(
+      const saveResult = await saveBackupBlob(
         data,
         suggestedName,
         mimeType,
@@ -243,7 +148,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
     try {
       if (isZipBackup) {
         setImportProgress({ phase: 'loading', current: 0, total: null });
-        await indexedDbStorage.importZip(
+        await importZipBackup(
           file,
           importOptions.includeVideos,
           importOptions.includeSettings,
@@ -251,7 +156,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
         );
       } else {
         const text = await file.text();
-        await indexedDbStorage.import(
+        await importJsonBackup(
           text,
           importOptions.includeVideos,
           importOptions.includeSettings,

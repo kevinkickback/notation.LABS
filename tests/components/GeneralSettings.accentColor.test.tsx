@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GeneralSettings } from '@/components/settings/GeneralSettings';
+import { UpdaterProvider } from '@/context/UpdaterContext';
 import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -92,8 +93,8 @@ describe('GeneralSettings accent color', () => {
       downloadUpdate: vi.fn(),
       cancelUpdate: vi.fn(),
       installUpdate: vi.fn(),
-      getUpdateStatus: vi.fn(),
-      setAutoCheck: vi.fn(),
+      getUpdateStatus: vi.fn().mockResolvedValue({ status: 'idle' }),
+      setAutoCheck: vi.fn().mockResolvedValue(undefined),
       getAppVersion: vi.fn().mockResolvedValue('1.3.0'),
       getCurrentChangelog: getCurrentChangelogMock.mockResolvedValue({
         version: '1.3.0',
@@ -110,8 +111,15 @@ describe('GeneralSettings accent color', () => {
     };
   });
 
+  const renderGeneralSettings = () =>
+    render(
+      <UpdaterProvider>
+        <GeneralSettings />
+      </UpdaterProvider>,
+    );
+
   it('renders accent color picker and updates CSS variable', async () => {
-    render(<GeneralSettings />);
+    renderGeneralSettings();
     // Wait for settings to load
     expect(await screen.findByLabelText(/accent color picker/i)).not.toBeNull();
     const colorInput = screen.getByLabelText(
@@ -132,7 +140,7 @@ describe('GeneralSettings accent color', () => {
       error: 'network down',
     });
 
-    render(<GeneralSettings />);
+    renderGeneralSettings();
 
     fireEvent.click(await screen.findByRole('button', { name: /check now/i }));
 
@@ -141,7 +149,7 @@ describe('GeneralSettings accent color', () => {
   });
 
   it('updates the document theme class when the theme changes', async () => {
-    render(<GeneralSettings />);
+    renderGeneralSettings();
 
     const selects = await screen.findAllByLabelText('mock-select');
     fireEvent.change(selects[0], { target: { value: 'light' } });
@@ -150,7 +158,7 @@ describe('GeneralSettings accent color', () => {
   });
 
   it('updates the app font CSS variable when the font changes', async () => {
-    render(<GeneralSettings />);
+    renderGeneralSettings();
 
     const selects = await screen.findAllByLabelText('mock-select');
     fireEvent.change(selects[1], { target: { value: 'jetbrains-mono' } });
@@ -161,7 +169,7 @@ describe('GeneralSettings accent color', () => {
   });
 
   it('loads the current changelog in electron mode', async () => {
-    render(<GeneralSettings />);
+    renderGeneralSettings();
 
     fireEvent.click(await screen.findByRole('button', { name: /^view$/i }));
 

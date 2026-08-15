@@ -31,15 +31,14 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { createCombo, updateCombo } from '@/lib/application/comboCommands';
 import { MAX_VIDEO_SIZE_BYTES } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import { resolveNotationProfile } from '@/lib/notationProfiles';
 import { parseComboNotation } from '@/lib/parser';
 import {
   type DemoVideo,
   generateId,
   getLocalVideoId,
-  indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
 import type { Character, Combo, Game } from '@/lib/types';
 import { extractYouTubeVideoId } from '@/lib/utils';
@@ -102,7 +101,7 @@ export function ComboFormDialog({
   const parsedNotationTokens = useMemo(
     () =>
       parseComboNotation(notation, game.buttonLayout, {
-        profile: resolveNotationProfile(game),
+        profile: game.notationProfile,
       }),
     [notation, game],
   );
@@ -191,7 +190,6 @@ export function ComboFormDialog({
   const buildComboPayload = () => ({
     name: name.trim(),
     notation: notation.trim(),
-    parsedNotation: parsedNotationTokens,
     description: description.trim(),
     difficulty: difficulty ? parseInt(difficulty, 10) : undefined,
     damage: damage.trim(),
@@ -213,7 +211,7 @@ export function ComboFormDialog({
     }
 
     try {
-      await indexedDbStorage.combos.addWithVideo(
+      await createCombo(
         {
           characterId: character.id,
           ...buildComboPayload(),
@@ -235,11 +233,7 @@ export function ComboFormDialog({
     }
 
     try {
-      await indexedDbStorage.combos.updateWithVideo(
-        editingCombo.id,
-        buildComboPayload(),
-        pendingVideo,
-      );
+      await updateCombo(editingCombo.id, buildComboPayload(), pendingVideo);
       toast.success('Combo updated');
       handleDialogOpenChange(false);
     } catch (err) {

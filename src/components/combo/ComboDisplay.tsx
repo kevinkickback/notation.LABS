@@ -3,7 +3,6 @@ import { useSettings } from '@/context/SettingsContext';
 import {
   getButtonAccessibilityLabel,
   getMechanicAccessibilityLabel,
-  resolveNotationProfile,
 } from '@/lib/notationProfiles';
 import { getTokenColor } from '@/lib/parser';
 import type { ComboToken, Game } from '@/lib/types';
@@ -44,7 +43,7 @@ export function ComboDisplay({
   const comboScale = settings.comboScale ?? 1;
   const iconStyle = settings.iconStyle ?? 'hexagon';
   const motionIconStyle = settings.motionIconStyle ?? 'joystick';
-  const notationProfile = resolveNotationProfile(game);
+  const notationProfile = game?.notationProfile ?? 'standard';
   const nrsHoldAssociations = useMemo(
     () =>
       notationProfile === 'nrs'

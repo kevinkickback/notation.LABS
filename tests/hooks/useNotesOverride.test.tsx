@@ -3,22 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   getNotesOverridesMock,
-  setNotesOverridesMock,
+  setNotesOverrideMock,
   removeNotesOverrideMock,
 } = vi.hoisted(() => ({
   getNotesOverridesMock: vi.fn<() => Promise<string[]>>(),
-  setNotesOverridesMock: vi.fn<(entityIds: string[]) => Promise<void>>(),
+  setNotesOverrideMock:
+    vi.fn<(entityId: string, isOverride: boolean) => Promise<void>>(),
   removeNotesOverrideMock: vi.fn<(entityId: string) => Promise<void>>(),
 }));
 
-vi.mock('@/lib/storage/indexedDbStorage', () => ({
-  indexedDbStorage: {
-    settings: {
-      getNotesOverrides: getNotesOverridesMock,
-      setNotesOverrides: setNotesOverridesMock,
-      removeNotesOverride: removeNotesOverrideMock,
-    },
-  },
+vi.mock('@/lib/application/settingsCommands', () => ({
+  getNotesOverrides: getNotesOverridesMock,
+  setNotesOverride: setNotesOverrideMock,
+  removeNotesOverride: removeNotesOverrideMock,
 }));
 
 import {
@@ -32,13 +29,17 @@ describe('useNotesOverride', () => {
   beforeEach(() => {
     currentOverrides = [];
     getNotesOverridesMock.mockReset();
-    setNotesOverridesMock.mockReset();
+    setNotesOverrideMock.mockReset();
     removeNotesOverrideMock.mockReset();
 
     getNotesOverridesMock.mockImplementation(async () => [...currentOverrides]);
-    setNotesOverridesMock.mockImplementation(async (entityIds: string[]) => {
-      currentOverrides = [...entityIds];
-    });
+    setNotesOverrideMock.mockImplementation(
+      async (entityId: string, isOverride: boolean) => {
+        currentOverrides = isOverride
+          ? [...new Set([...currentOverrides, entityId])]
+          : currentOverrides.filter((id) => id !== entityId);
+      },
+    );
     removeNotesOverrideMock.mockImplementation(async (entityId: string) => {
       currentOverrides = currentOverrides.filter((id) => id !== entityId);
     });
@@ -75,7 +76,7 @@ describe('useNotesOverride', () => {
 
     expect(result.current[0]).toBe(true);
     await waitFor(() => {
-      expect(setNotesOverridesMock).toHaveBeenCalledWith(['combo-1']);
+      expect(setNotesOverrideMock).toHaveBeenCalledWith('combo-1', true);
     });
 
     act(() => {
@@ -84,7 +85,7 @@ describe('useNotesOverride', () => {
 
     expect(result.current[0]).toBe(false);
     await waitFor(() => {
-      expect(setNotesOverridesMock).toHaveBeenCalledWith([]);
+      expect(setNotesOverrideMock).toHaveBeenCalledWith('combo-1', false);
     });
   });
 

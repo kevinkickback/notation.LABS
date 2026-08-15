@@ -1,4 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import {
@@ -15,10 +14,11 @@ import { useSettings } from '@/context/SettingsContext';
 import { useGameDelete } from '@/hooks/useGameDelete';
 import { useGameFilters } from '@/hooks/useGameFilters';
 import { useGameOperations } from '@/hooks/useGameOperations';
+import { useGameStatistics } from '@/hooks/useGameStatistics';
 import { useGameStats } from '@/hooks/useGameStats';
 import { useGameViewMode } from '@/hooks/useGameViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSelection } from '@/hooks/useSelection';
 import { useAppStore } from '@/lib/store';
 import type { Game } from '@/lib/types';
 import { GameFormDialog } from './GameFormDialog';
@@ -36,8 +36,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const isMobile = useIsMobile();
   const { setSelectedGame } = useAppStore();
   const settings = useSettings();
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { isSelecting, setIsSelecting, selectedIds, setSelectedIds } =
+    useSelection();
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   const filters = useGameFilters();
@@ -46,7 +46,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const operations = useGameOperations();
 
   // Read stats inputs in one reactive transaction to reduce query churn.
-  const gameStatsData = useLiveQuery(indexedDbStorage.gameStats.getInputs, []);
+  const gameStatsData = useGameStatistics();
   const characters = gameStatsData?.characters;
   const combos = gameStatsData?.combos;
 

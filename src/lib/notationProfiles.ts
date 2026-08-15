@@ -1,4 +1,4 @@
-import type { Game, NotationProfile } from './types';
+import type { Game, LegacyGame, NotationProfile } from './types';
 
 export interface NotationProfileDefinition {
   id: NotationProfile;
@@ -150,7 +150,7 @@ const BUTTON_MEANINGS: Record<
 };
 
 export function resolveNotationProfile(
-  game?: Pick<Game, 'notationProfile' | 'inputType'> | null,
+  game?: Pick<LegacyGame, 'notationProfile' | 'inputType'> | null,
 ): NotationProfile {
   if (game?.notationProfile) {
     return game.notationProfile;
@@ -195,12 +195,12 @@ export function getMechanicAccessibilityLabel(
     : `${normalizedValue} mechanic`;
 }
 
-export function migrateLegacyNotationProfile(game: Game): void {
+export function migrateLegacyNotationProfile(game: LegacyGame): void {
   game.notationProfile = resolveNotationProfile(game);
   delete game.inputType;
 }
 
-export function normalizeGameNotationProfile(game: Game): Game {
+export function normalizeGameNotationProfile(game: LegacyGame): Game {
   const { inputType: _legacyInputType, ...currentGame } = game;
   return {
     ...currentGame,

@@ -471,6 +471,44 @@ describe('indexedDbStorage.combos', () => {
     expect(combos[2].name).toBe('B');
   });
 
+  it('retrieves combos for multiple characters', async () => {
+    const secondCharacterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Second Fighter',
+    });
+    const otherGameId = await indexedDbStorage.games.add({
+      name: 'Other Game',
+      buttonLayout: [],
+    });
+    const unrelatedCharacterId = await indexedDbStorage.characters.add({
+      gameId: otherGameId,
+      name: 'Unrelated Fighter',
+    });
+
+    await indexedDbStorage.combos.add(comboData());
+    await indexedDbStorage.combos.add({
+      ...comboData(),
+      characterId: secondCharacterId,
+    });
+    await indexedDbStorage.combos.add({
+      ...comboData(),
+      characterId: unrelatedCharacterId,
+    });
+
+    const combos = await indexedDbStorage.combos.getByCharacters([
+      charId,
+      secondCharacterId,
+    ]);
+
+    expect(combos).toHaveLength(2);
+    expect(new Set(combos.map((combo) => combo.characterId))).toEqual(
+      new Set([charId, secondCharacterId]),
+    );
+    await expect(
+      indexedDbStorage.combos.getByCharacters([]),
+    ).resolves.toEqual([]);
+  });
+
   it('updates a combo', async () => {
     const id = await indexedDbStorage.combos.add(comboData());
     await indexedDbStorage.combos.update(id, {
@@ -720,6 +758,21 @@ describe('indexedDbStorage.settings', () => {
     const settings = await indexedDbStorage.settings.get();
     expect(settings.fontFamily).toBe('jetbrains-mono');
     expect(settings.colorTheme).toBe('dark'); // default preserved
+  });
+
+  it('atomically adds and removes a notes override', async () => {
+    await indexedDbStorage.settings.setNotesOverride('game-1', true);
+    await indexedDbStorage.settings.setNotesOverride('game-1', true);
+
+    await expect(
+      indexedDbStorage.settings.getNotesOverrides(),
+    ).resolves.toEqual(['game-1']);
+
+    await indexedDbStorage.settings.setNotesOverride('game-1', false);
+
+    await expect(
+      indexedDbStorage.settings.getNotesOverrides(),
+    ).resolves.toEqual([]);
   });
 
   it('migrates legacy oklch notation colors during init', async () => {
@@ -1149,8 +1202,8 @@ describe('indexedDbStorage.import', () => {
     assertDefined(standardGame);
     expect(numberedGame.notationProfile).toBe('tekken');
     expect(standardGame.notationProfile).toBe('standard');
-    expect(numberedGame.inputType).toBeUndefined();
-    expect(standardGame.inputType).toBeUndefined();
+    expect(numberedGame).not.toHaveProperty('inputType');
+    expect(standardGame).not.toHaveProperty('inputType');
   });
 
   it('imports settings', async () => {

@@ -10,8 +10,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { setSetting } from '@/lib/application/settingsCommands';
 import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { cn, getYouTubeEmbedUrl } from '@/lib/utils';
 
 interface VideoPlayerDialogProps {
@@ -42,7 +42,7 @@ export function VideoPlayerDialog({
   const handleSizeChange = async (size: 'sm' | 'md' | 'lg' | 'xl') => {
     onVideoSizeChange(size);
     try {
-      await indexedDbStorage.settings.update({ videoPlayerSize: size });
+      await setSetting('videoPlayerSize', size);
     } catch (err) {
       reportError('VideoPlayerDialog.handleSizeChange', err);
       toast.error('Failed to save video player size setting');

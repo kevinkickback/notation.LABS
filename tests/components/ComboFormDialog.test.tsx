@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
+import { createCombo } from '@/lib/application/comboCommands';
 import type { Game, Character, Combo } from '@/lib/types';
+
+vi.mock('@/lib/application/comboCommands', () => ({
+  createCombo: vi.fn().mockResolvedValue('new-combo-id'),
+  updateCombo: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   getLocalVideoId: (demoUrl?: string) => {
@@ -50,6 +56,7 @@ const mockGame: Game = {
   id: 'game-1',
   name: 'Street Fighter 6',
   buttonLayout: ['L', 'M', 'H', 'S'],
+  notationProfile: 'standard',
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
@@ -258,7 +265,6 @@ describe('ComboFormDialog', () => {
 
   it('submits a new combo with filled fields', async () => {
     const user = userEvent.setup();
-    const { indexedDbStorage } = await import('@/lib/storage/indexedDbStorage');
 
     render(
       <ComboFormDialog
@@ -277,7 +283,7 @@ describe('ComboFormDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /add combo/i }));
 
-    expect(indexedDbStorage.combos.addWithVideo).toHaveBeenCalledWith(
+    expect(createCombo).toHaveBeenCalledWith(
       expect.objectContaining({
         characterId: 'char-1',
         name: 'New Combo',
@@ -320,7 +326,7 @@ describe('ComboFormDialog', () => {
 
     expect(indexedDbStorage.demoVideos.add).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: /cancel/i }));
-    expect(indexedDbStorage.combos.addWithVideo).not.toHaveBeenCalled();
+    expect(createCombo).not.toHaveBeenCalled();
   });
 
   it('does not render dialog content when closed', () => {

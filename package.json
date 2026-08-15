@@ -23,7 +23,6 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "assets:optimize": "svgo --folder src/assets/motion-icons --output src/assets/motion-icons --multipass",
-    "dev:import-md": "node scripts/import-from-md.mjs",
     "version:check": "node .github/check-package-version.mjs"
   },
   "dependencies": {

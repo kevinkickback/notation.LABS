@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { ChangelogModal } from '@/components/updates/ChangelogModal';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings } from '@/context/SettingsContext';
-import { getFontFamilyCSS } from '@/lib/defaults';
+import { useUpdater } from '@/context/UpdaterContext';
 import { reportError } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
@@ -18,73 +18,29 @@ import { useAppStore } from '@/lib/store';
 function App() {
   const { selectedGameId, selectedCharacterId } = useAppStore();
   const settings = useSettings();
-
-  const [autoUpdateVersion, setAutoUpdateVersion] = useState<string | null>(
-    null,
-  );
-  const [autoUpdateChangelog, setAutoUpdateChangelog] = useState<string | null>(
-    null,
-  );
+  const {
+    status: updateStatus,
+    availabilityEventId,
+    downloadUpdate,
+  } = useUpdater();
   const [showAutoChangelog, setShowAutoChangelog] = useState(false);
   const [showAutoProgress, setShowAutoProgress] = useState(false);
-  const [autoUpdatePortable, setAutoUpdatePortable] = useState(false);
 
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      '--app-font-family',
-      getFontFamilyCSS(settings.fontFamily),
-    );
-    document.documentElement.style.setProperty(
-      '--accent-color',
-      settings.accentColor || '#3b82f6',
-    );
-    document.documentElement.classList.toggle(
-      'dark',
-      settings.colorTheme === 'dark',
-    );
-  }, [settings.fontFamily, settings.accentColor, settings.colorTheme]);
-
-  useEffect(() => {
-    if (!window.electronAPI?.onUpdateAvailable) return;
-
-    const unsub = window.electronAPI.onUpdateAvailable((data) => {
-      try {
-        setAutoUpdateVersion(data.version);
-        setAutoUpdateChangelog(data.changelog);
-        setAutoUpdatePortable(data.isPortable);
-        toast.info(`Update v${data.version} available`, {
-          action: {
-            label: 'View',
-            onClick: () => setShowAutoChangelog(true),
-          },
-          duration: 10000,
-        });
-      } catch (err) {
-        reportError('App.onUpdateAvailable', err);
-      }
+    if (availabilityEventId === 0 || updateStatus.status !== 'available')
+      return;
+    toast.info(`Update v${updateStatus.version} available`, {
+      action: {
+        label: 'View',
+        onClick: () => setShowAutoChangelog(true),
+      },
+      duration: 10000,
     });
-
-    return unsub;
-  }, []);
-
-  useEffect(() => {
-    const setAutoCheck = window.electronAPI?.setAutoCheck;
-    if (!setAutoCheck) return;
-
-    void setAutoCheck(settings.autoUpdate).catch((err) => {
-      reportError('App.setAutoCheck', err);
-    });
-  }, [settings.autoUpdate]);
+  }, [availabilityEventId, updateStatus.status, updateStatus.version]);
 
   const handleAutoInstall = useCallback(async () => {
     setShowAutoChangelog(false);
-    const downloadUpdate = window.electronAPI?.downloadUpdate;
-    if (!downloadUpdate) {
-      toast.error('Updates are unavailable in this environment.');
-      return;
-    }
-
-    if (!autoUpdatePortable) {
+    if (!updateStatus.isPortable) {
       setShowAutoProgress(true);
     }
     try {
@@ -98,7 +54,7 @@ function App() {
       reportError('App.handleAutoInstall', err);
       toast.error('Could not start the update.');
     }
-  }, [autoUpdatePortable]);
+  }, [downloadUpdate, updateStatus.isPortable]);
 
   const games = useLiveQuery(indexedDbStorage.games.getAll, []);
   const characters = useLiveQuery(
@@ -154,15 +110,17 @@ function App() {
       <ChangelogModal
         open={showAutoChangelog}
         onOpenChange={setShowAutoChangelog}
-        version={autoUpdateVersion ?? ''}
-        changelog={autoUpdateChangelog}
+        version={updateStatus.version ?? ''}
+        changelog={updateStatus.changelog ?? null}
         onInstall={handleAutoInstall}
-        installLabel={autoUpdatePortable ? 'Open Download Page' : undefined}
+        installLabel={
+          updateStatus.isPortable ? 'Open Download Page' : undefined
+        }
       />
 
       <UpdateProgressModal
         open={showAutoProgress}
-        version={autoUpdateVersion ?? ''}
+        version={updateStatus.version ?? ''}
         onOpenChange={setShowAutoProgress}
       />
     </div>

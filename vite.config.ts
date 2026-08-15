@@ -77,8 +77,14 @@ export default defineConfig(() => {
     },
     server: {
       proxy: {
-        '/api/igdb': 'http://localhost:3002',
-        '/api/image': 'http://localhost:3001',
+        '/api/igdb': {
+          target: 'http://localhost:3002',
+          rewrite: (path) => path.replace(/^\/api\/igdb/, ''),
+        },
+        '/api/image': {
+          target: 'http://localhost:3001',
+          rewrite: (path) => path.replace(/^\/api\/image/, ''),
+        },
       },
     },
   };

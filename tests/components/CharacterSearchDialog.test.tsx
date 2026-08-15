@@ -115,6 +115,8 @@ describe('CharacterSearchDialog', () => {
             title: 'Ken result',
             imageUrl: 'https://example.test/ken.png',
             thumbnailUrl: 'https://example.test/ken-thumb.png',
+            width: 800,
+            height: 800,
           },
         ],
       } as Response);
@@ -131,6 +133,8 @@ describe('CharacterSearchDialog', () => {
             title: 'Ryu result',
             imageUrl: 'https://example.test/ryu.png',
             thumbnailUrl: 'https://example.test/ryu-thumb.png',
+            width: 800,
+            height: 800,
           },
         ],
       } as Response);

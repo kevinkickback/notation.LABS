@@ -4,13 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsProvider } from '@/context/SettingsContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
+const { useLiveQueryMock } = vi.hoisted(() => ({
+  useLiveQueryMock: vi.fn(),
+}));
 const initMock = vi.fn();
 const getMock = vi.fn();
 const toastErrorMock = vi.fn();
 const reportErrorMock = vi.fn();
 
 vi.mock('dexie-react-hooks', () => ({
-  useLiveQuery: () => DEFAULT_SETTINGS,
+  useLiveQuery: (...args: unknown[]) => useLiveQueryMock(...args),
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
@@ -37,8 +40,35 @@ vi.mock('@/lib/errors', () => ({
 describe('SettingsContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useLiveQueryMock.mockReturnValue(DEFAULT_SETTINGS);
     getMock.mockResolvedValue(DEFAULT_SETTINGS);
     initMock.mockResolvedValue(undefined);
+    document.documentElement.style.removeProperty('--app-font-family');
+    document.documentElement.style.removeProperty('--accent-color');
+    document.documentElement.classList.remove('dark');
+  });
+
+  it('applies saved presentation settings to the document', () => {
+    useLiveQueryMock.mockReturnValue({
+      ...DEFAULT_SETTINGS,
+      fontFamily: 'verdana',
+      accentColor: '#123456',
+      colorTheme: 'dark',
+    });
+
+    render(
+      <SettingsProvider>
+        <div>child</div>
+      </SettingsProvider>,
+    );
+
+    expect(
+      document.documentElement.style.getPropertyValue('--app-font-family'),
+    ).toBe('Verdana, Geneva, sans-serif');
+    expect(
+      document.documentElement.style.getPropertyValue('--accent-color'),
+    ).toBe('#123456');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
   it('passes reparse lifecycle callbacks to settings init', async () => {

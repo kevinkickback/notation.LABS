@@ -26,30 +26,37 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { ChangelogModal } from '@/components/updates/ChangelogModal';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
-import { useSettings } from '@/context/SettingsContext';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
+import { useUpdater } from '@/context/UpdaterContext';
 import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { FontFamily, UserSettings } from '@/lib/types';
 
 export function GeneralSettings() {
   const settings = useSettings();
+  const { setSetting } = useSettingsActions();
+  const {
+    status: updaterStatus,
+    checkForUpdate,
+    downloadUpdate,
+    reset: resetUpdater,
+  } = useUpdater();
   const [accent, setAccent] = useState<string>(
     settings.accentColor || '#3b82f6',
   );
-  const [updateStatus, setUpdateStatus] = useState<
-    'idle' | 'up-to-date' | 'available' | 'error'
-  >('idle');
-  const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [updateIsPortable, setUpdateIsPortable] = useState(false);
   const [showCurrentChangelog, setShowCurrentChangelog] = useState(false);
-  const [updateChangelog, setUpdateChangelog] = useState('');
   const [currentChangelog, setCurrentChangelog] = useState('');
   const [changelogLoading, setChangelogLoading] = useState(false);
+  const updateChecking = updaterStatus.status === 'checking';
+  const updateStatus =
+    updaterStatus.status === 'not-available'
+      ? 'up-to-date'
+      : updaterStatus.status === 'available' || updaterStatus.status === 'error'
+        ? updaterStatus.status
+        : 'idle';
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
@@ -70,7 +77,7 @@ export function GeneralSettings() {
     key: K,
     value: UserSettings[K],
   ) => {
-    await indexedDbStorage.settings.update({ [key]: value });
+    await setSetting(key, value);
     if (key === 'accentColor') {
       setAccent(value as string);
     }
@@ -78,87 +85,46 @@ export function GeneralSettings() {
 
   const handleInstallUpdate = useCallback(async () => {
     setShowChangelog(false);
-    const downloadUpdate = window.electronAPI?.downloadUpdate;
-    if (!downloadUpdate) {
-      toast.error('Updates are unavailable in this environment.');
-      return;
-    }
-
-    if (!updateIsPortable) {
+    if (!updaterStatus.isPortable) {
       setShowProgress(true);
     }
     try {
       const result = await downloadUpdate();
       if (!result.success) {
         setShowProgress(false);
-        setUpdateStatus('error');
         toast.error(result.error ?? 'Could not start the update.');
       }
     } catch (err) {
       setShowProgress(false);
-      setUpdateStatus('error');
       reportError('GeneralSettings.handleInstallUpdate', err);
       toast.error('Could not start the update.');
     }
-  }, [updateIsPortable]);
+  }, [downloadUpdate, updaterStatus.isPortable]);
 
-  const handleProgressModalOpenChange = useCallback((open: boolean) => {
-    setShowProgress(open);
-    if (!open) {
-      setUpdateStatus('idle');
-      setUpdateChecking(false);
-    }
-  }, []);
+  const handleProgressModalOpenChange = useCallback(
+    (open: boolean) => {
+      setShowProgress(open);
+      if (!open) {
+        resetUpdater();
+      }
+    },
+    [resetUpdater],
+  );
 
   const handleCheckForUpdate = async () => {
-    setUpdateChecking(true);
     try {
-      const result = await window.electronAPI?.checkForUpdate?.();
-      if (!result) {
-        setUpdateStatus('error');
-        toast.error('Update checks are unavailable in this environment.');
-        return;
-      }
-
-      if (!result.success) {
-        setUpdateStatus('error');
-        toast.error(result.error ?? 'Could not check for updates.');
-        return;
-      }
-
-      if (!result.data) {
-        setUpdateStatus('error');
-        toast.error('Update check returned an invalid response.');
-        return;
-      }
-
-      if (result.data.status === 'available') {
-        setUpdateStatus('available');
-        setUpdateVersion(result.data.version);
-        setUpdateChangelog(result.data.changelog ?? '');
-        setUpdateIsPortable(result.data.isPortable);
+      const status = await checkForUpdate();
+      if (status.status === 'available') {
         setShowChangelog(true);
         return;
       }
 
-      if (result.data.status === 'not-available') {
-        setUpdateStatus('up-to-date');
+      if (status.status === 'error') {
+        toast.error(status.error || 'Could not check for updates.');
         return;
       }
-
-      if (result.data.status === 'error') {
-        setUpdateStatus('error');
-        toast.error(result.data.error || 'Could not check for updates.');
-        return;
-      }
-
-      setUpdateStatus('error');
-      toast.error('Update check returned an invalid response.');
     } catch {
-      setUpdateStatus('error');
       toast.error('Could not check for updates. Please try again.');
-    } finally {
-      setUpdateChecking(false);
     }
   };
 
@@ -377,9 +343,6 @@ export function GeneralSettings() {
                 checked={settings.autoUpdate ?? true}
                 onCheckedChange={(v) => {
                   updateSetting('autoUpdate', v);
-                  if (window.electronAPI?.setAutoCheck) {
-                    window.electronAPI.setAutoCheck(v);
-                  }
                   toast.success(
                     v ? 'Auto-update enabled' : 'Auto-update disabled',
                   );
@@ -402,9 +365,9 @@ export function GeneralSettings() {
                       <WarningCircleIcon size={14} weight="fill" /> Check failed
                     </span>
                   )}
-                  {updateStatus === 'available' && updateVersion && (
+                  {updateStatus === 'available' && updaterStatus.version && (
                     <span className="text-primary">
-                      v{updateVersion} available
+                      v{updaterStatus.version} available
                     </span>
                   )}
                   {updateStatus === 'idle' &&
@@ -446,15 +409,17 @@ export function GeneralSettings() {
       </Card>
       <ChangelogModal
         open={showChangelog}
-        changelog={updateChangelog}
-        version={updateVersion ?? ''}
+        changelog={updaterStatus.changelog ?? ''}
+        version={updaterStatus.version ?? ''}
         onOpenChange={setShowChangelog}
         onInstall={handleInstallUpdate}
-        installLabel={updateIsPortable ? 'Open Download Page' : undefined}
+        installLabel={
+          updaterStatus.isPortable ? 'Open Download Page' : undefined
+        }
       />
       <UpdateProgressModal
         open={showProgress}
-        version={updateVersion ?? ''}
+        version={updaterStatus.version ?? ''}
         onOpenChange={handleProgressModalOpenChange}
       />
       <ChangelogModal

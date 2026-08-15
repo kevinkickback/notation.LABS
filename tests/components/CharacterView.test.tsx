@@ -11,17 +11,11 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
       delete: vi.fn().mockResolvedValue(undefined),
       bulkDelete: vi.fn().mockResolvedValue(undefined),
     },
+    combos: {
+      getByCharacters: vi.fn().mockResolvedValue([]),
+    },
     settings: {
       update: vi.fn().mockResolvedValue(undefined),
-    },
-  },
-  db: {
-    combos: {
-      where: vi.fn(() => ({
-        anyOf: vi.fn(() => ({
-          toArray: vi.fn().mockResolvedValue([]),
-        })),
-      })),
     },
   },
 }));
@@ -80,6 +74,7 @@ const mockGame: Game = {
   id: 'game-1',
   name: 'Street Fighter 6',
   buttonLayout: ['L', 'M', 'H', 'S'],
+  notationProfile: 'standard',
   createdAt: now,
   updatedAt: now,
 };

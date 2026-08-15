@@ -22,7 +22,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import {
+  createCharacter,
+  updateCharacter,
+} from '@/lib/application/characterCommands';
 import type { Character, CoverImageFit, Game } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
@@ -82,7 +85,7 @@ export function CharacterFormDialog({
       return;
     }
     try {
-      await indexedDbStorage.characters.add({
+      await createCharacter({
         gameId: game.id,
         name: name.trim(),
         notes: notes.trim(),
@@ -106,7 +109,7 @@ export function CharacterFormDialog({
       return;
     }
     try {
-      await indexedDbStorage.characters.update(editingCharacter.id, {
+      await updateCharacter(editingCharacter.id, {
         name: name.trim(),
         notes: notes.trim(),
         portraitImage: portraitImage || undefined,

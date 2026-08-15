@@ -1,4 +1,6 @@
-import { parseComboNotation } from '@/lib/parser';
+import { createCharacter } from '@/lib/application/characterCommands';
+import { createCombo } from '@/lib/application/comboCommands';
+import { createGame } from '@/lib/application/gameCommands';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 export async function initializeSeedData() {
@@ -8,8 +10,9 @@ export async function initializeSeedData() {
     return;
   }
 
-  const sf6Id = await indexedDbStorage.games.add({
+  const sf6Id = await createGame({
     name: 'Street Fighter 6',
+    notationProfile: 'standard',
     buttonLayout: ['LP', 'MP', 'HP', 'LK', 'MK', 'HK'],
     buttonColors: {
       LP: '#00b9db',
@@ -22,8 +25,9 @@ export async function initializeSeedData() {
     notes: 'The latest entry in the Street Fighter series',
   });
 
-  const ggstId = await indexedDbStorage.games.add({
+  const ggstId = await createGame({
     name: 'Guilty Gear Strive',
+    notationProfile: 'standard',
     buttonLayout: ['P', 'K', 'S', 'H', 'D'],
     buttonColors: {
       P: '#00b9db',
@@ -35,8 +39,9 @@ export async function initializeSeedData() {
     notes: 'Fast-paced anime fighter',
   });
 
-  const dbfzId = await indexedDbStorage.games.add({
+  const dbfzId = await createGame({
     name: 'Dragon Ball FighterZ',
+    notationProfile: 'standard',
     buttonLayout: ['L', 'M', 'H', 'S'],
     buttonColors: {
       L: '#00b9db',
@@ -47,39 +52,34 @@ export async function initializeSeedData() {
     notes: 'Team-based anime fighter',
   });
 
-  const ryuId = await indexedDbStorage.characters.add({
+  const ryuId = await createCharacter({
     gameId: sf6Id,
     name: 'Ryu',
     notes: 'The iconic world warrior',
   });
 
-  const kenId = await indexedDbStorage.characters.add({
+  const kenId = await createCharacter({
     gameId: sf6Id,
     name: 'Ken',
     notes: 'The hot-blooded rival',
   });
 
-  const solId = await indexedDbStorage.characters.add({
+  const solId = await createCharacter({
     gameId: ggstId,
     name: 'Sol Badguy',
     notes: 'The Flame of Corruption',
   });
 
-  const gokuId = await indexedDbStorage.characters.add({
+  const gokuId = await createCharacter({
     gameId: dbfzId,
     name: 'Goku (SS)',
     notes: 'The legendary Super Saiyan',
   });
 
-  const sf6Buttons = ['LP', 'MP', 'HP', 'LK', 'MK', 'HK'];
-  const ggstButtons = ['P', 'K', 'S', 'H', 'D'];
-  const dbfzButtons = ['L', 'M', 'H', 'S'];
-
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: ryuId,
     name: 'Basic BnB',
     notation: '5LP > 5LP > 5MP > 236HP',
-    parsedNotation: parseComboNotation('5LP > 5LP > 5MP > 236HP', sf6Buttons),
     description: 'Basic bread and butter combo that works from most situations',
     difficulty: 2,
     damage: '3200',
@@ -87,14 +87,10 @@ export async function initializeSeedData() {
     tags: ['BnB', 'Meterless', 'Midscreen'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: ryuId,
     name: 'Corner Punish',
     notation: '2MK > 5HP > 623HP > 236236K',
-    parsedNotation: parseComboNotation(
-      '2MK > 5HP > 623HP > 236236K',
-      sf6Buttons,
-    ),
     description: 'High damage corner punish combo with super',
     difficulty: 4,
     damage: '5800',
@@ -102,11 +98,10 @@ export async function initializeSeedData() {
     tags: ['Corner', 'Punish', 'Super'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: ryuId,
     name: 'Anti-Air Conversion',
     notation: '623MP > 5HP > 236MP',
-    parsedNotation: parseComboNotation('623MP > 5HP > 236MP', sf6Buttons),
     description: 'Anti-air dragon punch conversion',
     difficulty: 3,
     damage: '4100',
@@ -114,14 +109,10 @@ export async function initializeSeedData() {
     tags: ['Anti-Air', 'Meterless'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: kenId,
     name: 'Optimal Midscreen',
     notation: '5MP > 5HP > 214MK > dash > 5LP > 623HP',
-    parsedNotation: parseComboNotation(
-      '5MP > 5HP > 214MK > dash > 5LP > 623HP',
-      sf6Buttons,
-    ),
     description: 'Optimal midscreen combo with run cancel',
     difficulty: 4,
     damage: '4600',
@@ -129,11 +120,10 @@ export async function initializeSeedData() {
     tags: ['Optimal', 'Midscreen', 'Advanced'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: kenId,
     name: 'Jab String Pressure',
     notation: '(5LP) x5 > 5MP > 236HP',
-    parsedNotation: parseComboNotation('(5LP) x5 > 5MP > 236HP', sf6Buttons),
     description:
       'Long jab string into special, great for pressure and confirms',
     difficulty: 2,
@@ -142,14 +132,10 @@ export async function initializeSeedData() {
     tags: ['BnB', 'Pressure', 'Meterless'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: solId,
     name: 'Volcanic Viper Loop',
     notation: '5K > c.S > 2H > 236K > 623P > dash > 5K > 623H',
-    parsedNotation: parseComboNotation(
-      '5K > c.S > 2H > 236K > 623P > dash > 5K > 623H',
-      ggstButtons,
-    ),
     description: 'Classic Sol combo with Volcanic Viper loops',
     difficulty: 5,
     damage: '240',
@@ -157,11 +143,10 @@ export async function initializeSeedData() {
     tags: ['BnB', 'Advanced', 'Meterless'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: solId,
     name: 'Simple Corner Combo',
     notation: 'c.S > 2H > 236236H',
-    parsedNotation: parseComboNotation('c.S > 2H > 236236H', ggstButtons),
     description: 'Easy corner combo into Tyrant Rave',
     difficulty: 2,
     damage: '195',
@@ -169,14 +154,10 @@ export async function initializeSeedData() {
     tags: ['Corner', 'Super', 'Easy'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: gokuId,
     name: 'Universal BnB',
     notation: '2M > 5M > j.M > j.M > j.2H > SD > j.M > j.L > j.2H > j.LLL',
-    parsedNotation: parseComboNotation(
-      '2M > 5M > j.M > j.M > j.2H > SD > j.M > j.L > j.2H > j.LLL',
-      dbfzButtons,
-    ),
     description: 'Universal combo that works with any team',
     difficulty: 3,
     damage: '4800',
@@ -184,11 +165,10 @@ export async function initializeSeedData() {
     tags: ['BnB', 'Universal', 'Meterless'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: gokuId,
     name: 'Auto Combo Confirm',
     notation: '(5L) x3 > 2M > 5M > 236M',
-    parsedNotation: parseComboNotation('(5L) x3 > 2M > 5M > 236M', dbfzButtons),
     description: 'Simple confirm from mash into special',
     difficulty: 1,
     damage: '3200',
@@ -196,15 +176,11 @@ export async function initializeSeedData() {
     tags: ['BnB', 'Easy', 'Meterless'],
   });
 
-  await indexedDbStorage.combos.add({
+  await createCombo({
     characterId: gokuId,
     name: 'Corner TOD',
     notation:
       '2M > 5M > 2H > SD > j.M > j.L > j.2H > j.LLL > 236L+M > 214H+S > 236L+M',
-    parsedNotation: parseComboNotation(
-      '2M > 5M > 2H > SD > j.M > j.L > j.2H > j.LLL > 236L+M > 214H+S > 236L+M',
-      dbfzButtons,
-    ),
     description: 'Touch of Death combo with assists and supers',
     difficulty: 5,
     damage: '10000',

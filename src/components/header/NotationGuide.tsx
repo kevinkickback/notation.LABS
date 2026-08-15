@@ -35,7 +35,6 @@ import {
 import {
   getNotationProfileDefinition,
   NOTATION_PROFILES,
-  resolveNotationProfile,
 } from '@/lib/notationProfiles';
 import { parseComboNotation } from '@/lib/parser';
 import type { Game, NotationProfile } from '@/lib/types';
@@ -53,7 +52,7 @@ export function NotationGuide({
   showTrigger = true,
   activeGame,
 }: NotationGuideProps) {
-  const initialProfile = resolveNotationProfile(activeGame);
+  const initialProfile = activeGame?.notationProfile ?? 'standard';
   const [profile, setProfile] = useState<NotationProfile>(initialProfile);
   const [previewNotation, setPreviewNotation] = useState(
     getNotationProfileDefinition(initialProfile).example,
@@ -62,7 +61,7 @@ export function NotationGuide({
 
   useEffect(() => {
     if (!open) return;
-    const nextProfile = resolveNotationProfile(activeGame);
+    const nextProfile = activeGame?.notationProfile ?? 'standard';
     setProfile(nextProfile);
     setPreviewNotation(getNotationProfileDefinition(nextProfile).example);
   }, [open, activeGame]);

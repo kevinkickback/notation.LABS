@@ -10,8 +10,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+  downloadCharacterImage,
+  searchCharacterImages,
+} from '@/lib/providers/imageSearchProvider';
 import type { ImageSearchResult } from '@/lib/types';
-import { fetchImageAsBase64, getApiBase } from '@/lib/utils';
 
 interface CharacterSearchDialogProps {
   open: boolean;
@@ -26,7 +29,6 @@ export function CharacterSearchDialog({
   searchQuery,
   onImageSelect,
 }: CharacterSearchDialogProps) {
-  const ddgApiBase = getApiBase('ddg');
   const [inputValue, setInputValue] = useState(searchQuery);
   const [results, setResults] = useState<ImageSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,24 +64,10 @@ export function CharacterSearchDialog({
       const controller = new AbortController();
       searchControllerRef.current = controller;
       try {
-        const res = await fetch(`${ddgApiBase}/image-search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q }),
-          signal: controller.signal,
-        });
-        if (requestId !== requestIdRef.current) return;
-        if (!res.ok) {
-          setError('Search failed');
-          return;
-        }
-        const data: unknown = await res.json();
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid image search response');
-        }
+        const data = await searchCharacterImages(q, controller.signal);
         if (requestId !== requestIdRef.current) return;
         resultsCacheRef.current.set(q, data);
-        setResults(data as ImageSearchResult[]);
+        setResults(data);
       } catch {
         if (controller.signal.aborted || requestId !== requestIdRef.current) {
           return;
@@ -91,7 +79,7 @@ export function CharacterSearchDialog({
         }
       }
     },
-    [ddgApiBase, inputValue],
+    [inputValue],
   );
 
   useEffect(() => {
@@ -129,10 +117,7 @@ export function CharacterSearchDialog({
     if (!result.imageUrl || downloading) return;
     setDownloading(result.imageUrl);
     try {
-      const dataUrl = await fetchImageAsBase64(
-        `${ddgApiBase}/download`,
-        result.imageUrl,
-      );
+      const dataUrl = await downloadCharacterImage(result.imageUrl);
       if (dataUrl) {
         onImageSelect(dataUrl);
         toast.success('Image applied');

@@ -37,7 +37,7 @@ export const externalHttpUrlSchema = z
     }
   }, 'URL must use HTTP or HTTPS and cannot include credentials');
 
-export const gameSchema = z.object({
+const gameFields = {
   id: z.string(),
   name: z.string(),
   logoImage: z.string().optional(),
@@ -48,12 +48,20 @@ export const gameSchema = z.object({
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
-  notationProfile: notationProfileSchema.optional(),
-  // Accepted while upgrading databases and importing older backups.
-  inputType: z.enum(['numpad', 'button-numbers']).optional(),
   commaStyle: z.enum(['hidden', 'separator']).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
+};
+
+export const gameSchema = z.object({
+  ...gameFields,
+  notationProfile: notationProfileSchema,
+});
+
+export const legacyGameSchema = z.object({
+  ...gameFields,
+  notationProfile: notationProfileSchema.optional(),
+  inputType: z.enum(['numpad', 'button-numbers']).optional(),
 });
 
 export const characterLinkSchema = z.object({
@@ -150,7 +158,7 @@ const demoVideoSchema = z
 export const importDataSchema = z.object({
   version: z.number().int().min(1).max(3),
   exported: z.string(),
-  games: z.array(gameSchema).optional(),
+  games: z.array(legacyGameSchema).optional(),
   characters: z.array(characterSchema).optional(),
   combos: z.array(comboSchema).optional(),
   settings: settingsSchema.optional(),
@@ -160,7 +168,9 @@ export const importDataSchema = z.object({
 // Derived TypeScript types — single source of truth
 export type ComboToken = z.infer<typeof comboTokenSchema>;
 export type TokenType = ComboToken['type'];
+export type BackupImportData = z.infer<typeof importDataSchema>;
 export type Game = z.infer<typeof gameSchema>;
+export type LegacyGame = z.infer<typeof legacyGameSchema>;
 export type CharacterLink = z.infer<typeof characterLinkSchema>;
 export type CoverImageFit = z.infer<typeof coverImageFitSchema>;
 export type NotationProfile = z.infer<typeof notationProfileSchema>;

@@ -29,14 +29,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { createGame, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
 import {
   getNotationProfileDefinition,
   NOTATION_PROFILES,
-  resolveNotationProfile,
 } from '@/lib/notationProfiles';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { CoverImageFit, Game, NotationProfile } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
 import { CoverSearchDialog } from './CoverSearchDialog';
@@ -93,7 +92,7 @@ export function GameFormDialog({
       setCoverPanX(editingGame.coverPanX ?? 50);
       setCoverPanY(editingGame.coverPanY ?? 50);
       setCoverFit(editingGame.coverFit ?? 'fill');
-      setNotationProfile(resolveNotationProfile(editingGame));
+      setNotationProfile(editingGame.notationProfile);
       const existingColors = editingGame.buttonColors || {};
       const initialColors: Record<string, string> = {};
       for (let i = 0; i < editingGame.buttonLayout.length; i++) {
@@ -156,7 +155,7 @@ export function GameFormDialog({
         .split(',')
         .map((b) => b.trim())
         .filter(Boolean);
-      await indexedDbStorage.games.add({
+      await createGame({
         name: name.trim(),
         buttonLayout: buttons,
         buttonColors: { ...dialogButtonColors },
@@ -187,7 +186,7 @@ export function GameFormDialog({
         .split(',')
         .map((b) => b.trim())
         .filter(Boolean);
-      await indexedDbStorage.games.update(editingGame.id, {
+      await updateGame(editingGame.id, {
         name: name.trim(),
         buttonLayout: buttons,
         buttonColors: { ...dialogButtonColors },
