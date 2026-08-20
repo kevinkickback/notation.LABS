@@ -155,8 +155,8 @@ describe('electron main process wiring', () => {
 
     expect(context.browserWindows).toHaveLength(2);
     expect(context.browserWindows[0]?.options).toMatchObject({
-      width: 480,
-      height: 360,
+      width: 478,
+      height: 358,
       useContentSize: true,
       frame: false,
       hasShadow: false,
