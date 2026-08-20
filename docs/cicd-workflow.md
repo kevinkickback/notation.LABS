@@ -115,8 +115,9 @@ After verification, the workflow performs these steps:
 5. Verifies that the release is still a draft, its notes still match the
    changelog, and all required platform packages are attached.
 
-Only the jobs that create the draft and publish its assets receive repository
-write permission. All other jobs use read-only permission.
+Only the jobs that create, publish, or verify the draft receive repository write
+permission. GitHub requires push-level access to view draft releases; all other
+jobs use read-only permission.
 
 | Package | Platform |
 |---|---|
