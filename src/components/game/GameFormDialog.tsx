@@ -29,15 +29,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useCoverEditor } from '@/hooks/useCoverEditor';
+import { createGame, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
 import {
   getNotationProfileDefinition,
   NOTATION_PROFILES,
-  resolveNotationProfile,
 } from '@/lib/notationProfiles';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import type { CoverImageFit, Game, NotationProfile } from '@/lib/types';
+import type { Game, NotationProfile } from '@/lib/types';
 import { isAllowedImageUpload } from '@/lib/utils';
 import { CoverSearchDialog } from './CoverSearchDialog';
 
@@ -55,11 +55,23 @@ export function GameFormDialog({
   const [name, setName] = useState('');
   const [buttonLayout, setButtonLayout] = useState('L, M, H, S');
   const [notes, setNotes] = useState('');
-  const [logoImage, setLogoImage] = useState('');
-  const [coverZoom, setCoverZoom] = useState(100);
-  const [coverPanX, setCoverPanX] = useState(50);
-  const [coverPanY, setCoverPanY] = useState(50);
-  const [coverFit, setCoverFit] = useState<CoverImageFit>('fill');
+  const {
+    image: logoImage,
+    setImage: setLogoImage,
+    zoom: coverZoom,
+    setZoom: setCoverZoom,
+    panX: coverPanX,
+    setPanX: setCoverPanX,
+    panY: coverPanY,
+    setPanY: setCoverPanY,
+    fit: coverFit,
+    setFit: setCoverFit,
+    initialize: initializeCover,
+    reset: resetCover,
+    resetTransform: resetCoverTransform,
+    applyImage: applyCoverImage,
+    serialize: serializeCover,
+  } = useCoverEditor();
   const [dialogButtonColors, setDialogButtonColors] = useState<
     Record<string, string>
   >({});
@@ -88,12 +100,14 @@ export function GameFormDialog({
       setName(editingGame.name);
       setButtonLayout(editingGame.buttonLayout.join(', '));
       setNotes(editingGame.notes || '');
-      setLogoImage(editingGame.logoImage || '');
-      setCoverZoom(editingGame.coverZoom || 100);
-      setCoverPanX(editingGame.coverPanX ?? 50);
-      setCoverPanY(editingGame.coverPanY ?? 50);
-      setCoverFit(editingGame.coverFit ?? 'fill');
-      setNotationProfile(resolveNotationProfile(editingGame));
+      initializeCover({
+        image: editingGame.logoImage,
+        zoom: editingGame.coverZoom,
+        panX: editingGame.coverPanX,
+        panY: editingGame.coverPanY,
+        fit: editingGame.coverFit,
+      });
+      setNotationProfile(editingGame.notationProfile);
       const existingColors = editingGame.buttonColors || {};
       const initialColors: Record<string, string> = {};
       for (let i = 0; i < editingGame.buttonLayout.length; i++) {
@@ -107,16 +121,12 @@ export function GameFormDialog({
       setName('');
       setButtonLayout('L, M, H, S');
       setNotes('');
-      setLogoImage('');
-      setCoverZoom(100);
-      setCoverPanX(50);
-      setCoverPanY(50);
-      setCoverFit('fill');
+      resetCover();
       setDialogButtonColors({});
       setNotationProfile('standard');
       setCoverSearchOpen(false);
     }
-  }, [open, editingGame]);
+  }, [open, editingGame, initializeCover, resetCover]);
 
   useEffect(() => {
     setDialogButtonColors((prev) => {
@@ -146,76 +156,46 @@ export function GameFormDialog({
     setNotationProfile(nextProfile);
   };
 
-  const handleAdd = async () => {
-    if (!name.trim()) {
-      toast.error('Game name is required');
-      return;
-    }
-    try {
-      const buttons = buttonLayout
+  const buildGamePayload = () => {
+    const cover = serializeCover();
+    return {
+      name: name.trim(),
+      buttonLayout: buttonLayout
         .split(',')
-        .map((b) => b.trim())
-        .filter(Boolean);
-      await indexedDbStorage.games.add({
-        name: name.trim(),
-        buttonLayout: buttons,
-        buttonColors: { ...dialogButtonColors },
-        notes: notes.trim(),
-        notationProfile,
-        logoImage: logoImage || undefined,
-        coverZoom: coverZoom !== 100 ? coverZoom : undefined,
-        coverPanX: coverPanX !== 50 ? coverPanX : undefined,
-        coverPanY: coverPanY !== 50 ? coverPanY : undefined,
-        coverFit: coverFit !== 'fill' ? coverFit : undefined,
-      });
-      toast.success('Game added');
-      closeDialog();
-    } catch (error) {
-      reportError('GameFormDialog.handleAdd', error);
-      toast.error('Failed to add game');
-    }
+        .map((button) => button.trim())
+        .filter(Boolean),
+      buttonColors: { ...dialogButtonColors },
+      notes: notes.trim(),
+      notationProfile,
+      logoImage: cover.image,
+      coverZoom: cover.zoom,
+      coverPanX: cover.panX,
+      coverPanY: cover.panY,
+      coverFit: cover.fit,
+    };
   };
 
-  const handleEdit = async () => {
-    if (!editingGame) return;
+  const handleSubmit = async () => {
     if (!name.trim()) {
       toast.error('Game name is required');
       return;
     }
     try {
-      const buttons = buttonLayout
-        .split(',')
-        .map((b) => b.trim())
-        .filter(Boolean);
-      await indexedDbStorage.games.update(editingGame.id, {
-        name: name.trim(),
-        buttonLayout: buttons,
-        buttonColors: { ...dialogButtonColors },
-        notes: notes.trim(),
-        notationProfile,
-        logoImage: logoImage || undefined,
-        coverZoom: coverZoom !== 100 ? coverZoom : undefined,
-        coverPanX: coverPanX !== 50 ? coverPanX : undefined,
-        coverPanY: coverPanY !== 50 ? coverPanY : undefined,
-        coverFit: coverFit !== 'fill' ? coverFit : undefined,
-      });
-      toast.success('Game updated');
+      const payload = buildGamePayload();
+      if (editingGame) {
+        await updateGame(editingGame.id, payload);
+      } else {
+        await createGame(payload);
+      }
+      toast.success(editingGame ? 'Game updated' : 'Game added');
       closeDialog();
     } catch (error) {
-      reportError('GameFormDialog.handleEdit', error);
-      toast.error('Failed to update game');
+      reportError('GameFormDialog.handleSubmit', error);
+      toast.error(editingGame ? 'Failed to update game' : 'Failed to add game');
     }
   };
 
   const handleImageSelect = () => imageInputRef.current?.click();
-
-  const applyCoverImage = (image: string) => {
-    setLogoImage(image);
-    setCoverZoom(100);
-    setCoverPanX(50);
-    setCoverPanY(50);
-    setCoverFit('fill');
-  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -256,7 +236,7 @@ export function GameFormDialog({
             className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
             onSubmit={(event) => {
               event.preventDefault();
-              void (editingGame ? handleEdit() : handleAdd());
+              void handleSubmit();
             }}
           >
             <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
@@ -344,12 +324,7 @@ export function GameFormDialog({
                             onZoomChange={setCoverZoom}
                             onFocalXChange={setCoverPanX}
                             onFocalYChange={setCoverPanY}
-                            onReset={() => {
-                              setCoverZoom(100);
-                              setCoverPanX(50);
-                              setCoverPanY(50);
-                              setCoverFit('fill');
-                            }}
+                            onReset={resetCoverTransform}
                           />
                         ) : (
                           <div className="flex h-full flex-col justify-center gap-1.5">

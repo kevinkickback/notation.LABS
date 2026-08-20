@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { CharacterView } from '@/components/character/CharacterView';
 import { ComboView } from '@/components/combo/ComboView';
@@ -7,77 +7,36 @@ import { GameLibrary } from '@/components/game/GameLibrary';
 import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
 import { Header } from '@/components/header/Header';
 import { Toaster } from '@/components/ui/sonner';
-import { ChangelogModal } from '@/components/updates/ChangelogModal';
-import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings } from '@/context/SettingsContext';
-import { getFontFamilyCSS } from '@/lib/defaults';
-import { reportError } from '@/lib/errors';
+import { useUpdater } from '@/context/UpdaterContext';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 
 function App() {
   const { selectedGameId, selectedCharacterId } = useAppStore();
   const settings = useSettings();
-
-  const [autoUpdateVersion, setAutoUpdateVersion] = useState<string | null>(
-    null,
-  );
-  const [autoUpdateChangelog, setAutoUpdateChangelog] = useState<string | null>(
-    null,
-  );
-  const [showAutoChangelog, setShowAutoChangelog] = useState(false);
-  const [showAutoProgress, setShowAutoProgress] = useState(false);
+  const {
+    status: updateStatus,
+    availabilityEventId,
+    showAvailableUpdate,
+  } = useUpdater();
 
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      '--app-font-family',
-      getFontFamilyCSS(settings.fontFamily),
-    );
-    document.documentElement.style.setProperty(
-      '--accent-color',
-      settings.accentColor || '#3b82f6',
-    );
-    document.documentElement.classList.toggle(
-      'dark',
-      settings.colorTheme === 'dark',
-    );
-  }, [settings.fontFamily, settings.accentColor, settings.colorTheme]);
-
-  useEffect(() => {
-    if (!window.electronAPI?.onUpdateAvailable) return;
-
-    const unsub = window.electronAPI.onUpdateAvailable((data) => {
-      try {
-        setAutoUpdateVersion(data.version);
-        setAutoUpdateChangelog(data.changelog);
-        toast.info(`Update v${data.version} available`, {
-          action: {
-            label: 'View',
-            onClick: () => setShowAutoChangelog(true),
-          },
-          duration: 10000,
-        });
-      } catch (err) {
-        reportError('App.onUpdateAvailable', err);
-      }
+    if (availabilityEventId === 0 || updateStatus.status !== 'available')
+      return;
+    toast.info(`Update v${updateStatus.version} available`, {
+      action: {
+        label: 'View',
+        onClick: () => showAvailableUpdate(),
+      },
+      duration: 10000,
     });
-
-    if (settings.autoUpdate && window.electronAPI.setAutoCheck) {
-      void window.electronAPI.setAutoCheck(true).catch((err) => {
-        reportError('App.setAutoCheck', err);
-      });
-    }
-
-    return unsub;
-  }, [settings.autoUpdate]);
-
-  const handleAutoInstall = useCallback(() => {
-    setShowAutoChangelog(false);
-    setShowAutoProgress(true);
-    if (window.electronAPI?.downloadUpdate) {
-      window.electronAPI.downloadUpdate();
-    }
-  }, []);
+  }, [
+    availabilityEventId,
+    showAvailableUpdate,
+    updateStatus.status,
+    updateStatus.version,
+  ]);
 
   const games = useLiveQuery(indexedDbStorage.games.getAll, []);
   const characters = useLiveQuery(
@@ -129,20 +88,6 @@ function App() {
       </main>
 
       <Toaster />
-
-      <ChangelogModal
-        open={showAutoChangelog}
-        onOpenChange={setShowAutoChangelog}
-        version={autoUpdateVersion ?? ''}
-        changelog={autoUpdateChangelog}
-        onInstall={handleAutoInstall}
-      />
-
-      <UpdateProgressModal
-        open={showAutoProgress}
-        version={autoUpdateVersion ?? ''}
-        onOpenChange={setShowAutoProgress}
-      />
     </div>
   );
 }

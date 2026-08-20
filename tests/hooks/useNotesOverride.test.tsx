@@ -1,30 +1,25 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-  getNotesOverridesMock,
-  setNotesOverridesMock,
-  removeNotesOverrideMock,
-} = vi.hoisted(() => ({
+const { getNotesOverridesMock, setNotesOverrideMock } = vi.hoisted(() => ({
   getNotesOverridesMock: vi.fn<() => Promise<string[]>>(),
-  setNotesOverridesMock: vi.fn<(entityIds: string[]) => Promise<void>>(),
-  removeNotesOverrideMock: vi.fn<(entityId: string) => Promise<void>>(),
+  setNotesOverrideMock:
+    vi.fn<(entityId: string, isOverride: boolean) => Promise<void>>(),
+}));
+
+vi.mock('@/context/SettingsContext', () => ({
+  useSettingsActions: () => ({ setNotesOverride: setNotesOverrideMock }),
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     settings: {
       getNotesOverrides: getNotesOverridesMock,
-      setNotesOverrides: setNotesOverridesMock,
-      removeNotesOverride: removeNotesOverrideMock,
     },
   },
 }));
 
-import {
-  removeNotesOverride,
-  useNotesOverride,
-} from '@/hooks/useNotesOverride';
+import { useNotesOverride } from '@/hooks/useNotesOverride';
 
 let currentOverrides: string[] = [];
 
@@ -32,16 +27,16 @@ describe('useNotesOverride', () => {
   beforeEach(() => {
     currentOverrides = [];
     getNotesOverridesMock.mockReset();
-    setNotesOverridesMock.mockReset();
-    removeNotesOverrideMock.mockReset();
+    setNotesOverrideMock.mockReset();
 
     getNotesOverridesMock.mockImplementation(async () => [...currentOverrides]);
-    setNotesOverridesMock.mockImplementation(async (entityIds: string[]) => {
-      currentOverrides = [...entityIds];
-    });
-    removeNotesOverrideMock.mockImplementation(async (entityId: string) => {
-      currentOverrides = currentOverrides.filter((id) => id !== entityId);
-    });
+    setNotesOverrideMock.mockImplementation(
+      async (entityId: string, isOverride: boolean) => {
+        currentOverrides = isOverride
+          ? [...new Set([...currentOverrides, entityId])]
+          : currentOverrides.filter((id) => id !== entityId);
+      },
+    );
   });
 
   it('uses the default state when no override exists', async () => {
@@ -75,7 +70,7 @@ describe('useNotesOverride', () => {
 
     expect(result.current[0]).toBe(true);
     await waitFor(() => {
-      expect(setNotesOverridesMock).toHaveBeenCalledWith(['combo-1']);
+      expect(setNotesOverrideMock).toHaveBeenCalledWith('combo-1', true);
     });
 
     act(() => {
@@ -84,11 +79,39 @@ describe('useNotesOverride', () => {
 
     expect(result.current[0]).toBe(false);
     await waitFor(() => {
-      expect(setNotesOverridesMock).toHaveBeenCalledWith([]);
+      expect(setNotesOverrideMock).toHaveBeenCalledWith('combo-1', false);
+    });
+  });
+
+  it('rolls back the toggle when persistence fails', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    setNotesOverrideMock.mockRejectedValueOnce(new Error('write failed'));
+    const { result } = renderHook(() => useNotesOverride('combo-1', false));
+
+    await waitFor(() => {
+      expect(result.current[0]).toBe(false);
+    });
+
+    act(() => {
+      result.current[1]();
+    });
+    expect(result.current[0]).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current[0]).toBe(false);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[useNotesOverride.handleToggle]',
+        expect.any(Error),
+      );
     });
   });
 
   it('falls back to the default state when overrides cannot be loaded', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     getNotesOverridesMock.mockRejectedValueOnce(new Error('load failed'));
 
     const { result } = renderHook(() => useNotesOverride('combo-1', false));
@@ -96,21 +119,9 @@ describe('useNotesOverride', () => {
     await waitFor(() => {
       expect(result.current[0]).toBe(false);
     });
-  });
-});
-
-describe('removeNotesOverride', () => {
-  beforeEach(() => {
-    currentOverrides = ['combo-1', 'combo-2'];
-    removeNotesOverrideMock.mockReset();
-    removeNotesOverrideMock.mockImplementation(async (entityId: string) => {
-      currentOverrides = currentOverrides.filter((id) => id !== entityId);
-    });
-  });
-
-  it('delegates removal to IndexedDB settings storage', async () => {
-    await removeNotesOverride('combo-1');
-
-    expect(removeNotesOverrideMock).toHaveBeenCalledWith('combo-1');
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useNotesOverride.loadOverrides]',
+      expect.any(Error),
+    );
   });
 });

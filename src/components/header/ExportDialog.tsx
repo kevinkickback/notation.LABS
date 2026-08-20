@@ -17,11 +17,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
+import { loadBackupSelectionData } from '@/lib/application/backupCommands';
+import { compareEntityNames } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
-import {
-  getLocalVideoId,
-  indexedDbStorage,
-} from '@/lib/storage/indexedDbStorage';
+import { getLocalVideoId } from '@/lib/storage/indexedDbStorage';
 import type { Character, Combo, Game } from '@/lib/types';
 
 interface ExportProgressModalProps {
@@ -130,12 +129,7 @@ export function ExportDialog({
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    Promise.all([
-      indexedDbStorage.games.getAll(),
-      indexedDbStorage.characters.getAll(),
-      indexedDbStorage.combos.getAll(),
-      indexedDbStorage.demoVideos.getAll(),
-    ])
+    loadBackupSelectionData()
       .then(([games, characters, combos, videos]) => {
         setData({ games, characters, combos });
 
@@ -172,6 +166,11 @@ export function ExportDialog({
     }
     return map;
   }, [data.characters]);
+
+  const sortedGames = useMemo(
+    () => [...data.games].sort(compareEntityNames),
+    [data.games],
+  );
 
   const combosByCharacter = useMemo(() => {
     const map = new Map<string, Combo[]>();
@@ -389,7 +388,7 @@ export function ExportDialog({
                 No data to export.
               </p>
             ) : (
-              data.games.map((game) => {
+              sortedGames.map((game) => {
                 const chars = charactersByGame.get(game.id) || [];
                 const gameState = getGameCheckState(game.id);
                 const isExpanded = expandedGames.has(game.id);

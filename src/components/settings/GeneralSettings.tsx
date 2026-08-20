@@ -24,31 +24,34 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ChangelogModal } from '@/components/updates/ChangelogModal';
-import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
-import { useSettings } from '@/context/SettingsContext';
-import { FONT_OPTIONS, getFontFamilyCSS } from '@/lib/defaults';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
+import { useUpdater } from '@/context/UpdaterContext';
+import { FONT_OPTIONS } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
-import type { FontFamily, UserSettings } from '@/lib/types';
+import type { FontFamily } from '@/lib/types';
 
 export function GeneralSettings() {
   const settings = useSettings();
-  const [accent, setAccent] = useState<string>(
+  const { setSetting } = useSettingsActions();
+  const {
+    status: updaterStatus,
+    checkForUpdate,
+    showAvailableUpdate,
+    showChangelog,
+    dismissChangelog,
+  } = useUpdater();
+  const [accentDraft, setAccentDraft] = useState<string>(
     settings.accentColor || '#3b82f6',
   );
-  const [updateStatus, setUpdateStatus] = useState<
-    'idle' | 'up-to-date' | 'available' | 'error'
-  >('idle');
-  const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [showChangelog, setShowChangelog] = useState(false);
-  const [showProgress, setShowProgress] = useState(false);
-  const [showCurrentChangelog, setShowCurrentChangelog] = useState(false);
-  const [updateChangelog, setUpdateChangelog] = useState('');
-  const [currentChangelog, setCurrentChangelog] = useState('');
   const [changelogLoading, setChangelogLoading] = useState(false);
+  const updateChecking = updaterStatus.status === 'checking';
+  const updateStatus =
+    updaterStatus.status === 'not-available'
+      ? 'up-to-date'
+      : updaterStatus.status === 'available' || updaterStatus.status === 'error'
+        ? updaterStatus.status
+        : 'idle';
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
@@ -62,83 +65,23 @@ export function GeneralSettings() {
   }, []);
 
   useEffect(() => {
-    setAccent(settings.accentColor || '#3b82f6');
+    setAccentDraft(settings.accentColor || '#3b82f6');
   }, [settings.accentColor]);
 
-  const updateSetting = async <K extends keyof UserSettings>(
-    key: K,
-    value: UserSettings[K],
-  ) => {
-    await indexedDbStorage.settings.update({ [key]: value });
-    if (key === 'accentColor') {
-      setAccent(value as string);
-    }
-  };
-
-  const handleInstallUpdate = useCallback(() => {
-    setShowChangelog(false);
-    setShowProgress(true);
-    if (window.electronAPI?.downloadUpdate) {
-      window.electronAPI.downloadUpdate();
-    }
-  }, []);
-
-  const handleProgressModalOpenChange = useCallback((open: boolean) => {
-    setShowProgress(open);
-    if (!open) {
-      setUpdateStatus('idle');
-      setUpdateChecking(false);
-    }
-  }, []);
-
   const handleCheckForUpdate = async () => {
-    setUpdateChecking(true);
     try {
-      const result = await window.electronAPI?.checkForUpdate?.();
-      if (!result) {
-        setUpdateStatus('error');
-        toast.error('Update checks are unavailable in this environment.');
+      const status = await checkForUpdate();
+      if (status.status === 'available') {
+        showAvailableUpdate(status);
         return;
       }
 
-      if (!result.success) {
-        setUpdateStatus('error');
-        toast.error(result.error ?? 'Could not check for updates.');
+      if (status.status === 'error') {
+        toast.error(status.error || 'Could not check for updates.');
         return;
       }
-
-      if (!result.data) {
-        setUpdateStatus('error');
-        toast.error('Update check returned an invalid response.');
-        return;
-      }
-
-      if (result.data.status === 'available') {
-        setUpdateStatus('available');
-        setUpdateVersion(result.data.version);
-        setUpdateChangelog(result.data.changelog ?? '');
-        setShowChangelog(true);
-        return;
-      }
-
-      if (result.data.status === 'not-available') {
-        setUpdateStatus('up-to-date');
-        return;
-      }
-
-      if (result.data.status === 'error') {
-        setUpdateStatus('error');
-        toast.error(result.data.error || 'Could not check for updates.');
-        return;
-      }
-
-      setUpdateStatus('error');
-      toast.error('Update check returned an invalid response.');
     } catch {
-      setUpdateStatus('error');
       toast.error('Could not check for updates. Please try again.');
-    } finally {
-      setUpdateChecking(false);
     }
   };
 
@@ -171,28 +114,40 @@ export function GeneralSettings() {
   }, []);
 
   const handleViewCurrentChangelog = useCallback(async () => {
-    setCurrentChangelog('');
-    setShowCurrentChangelog(true);
     setChangelogLoading(true);
+    showChangelog({
+      version: appVersion ?? __APP_VERSION__,
+      changelog: null,
+      loading: true,
+    });
 
     try {
       if (window.electronAPI?.getCurrentChangelog) {
         const result = await window.electronAPI.getCurrentChangelog();
-        setCurrentChangelog(result.changelog ?? '');
         setAppVersion(result.version);
+        showChangelog({
+          version: result.version,
+          changelog: result.changelog ?? null,
+        });
         return;
       }
 
       const result = await fetchCurrentChangelogFromWeb();
-      setCurrentChangelog(result.changelog);
       setAppVersion(result.version);
+      showChangelog(result);
     } catch (err) {
+      dismissChangelog();
       reportError('GeneralSettings.handleViewCurrentChangelog', err);
       toast.error('Failed to load changelog');
     } finally {
       setChangelogLoading(false);
     }
-  }, [fetchCurrentChangelogFromWeb]);
+  }, [
+    appVersion,
+    dismissChangelog,
+    fetchCurrentChangelogFromWeb,
+    showChangelog,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -215,30 +170,21 @@ export function GeneralSettings() {
             <div className="flex items-center gap-3">
               <input
                 type="color"
-                value={accent}
+                value={settings.accentColor || '#3b82f6'}
                 onChange={(e) => {
-                  setAccent(e.target.value);
-                  updateSetting('accentColor', e.target.value);
-                  document.documentElement.style.setProperty(
-                    '--accent-color',
-                    e.target.value,
-                  );
+                  void setSetting('accentColor', e.target.value);
                 }}
                 className="w-10 h-10 rounded border border-border shadow-sm cursor-pointer"
                 aria-label="Accent color picker"
               />
               <input
                 type="text"
-                value={accent}
+                value={accentDraft}
                 onChange={(e) => {
                   const value = e.target.value;
-                  setAccent(value);
+                  setAccentDraft(value);
                   if (CSS.supports('color', value)) {
-                    updateSetting('accentColor', value);
-                    document.documentElement.style.setProperty(
-                      '--accent-color',
-                      value,
-                    );
+                    void setSetting('accentColor', value);
                   }
                 }}
                 className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
@@ -256,12 +202,7 @@ export function GeneralSettings() {
             <Select
               value={settings.colorTheme}
               onValueChange={(v) => {
-                updateSetting('colorTheme', v as 'light' | 'dark');
-                if (v === 'dark') {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
+                void setSetting('colorTheme', v as 'light' | 'dark');
               }}
             >
               <SelectTrigger className="w-32">
@@ -284,11 +225,7 @@ export function GeneralSettings() {
               value={settings.fontFamily}
               onValueChange={(v) => {
                 const font = v as FontFamily;
-                updateSetting('fontFamily', font);
-                document.documentElement.style.setProperty(
-                  '--app-font-family',
-                  getFontFamilyCSS(font),
-                );
+                void setSetting('fontFamily', font);
               }}
             >
               <SelectTrigger className="w-44">
@@ -317,7 +254,7 @@ export function GeneralSettings() {
             <Select
               value={settings.characterCardOrientation ?? 'landscape'}
               onValueChange={(v) =>
-                updateSetting(
+                void setSetting(
                   'characterCardOrientation',
                   v as 'landscape' | 'portrait',
                 )
@@ -356,10 +293,7 @@ export function GeneralSettings() {
               <Switch
                 checked={settings.autoUpdate ?? true}
                 onCheckedChange={(v) => {
-                  updateSetting('autoUpdate', v);
-                  if (window.electronAPI?.setAutoCheck) {
-                    window.electronAPI.setAutoCheck(v);
-                  }
+                  void setSetting('autoUpdate', v);
                   toast.success(
                     v ? 'Auto-update enabled' : 'Auto-update disabled',
                   );
@@ -382,9 +316,9 @@ export function GeneralSettings() {
                       <WarningCircleIcon size={14} weight="fill" /> Check failed
                     </span>
                   )}
-                  {updateStatus === 'available' && updateVersion && (
+                  {updateStatus === 'available' && updaterStatus.version && (
                     <span className="text-primary">
-                      v{updateVersion} available
+                      v{updaterStatus.version} available
                     </span>
                   )}
                   {updateStatus === 'idle' &&
@@ -424,25 +358,6 @@ export function GeneralSettings() {
           </div>
         </CardContent>
       </Card>
-      <ChangelogModal
-        open={showChangelog}
-        changelog={updateChangelog}
-        version={updateVersion ?? ''}
-        onOpenChange={setShowChangelog}
-        onInstall={handleInstallUpdate}
-      />
-      <UpdateProgressModal
-        open={showProgress}
-        version={updateVersion ?? ''}
-        onOpenChange={handleProgressModalOpenChange}
-      />
-      <ChangelogModal
-        open={showCurrentChangelog}
-        changelog={currentChangelog || null}
-        loading={changelogLoading}
-        version={appVersion ?? ''}
-        onOpenChange={setShowCurrentChangelog}
-      />
       {/* Behavior Card - always shown */}
       <Card>
         <CardHeader>
@@ -462,7 +377,7 @@ export function GeneralSettings() {
             <Switch
               checked={settings.confirmBeforeDelete ?? true}
               onCheckedChange={(v) => {
-                updateSetting('confirmBeforeDelete', v);
+                void setSetting('confirmBeforeDelete', v);
                 toast.success(
                   v
                     ? 'Delete confirmation enabled'
@@ -481,7 +396,7 @@ export function GeneralSettings() {
             </div>
             <Switch
               checked={settings.notesDefaultOpen ?? false}
-              onCheckedChange={(v) => updateSetting('notesDefaultOpen', v)}
+              onCheckedChange={(v) => void setSetting('notesDefaultOpen', v)}
             />
           </div>
         </CardContent>

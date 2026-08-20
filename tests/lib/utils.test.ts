@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cn, fetchImageAsBase64, getApiBase } from '@/lib/utils';
+import { getProviderBase } from '@/lib/providers/endpoints';
+import { cn, fetchImageAsBase64 } from '@/lib/utils';
 
 describe('cn (className utility)', () => {
   it('merges class names', () => {
@@ -29,13 +30,13 @@ describe('cn (className utility)', () => {
   });
 });
 
-describe('getApiBase', () => {
-  it('returns the IGDB worker URL', () => {
-    expect(getApiBase('igdb')).toBe('https://igdb.capitol-k.workers.dev');
+describe('getProviderBase', () => {
+  it('returns the IGDB development proxy', () => {
+    expect(getProviderBase('igdb')).toBe('/api/igdb');
   });
 
-  it('returns the DDG worker URL', () => {
-    expect(getApiBase('ddg')).toBe('https://ddg.capitol-k.workers.dev');
+  it('returns the image-search development proxy', () => {
+    expect(getProviderBase('image')).toBe('/api/image');
   });
 });
 

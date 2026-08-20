@@ -27,8 +27,12 @@ coverage/
 playwright-report/
 test-results/
 
-# Local planning notes
+# Local docs
 docs/TODO.md
+docs/ARC-TODO.md
+docs/architectural-friction.md
+docs/code-review.md
+docs/streamline.md
 
 # Misc
 *.local

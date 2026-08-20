@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { deleteCombo, deleteCombos } from '@/lib/application/comboCommands';
 import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 interface ComboDeleteOptions {
   confirmBeforeDelete: boolean;
@@ -16,41 +16,45 @@ export function useComboDelete({ confirmBeforeDelete }: ComboDeleteOptions) {
 
   const executeDelete = async (comboId: string) => {
     try {
-      await indexedDbStorage.combos.delete(comboId);
+      await deleteCombo(comboId);
       toast.success('Combo deleted');
+      return true;
     } catch (err) {
       reportError('useComboDelete.executeDelete', err);
       toast.error('Failed to delete combo');
+      return false;
     }
   };
 
   const handleDelete = async (comboId: string) => {
     if (confirmBeforeDelete) {
       setDeleteTarget(comboId);
-      return;
+      return false;
     }
     await executeDelete(comboId);
   };
 
   const executeBulkDelete = async (selectedIds: Set<string>) => {
     try {
-      await indexedDbStorage.combos.bulkDelete([...selectedIds]);
+      await deleteCombos([...selectedIds]);
       toast.success(
         `${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} deleted`,
       );
+      return true;
     } catch (err) {
       reportError('useComboDelete.executeBulkDelete', err);
       toast.error('Failed to delete combos');
+      return false;
     }
   };
 
   const handleBulkDelete = (selectedIds: Set<string>) => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0) return false;
     if (confirmBeforeDelete) {
       setBulkDeleteConfirm(true);
-      return;
+      return false;
     }
-    void executeBulkDelete(selectedIds);
+    return executeBulkDelete(selectedIds);
   };
 
   return {

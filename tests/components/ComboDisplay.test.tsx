@@ -13,14 +13,12 @@ vi.mock('@/context/SettingsContext', () => ({
         iconStyle: 'round',
         motionIconStyle: 'joystick',
         characterCardOrientation: 'landscape',
-        uiTheme: 'default',
         comboScale: 1,
         autoUpdate: true,
         confirmBeforeDelete: false,
         videoPlayerSize: 'lg',
         gameCardSize: 180,
         characterCardSize: 180,
-        showChangelogBeforeUpdate: true,
     }),
 }));
 
@@ -36,6 +34,7 @@ describe('ComboDisplay', () => {
             id: 'game-1',
             name: 'Under Night In-Birth II Sys-Celes',
             buttonLayout: ['A', 'B', 'C', 'D'],
+            notationProfile: 'standard',
             buttonColors: {
                 D: '#123456',
             },
@@ -57,6 +56,7 @@ describe('ComboDisplay', () => {
             id: 'game-2',
             name: 'Custom Fighter',
             buttonLayout: ['L', 'M', 'H'],
+            notationProfile: 'standard',
             buttonColors: {
                 L: '#123456',
                 H: '#abcdef',
@@ -80,6 +80,41 @@ describe('ComboDisplay', () => {
         expect(buttonH.getAttribute('style')).toContain('color: rgb(171, 205, 239)');
     });
 
+    it.each(['colored-text', 'visual-icons'] as const)(
+        'uses one neutral separator color for grouping parentheses in %s mode',
+        (mode) => {
+            const game: Game = {
+                id: `grouping-parentheses-${mode}`,
+                name: 'Custom Fighter',
+                notationProfile: 'standard',
+                buttonLayout: ['L', 'M', 'H'],
+                buttonColors: {
+                    L: '#123456',
+                    M: '#abcdef',
+                    H: '#fedcba',
+                },
+                createdAt: 1,
+                updatedAt: 1,
+            };
+            const tokens = parseComboNotation(
+                '(214L or 236M+H)',
+                game.buttonLayout,
+            );
+
+            render(<ComboDisplay tokens={tokens} game={game} mode={mode} />);
+
+            const openingParen = screen.getByText('(');
+            const closingParen = screen.getByText(')');
+
+            for (const paren of [openingParen, closingParen]) {
+                expect(paren.getAttribute('style')).toContain(
+                    'color: rgb(204, 204, 204)',
+                );
+                expect(paren.getAttribute('class')).toContain('opacity-60');
+            }
+        },
+    );
+
     it('renders bracket button modifier as icon flanked by bracket spans in icon mode', () => {
         const tokens: ComboToken[] = [
             { type: 'modifier', value: '[D]', rawValue: '[D]' },
@@ -89,6 +124,7 @@ describe('ComboDisplay', () => {
             id: 'game-1',
             name: 'Test Fighter',
             buttonLayout: ['A', 'B', 'C', 'D'],
+            notationProfile: 'standard',
             buttonColors: { D: '#123456' },
             createdAt: Date.now(),
             updatedAt: Date.now(),

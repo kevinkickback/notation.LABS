@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IpcMainInvokeEvent } from 'electron';
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
+import { UPDATE_INVOKE_CHANNELS } from '../src/lib/updater/ipcContract';
 import { isPromptableExternalUrl, isSafeExternalUrl } from './security';
 import {
   cancelDownload,
@@ -22,46 +23,91 @@ const __dirname = dirname(__filename);
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 
+const SPLASH_LOAD_TIMEOUT_MS = 5_000;
+const DEBUG_SPLASH_DELAY_MS = 5_000;
+const MAIN_WINDOW_LOAD_TIMEOUT_MS = 15_000;
+
 const iconPath = app.isPackaged
   ? join(process.resourcesPath, 'icon.ico')
   : join(__dirname, '..', 'build', 'icon.ico');
 
-function createSplashWindow(): Promise<void> {
-  return new Promise((resolve) => {
-    splashWindow = new BrowserWindow({
-      icon: iconPath,
-      width: 480,
-      height: 360,
-      useContentSize: true,
-      frame: false,
-      hasShadow: false,
-      transparent: false,
-      backgroundColor: '#1a1a2e',
-      resizable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      show: false,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true,
-      },
-    });
-
-    const splashPath = app.isPackaged
-      ? join(process.resourcesPath, 'splash.html')
-      : join(__dirname, '..', 'build', 'splash.html');
-    splashWindow.loadFile(splashPath);
-    splashWindow.once('ready-to-show', () => {
-      splashWindow?.show();
-      splashWindow?.center();
-      resolve();
-    });
+async function loadWindowContent(
+  window: BrowserWindow,
+  load: () => Promise<void>,
+  timeoutMs: number,
+): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const readyToShow = new Promise<void>((resolve) => {
+    window.once('ready-to-show', resolve);
   });
+  const timedOut = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`Window did not become ready within ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    await Promise.race([
+      Promise.all([Promise.resolve().then(load), readyToShow]),
+      timedOut,
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
+function closeSplashWindow(): void {
+  const window = splashWindow;
+  splashWindow = null;
+  if (window && !window.isDestroyed()) {
+    window.close();
+  }
+}
+
+async function createSplashWindow(): Promise<void> {
+  const window = new BrowserWindow({
+    icon: iconPath,
+    width: 478,
+    height: 358,
+    useContentSize: true,
+    frame: false,
+    hasShadow: false,
+    transparent: false,
+    backgroundColor: '#1a1a2e',
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  splashWindow = window;
+
+  const splashPath = app.isPackaged
+    ? join(process.resourcesPath, 'splash.html')
+    : join(__dirname, '..', 'build', 'splash.html');
+
+  try {
+    await loadWindowContent(
+      window,
+      () => window.loadFile(splashPath),
+      SPLASH_LOAD_TIMEOUT_MS,
+    );
+    if (!window.isDestroyed()) {
+      window.center();
+      window.show();
+    }
+  } catch (error) {
+    console.error('Unable to load the splash window; continuing.', error);
+    closeSplashWindow();
+  }
+}
+
+async function createWindow(): Promise<boolean> {
+  const window = new BrowserWindow({
     icon: iconPath,
     width: 1200,
     height: 800,
@@ -80,17 +126,10 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
   });
-
-  mainWindow.once('ready-to-show', () => {
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.close();
-      splashWindow = null;
-    }
-    mainWindow?.show();
-  });
+  mainWindow = window;
 
   // Restrict navigation to app's own URLs
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  window.webContents.on('will-navigate', (event, url) => {
     const allowedOrigins = ['http://localhost:', `file://${__dirname}`];
     const isAllowed = allowedOrigins.some((origin) => url.startsWith(origin));
     if (!isAllowed) {
@@ -99,7 +138,7 @@ function createWindow(): void {
   });
 
   // Restrict new window creation: open external links in default browser, block others
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url }) => {
     if (isSafeExternalUrl(url)) {
       void shell.openExternal(url);
       return { action: 'deny' };
@@ -140,15 +179,56 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(join(__dirname, '../dist/index.html'));
-  }
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
+  window.on('closed', () => {
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
   });
+
+  try {
+    await loadWindowContent(
+      window,
+      () =>
+        process.env.VITE_DEV_SERVER_URL
+          ? window.loadURL(process.env.VITE_DEV_SERVER_URL)
+          : window.loadFile(join(__dirname, '../dist/index.html')),
+      MAIN_WINDOW_LOAD_TIMEOUT_MS,
+    );
+    closeSplashWindow();
+    if (!window.isDestroyed()) {
+      window.show();
+    }
+    return true;
+  } catch (error) {
+    console.error('Unable to load the main application window.', error);
+    closeSplashWindow();
+    if (!window.isDestroyed()) {
+      window.close();
+    }
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
+
+    try {
+      await dialog.showMessageBox({
+        type: 'error',
+        buttons: ['Quit'],
+        defaultId: 0,
+        title: 'Notation Labs could not start',
+        message: 'The application interface could not be loaded.',
+        detail:
+          error instanceof Error
+            ? error.message
+            : 'An unknown window loading error occurred.',
+      });
+    } catch (dialogError) {
+      console.error('Unable to display the startup error dialog.', dialogError);
+    } finally {
+      app.quit();
+    }
+
+    return false;
+  }
 }
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
@@ -211,11 +291,14 @@ app.on('ready', async () => {
   session.defaultSession.setPermissionCheckHandler(() => false);
 
   await createSplashWindow();
-  createWindow();
+  if (isDev) {
+    await new Promise((resolve) => setTimeout(resolve, DEBUG_SPLASH_DELAY_MS));
+  }
+  const mainWindowReady = createWindow();
 
   initAutoUpdater();
 
-  ipcMain.handle('update:check', async (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.check, async (event) => {
     assertTrustedIpcSender(event);
     try {
       const status = await checkForUpdate();
@@ -225,7 +308,7 @@ app.on('ready', async () => {
     }
   });
 
-  ipcMain.handle('update:download', async (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.download, async (event) => {
     assertTrustedIpcSender(event);
     try {
       await downloadUpdate();
@@ -235,7 +318,7 @@ app.on('ready', async () => {
     }
   });
 
-  ipcMain.handle('update:cancel', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.cancel, (event) => {
     assertTrustedIpcSender(event);
     const cancelled = cancelDownload();
     return {
@@ -245,32 +328,35 @@ app.on('ready', async () => {
     };
   });
 
-  ipcMain.handle('update:install', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.install, (event) => {
     assertTrustedIpcSender(event);
     installUpdate();
   });
 
-  ipcMain.handle('update:status', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.status, (event) => {
     assertTrustedIpcSender(event);
     return getUpdateStatus();
   });
 
-  ipcMain.handle('update:set-auto-check', (event, enabled: unknown) => {
-    assertTrustedIpcSender(event);
-    if (typeof enabled !== 'boolean') return;
-    if (enabled) {
-      startAutoCheckSchedule();
-    } else {
-      stopAutoCheckSchedule();
-    }
-  });
+  ipcMain.handle(
+    UPDATE_INVOKE_CHANNELS.setAutoCheck,
+    (event, enabled: unknown) => {
+      assertTrustedIpcSender(event);
+      if (typeof enabled !== 'boolean') return;
+      if (enabled) {
+        startAutoCheckSchedule();
+      } else {
+        stopAutoCheckSchedule();
+      }
+    },
+  );
 
-  ipcMain.handle('update:get-version', (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.getVersion, (event) => {
     assertTrustedIpcSender(event);
     return app.getVersion();
   });
 
-  ipcMain.handle('update:get-current-changelog', async (event) => {
+  ipcMain.handle(UPDATE_INVOKE_CHANNELS.getCurrentChangelog, async (event) => {
     assertTrustedIpcSender(event);
     const version = app.getVersion();
     const changelog = await fetchChangelog(version);
@@ -331,12 +417,14 @@ app.on('ready', async () => {
       }
     },
   );
+
+  await mainWindowReady;
 });
 
 // macOS: re-create window when dock icon clicked
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    void createWindow();
   }
 });
 

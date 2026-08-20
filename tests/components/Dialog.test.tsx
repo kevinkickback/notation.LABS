@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
 
@@ -18,6 +20,7 @@ describe('Dialog', () => {
       <Dialog open>
         <DialogContent>
           <DialogTitle>Viewport-safe dialog</DialogTitle>
+          <DialogDescription>Dialog layout test</DialogDescription>
           <DialogBody>Scrollable content</DialogBody>
         </DialogContent>
       </Dialog>,
@@ -39,6 +42,7 @@ describe('Dialog', () => {
       <Dialog open>
         <DialogContent className="flex flex-col overflow-hidden">
           <DialogTitle>Long form</DialogTitle>
+          <DialogDescription>Long form layout test</DialogDescription>
           <DialogBody>Form fields</DialogBody>
         </DialogContent>
       </Dialog>,
@@ -57,6 +61,9 @@ describe('AlertDialog', () => {
       <AlertDialog open>
         <AlertDialogContent>
           <AlertDialogTitle>Viewport-safe confirmation</AlertDialogTitle>
+          <AlertDialogDescription>
+            Confirmation layout test
+          </AlertDialogDescription>
         </AlertDialogContent>
       </AlertDialog>,
     );

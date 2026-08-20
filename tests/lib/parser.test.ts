@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GUIDE_PARSER_SAMPLES } from '@/lib/notationGuideData';
-import { parseComboNotation, getTokenColor, getMotionName } from '@/lib/parser';
+import { getTokenColor } from '@/components/combo/comboDisplayUtils';
+import { parseComboNotation } from '@/lib/parser';
 
 describe('parseComboNotation', () => {
   describe('directions', () => {
@@ -470,6 +471,15 @@ describe('parseComboNotation', () => {
       expect(tokens[0]).toMatchObject({ type: 'unknown', value: 'blink' });
     });
 
+    it('parses word alternatives case-insensitively without matching inside words', () => {
+      expect(parseComboNotation('L OR M')).toContainEqual(
+        expect.objectContaining({ type: 'separator', value: 'or' }),
+      );
+      expect(parseComboNotation('order')).toEqual([
+        expect.objectContaining({ type: 'unknown', value: 'order' }),
+      ]);
+    });
+
     it('parses : separator (just frame)', () => {
       const tokens = parseComboNotation('L:M');
       expect(tokens).toHaveLength(3);
@@ -717,6 +727,137 @@ describe('parseComboNotation', () => {
   });
 
   describe('parenthesized annotations', () => {
+    it('parses Standard notation alternatives inside parentheses', () => {
+      const tokens = parseComboNotation('(214L or 236M+H)', ['L', 'M', 'H']);
+
+      expect(tokens).toMatchObject([
+        { type: 'modifier', value: '(' },
+        { type: 'motion', value: '214' },
+        { type: 'button', value: 'L' },
+        { type: 'separator', value: 'or' },
+        { type: 'motion', value: '236' },
+        { type: 'button', value: 'M' },
+        { type: 'separator', value: '+' },
+        { type: 'button', value: 'H' },
+        { type: 'modifier', value: ')' },
+      ]);
+    });
+
+    it.each(['(L)', '(2H)', '(236)', '(qcf.H)', '(CH 236H)'])(
+      'parses recognized Standard input group %s',
+      (notation) => {
+        const tokens = parseComboNotation(notation);
+
+        expect(tokens[0]).toMatchObject({ type: 'modifier', value: '(' });
+        expect(tokens[tokens.length - 1]).toMatchObject({
+          type: 'modifier',
+          value: ')',
+        });
+        expect(
+          tokens.some((token) =>
+            ['direction', 'motion', 'button'].includes(token.type),
+          ),
+        ).toBe(true);
+        expect(tokens.some((token) => token.type === 'unknown')).toBe(false);
+      },
+    );
+
+    it.each([
+      {
+        profile: 'nrs' as const,
+        notation: '(f1 OR b2+3)',
+        expectedInputs: ['f', '1', 'b', '2', '3'],
+      },
+      {
+        profile: 'tekken' as const,
+        notation: '(d/f+1 or b+2)',
+        expectedInputs: ['d/f', '1', 'b', '2'],
+      },
+    ])(
+      'parses $profile notation alternatives inside parentheses',
+      ({ profile, notation, expectedInputs }) => {
+        const tokens = parseComboNotation(notation, ['1', '2', '3', '4'], {
+          profile,
+        });
+
+        expect(
+          tokens
+            .filter((token) =>
+              ['direction', 'motion', 'button'].includes(token.type),
+            )
+            .map((token) => token.value),
+        ).toEqual(expectedInputs);
+        expect(tokens).toContainEqual(
+          expect.objectContaining({ type: 'separator', value: 'or' }),
+        );
+        expect(tokens[0]).toMatchObject({ type: 'modifier', value: '(' });
+        expect(tokens[tokens.length - 1]).toMatchObject({
+          type: 'modifier',
+          value: ')',
+        });
+      },
+    );
+
+    it('parses nested and slash-separated parenthesized notation', () => {
+      const tokens = parseComboNotation('((214L / 236M+H))', ['L', 'M', 'H']);
+
+      expect(tokens.filter((token) => token.value === '(')).toHaveLength(2);
+      expect(tokens.filter((token) => token.value === ')')).toHaveLength(2);
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ type: 'motion', value: '214' }),
+      );
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ type: 'motion', value: '236' }),
+      );
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ type: 'separator', value: '/' }),
+      );
+    });
+
+    it('keeps parenthesized alternatives parseable when the group repeats', () => {
+      const tokens = parseComboNotation('(214L or 236M+H)x2', ['L', 'M', 'H']);
+
+      expect(tokens[0]).toMatchObject({ type: 'repeat-start', value: '(' });
+      expect(tokens[tokens.length - 1]).toMatchObject({
+        type: 'repeat-end',
+        repeatCount: 2,
+      });
+      expect(
+        tokens
+          .filter((token) => token.type === 'motion')
+          .map((token) => token.value),
+      ).toEqual(['214', '236']);
+      expect(tokens).toContainEqual(
+        expect.objectContaining({ type: 'separator', value: 'or' }),
+      );
+    });
+
+    it.each(['(Level 3)', '(damage 123)', '(wallsplat 2)'])(
+      'keeps descriptive numeric annotation %s intact',
+      (notation) => {
+        expect(parseComboNotation(notation)).toEqual([
+          expect.objectContaining({
+            type: 'modifier',
+            value: notation,
+            rawValue: notation,
+          }),
+        ]);
+      },
+    );
+
+    it('parses a lone numbered input in numbered-button profiles only', () => {
+      expect(
+        parseComboNotation('(1)', ['1', '2', '3', '4'], { profile: 'nrs' }),
+      ).toMatchObject([
+        { type: 'modifier', value: '(' },
+        { type: 'button', value: '1' },
+        { type: 'modifier', value: ')' },
+      ]);
+      expect(parseComboNotation('(3)')).toEqual([
+        expect.objectContaining({ type: 'modifier', value: '(3)' }),
+      ]);
+    });
+
     it('normalizes (Land) to the landing separator token', () => {
       const tokens = parseComboNotation('(Land)');
       expect(tokens).toHaveLength(1);
@@ -1369,6 +1510,11 @@ describe('getTokenColor', () => {
     expect(getTokenColor(token, colors)).toBe('#ff0000');
   });
 
+  it.each(['(', ')'])('returns separator color for grouping parenthesis %s', (value) => {
+    const token = { type: 'modifier' as const, value, rawValue: value };
+    expect(getTokenColor(token, colors)).toBe('#00ff00');
+  });
+
   it('returns separator color for separator tokens', () => {
     const token = { type: 'separator' as const, value: '>', rawValue: '>' };
     expect(getTokenColor(token, colors)).toBe('#00ff00');
@@ -1429,57 +1575,34 @@ describe('getTokenColor', () => {
   });
 });
 
-describe('getMotionName', () => {
-  it('returns "Quarter Circle Forward" for 236', () => {
-    expect(getMotionName('236')).toBe('Quarter Circle Forward');
-  });
-
-  it('returns "Quarter Circle Back" for 214', () => {
-    expect(getMotionName('214')).toBe('Quarter Circle Back');
-  });
-
-  it('returns "Dragon Punch" for 623', () => {
-    expect(getMotionName('623')).toBe('Dragon Punch');
-  });
-
-  it('returns "Half Circle Forward" for 41236', () => {
-    expect(getMotionName('41236')).toBe('Half Circle Forward');
-  });
-
-  it('returns "Full Circle" for 360', () => {
-    expect(getMotionName('360')).toBe('Full Circle');
-  });
-
-  it('returns "Double Circle" for 720', () => {
-    expect(getMotionName('720')).toBe('Double Circle');
-  });
-
-  it('returns "Down Down" for 22', () => {
-    expect(getMotionName('22')).toBe('Down Down');
-  });
-
-  it('returns "Forward Forward" for 66', () => {
-    expect(getMotionName('66')).toBe('Forward Forward');
-  });
-
-  it('returns "Back Back" for 44', () => {
-    expect(getMotionName('44')).toBe('Back Back');
-  });
-
-  it('returns "Up Up" for 88', () => {
-    expect(getMotionName('88')).toBe('Up Up');
-  });
-
-  it('returns "Half Circle Back" for 63214', () => {
-    expect(getMotionName('63214')).toBe('Half Circle Back');
-  });
-
-  it('returns the raw motion for unknown motions', () => {
-    expect(getMotionName('999')).toBe('999');
-  });
-});
 
 describe('community notation profiles', () => {
+  it.each([
+    '5D /\\ j.P > hjc > j.C',
+    'CH 2H > OTG 2K > 236K',
+    'FC 5C > hjc. > j.C',
+    '[2]8D > 41236C(1)',
+  ])('parses additional Standard community notation: %s', (notation) => {
+    const tokens = parseComboNotation(notation, ['P', 'K', 'C', 'D', 'H']);
+
+    expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+  });
+
+  it('distinguishes Standard homing-jump and high-jump-cancel syntax', () => {
+    const tokens = parseComboNotation('5D /\\ j.P > HJC > j.C', [
+      'P',
+      'C',
+      'D',
+    ]);
+
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'separator', value: '/\\' }),
+    );
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: 'hjc.' }),
+    );
+  });
+
   it('preserves Tekken 7 spaces between inputs within each move', () => {
     const notation = 'd d/f f 1 , U/F N 4';
     const tokens = parseComboNotation(notation, ['1', '2', '3', '4'], {
@@ -1566,6 +1689,34 @@ describe('community notation profiles', () => {
     },
   );
 
+  it('supports current and classic Mortal Kombat button aliases', () => {
+    const tokens = parseComboNotation(
+      'D+FP, F+BP, FK, BK, TH, FS, BL, KM, SS',
+      ['1', '2', '3', '4'],
+      nrsOptions,
+    );
+
+    expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+    expect(
+      tokens
+        .filter((token) => token.type === 'button')
+        .map((token) => token.value),
+    ).toEqual(['FP', 'BP', 'FK', 'BK', 'TH', 'FS', 'BL', 'KM', 'SS']);
+  });
+
+  it.each([
+    'F12~B+K, D[B]1, U+Block',
+    'TH / FP+FK, D+BP, B+BK',
+  ])('parses additional Mortal Kombat community notation: %s', (notation) => {
+    const tokens = parseComboNotation(
+      notation,
+      ['1', '2', '3', '4'],
+      nrsOptions,
+    );
+
+    expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+  });
+
   it.each([
     'f,N,d,d/f+2',
     'D/F+1,2,1,2',
@@ -1575,6 +1726,9 @@ describe('community notation profiles', () => {
     'FD/FT 3+4',
     'During Heat ► f,N,d,d/f,2*(max) ► dash ► Heat Burst ► 1,2,WBl! ► Rage Art',
     'AIR, iWS 1 2, cd 2 S!, f f 3 F!, any',
+    'f,n,d,df#2 T! FUFT.3+4 hFC.df+1 CL db+4',
+    'CH (1,2),4 <d+2 [50] b+2,f~n(x3) ws2,4',
+    'B! S! T! W! WB! F! FB! FBl! BB!',
   ])('parses Tekken community notation: %s', (notation) => {
     const tokens = parseComboNotation(
       notation,
@@ -1584,6 +1738,78 @@ describe('community notation profiles', () => {
 
     expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
   });
+
+  it('recognizes current Wavu Tekken separators, states, and combo markers', () => {
+    const tokens = parseComboNotation(
+      'f,n,d,df#2 T! FUFT.3+4 hFC.df+1 CL db+4',
+      ['1', '2', '3', '4'],
+      tekkenOptions,
+    );
+
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'separator', value: '#' }),
+    );
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: 'T!' }),
+    );
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: 'FU/FT' }),
+    );
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: 'hFC' }),
+    );
+    expect(tokens).toContainEqual(
+      expect.objectContaining({ type: 'modifier', value: 'CL' }),
+    );
+    expect(tokens.map((token) => token.rawValue).join('')).toBe(
+      'f,n,d,df#2 T! FUFT.3+4 hFC.df+1 CL db+4',
+    );
+  });
+
+  it('keeps explicit Tekken single-letter custom buttons authoritative', () => {
+    const tokens = parseComboNotation(
+      'P H J R',
+      ['1', '2', '3', '4', 'P', 'H', 'J', 'R'],
+      tekkenOptions,
+    );
+
+    expect(
+      tokens
+        .filter((token) => token.type === 'button')
+        .map((token) => token.value),
+    ).toEqual(['P', 'H', 'J', 'R']);
+    expect(tokens.filter((token) => token.type === 'modifier')).toEqual([]);
+  });
+
+  it.each([
+    {
+      profile: 'standard' as const,
+      buttons: ['P', 'K', 'D'],
+      notation: '(5D /\\ j.P or OTG 2K)',
+    },
+    {
+      profile: 'nrs' as const,
+      buttons: ['1', '2', '3', '4'],
+      notation: '(D+FP or F+KM)',
+    },
+    {
+      profile: 'tekken' as const,
+      buttons: ['1', '2', '3', '4'],
+      notation: '(f,n,d,df#2 or hFC.df+1 T!)',
+    },
+  ])(
+    'parses audited $profile community syntax inside parentheses',
+    ({ profile, buttons, notation }) => {
+      const tokens = parseComboNotation(notation, buttons, { profile });
+
+      expect(tokens[0]).toMatchObject({ type: 'modifier', value: '(' });
+      expect(tokens[tokens.length - 1]).toMatchObject({
+        type: 'modifier',
+        value: ')',
+      });
+      expect(tokens.filter((token) => token.type === 'unknown')).toEqual([]);
+    },
+  );
 
   it('supports MK1 slash diagonals without changing compact NRS sequences', () => {
     const tokens = parseComboNotation(

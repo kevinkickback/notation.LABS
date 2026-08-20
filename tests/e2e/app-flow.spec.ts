@@ -98,6 +98,30 @@ test.describe('Core E2E Flows', () => {
     await expect(page.locator('h3', { hasText: 'BnB Starter' })).toHaveCount(0);
   });
 
+  test('persists favorite games and keeps them first', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await addGame(page, 'Alpha Fighter');
+    await addGame(page, 'Zulu Fighter');
+
+    const gameNames = page.locator('h3');
+    await expect(gameNames).toHaveText(['Alpha Fighter', 'Zulu Fighter']);
+
+    await page.locator('h3', { hasText: 'Zulu Fighter' }).first().hover();
+    await page
+      .getByRole('button', { name: 'Add to favorites: Zulu Fighter' })
+      .click();
+    await expect(gameNames).toHaveText(['Zulu Fighter', 'Alpha Fighter']);
+
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Remove from favorites: Zulu Fighter' }),
+    ).toBeVisible();
+    await expect(gameNames).toHaveText(['Zulu Fighter', 'Alpha Fighter']);
+
+  });
+
   test('marks selected combos as outdated', async ({ page }) => {
     await navigateToComboView(page);
     await addCombo(page, 'Patch Check Combo', '5L > 5H > 214H');
@@ -107,7 +131,10 @@ test.describe('Core E2E Flows', () => {
     await page.getByRole('button', { name: /^select all$/i }).click();
     await page.getByRole('button', { name: 'Mark Outdated' }).click();
 
-    await expect(page.getByText('Outdated')).toBeVisible();
+    const comboMetadata = page
+      .locator('h3', { hasText: 'Patch Check Combo' })
+      .locator('..');
+    await expect(comboMetadata.getByText('Outdated', { exact: true })).toBeVisible();
   });
 
   test('deletes selected combos through confirmation dialog', async ({

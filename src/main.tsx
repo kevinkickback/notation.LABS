@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ErrorBoundary } from 'react-error-boundary';
 import { SettingsProvider } from '@/context/SettingsContext';
+import { UpdaterProvider } from '@/context/UpdaterContext';
 
 import App from './App.tsx';
 import { ErrorFallback } from './ErrorFallback.tsx';
@@ -18,7 +19,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <SettingsProvider>
-        <App />
+        <UpdaterProvider>
+          <App />
+        </UpdaterProvider>
       </SettingsProvider>
     </ErrorBoundary>
   </StrictMode>,

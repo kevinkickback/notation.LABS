@@ -19,6 +19,7 @@ interface ChangelogModalProps {
   changelog: string | null;
   loading?: boolean;
   onInstall?: () => void;
+  installLabel?: string;
 }
 
 export function ChangelogModal({
@@ -28,6 +29,7 @@ export function ChangelogModal({
   changelog,
   loading = false,
   onInstall,
+  installLabel = 'Install Now',
 }: ChangelogModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,7 +97,7 @@ export function ChangelogModal({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Skip
               </Button>
-              <Button onClick={onInstall}>Install Now</Button>
+              <Button onClick={onInstall}>{installLabel}</Button>
             </>
           ) : (
             <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -15,9 +15,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
-import { useSettings } from '@/context/SettingsContext';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { parseComboNotation } from '@/lib/parser';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type {
   DisplayMode,
   IconStyle,
@@ -36,6 +35,7 @@ const SCALE_LABELS: Record<number, string> = {
 
 export function NotationSettings() {
   const settings = useSettings();
+  const { setSetting } = useSettingsActions();
   const displayModeBaseId = useId();
   const iconStyleBaseId = useId();
   const coloredTextId = `${displayModeBaseId}-colored-text`;
@@ -48,7 +48,7 @@ export function NotationSettings() {
     key: K,
     value: UserSettings[K],
   ) => {
-    await indexedDbStorage.settings.update({ [key]: value });
+    await setSetting(key, value);
   };
   const sampleTokens = parseComboNotation(SAMPLE_COMBO);
   const scale = settings.comboScale ?? 1;

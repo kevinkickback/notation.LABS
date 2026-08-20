@@ -22,8 +22,8 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     settings: {
       update: vi.fn().mockResolvedValue(undefined),
       getNotesOverrides: vi.fn().mockResolvedValue([]),
+      setNotesOverride: vi.fn().mockResolvedValue(undefined),
       setNotesOverrides: vi.fn().mockResolvedValue(undefined),
-      removeNotesOverride: vi.fn().mockResolvedValue(undefined),
     },
     demoVideos: {
       delete: vi.fn().mockResolvedValue(undefined),
@@ -39,14 +39,16 @@ vi.mock('@/context/SettingsContext', () => ({
     notationColors: { direction: '#fff', separator: '#ccc' },
     displayMode: 'colored-text',
     iconStyle: 'round',
-    uiTheme: 'default',
     comboScale: 1,
     autoUpdate: true,
     confirmBeforeDelete: false,
     videoPlayerSize: 'lg',
     gameCardSize: 180,
     characterCardSize: 180,
-    showChangelogBeforeUpdate: true,
+  }),
+  useSettingsActions: vi.fn().mockReturnValue({
+    setSetting: vi.fn().mockResolvedValue(true),
+    setNotesOverride: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 
@@ -61,6 +63,7 @@ const mockGame: Game = {
   id: 'game-1',
   name: 'Street Fighter 6',
   buttonLayout: ['L', 'M', 'H', 'S'],
+  notationProfile: 'standard',
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };

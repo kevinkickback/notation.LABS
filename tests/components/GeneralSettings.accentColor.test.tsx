@@ -1,11 +1,18 @@
 import type { ReactNode } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { GeneralSettings } from '@/components/settings/GeneralSettings';
-import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
+import { UpdaterProvider } from '@/context/UpdaterContext';
+import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const checkForUpdateMock = vi.fn();
 const getCurrentChangelogMock = vi.fn();
+const setSettingMock = vi.fn();
+
+vi.mock('@/context/SettingsContext', () => ({
+  useSettings: () => DEFAULT_SETTINGS,
+  useSettingsActions: () => ({ setSetting: setSettingMock }),
+}));
 
 vi.mock('@/components/ui/select', async () => {
   const React = await import('react');
@@ -67,20 +74,12 @@ vi.mock('sonner', () => ({
   },
 }));
 
-// Mock indexedDbStorage
-vi.mock('@/lib/storage/indexedDbStorage', () => ({
-  indexedDbStorage: {
-    settings: {
-      get: vi.fn(async () => ({ ...DEFAULT_SETTINGS })),
-      update: vi.fn(async () => { }),
-    },
-  },
-}));
-
 describe('GeneralSettings accent color', () => {
   beforeEach(() => {
     checkForUpdateMock.mockReset();
     getCurrentChangelogMock.mockReset();
+    setSettingMock.mockReset();
+    setSettingMock.mockResolvedValue(true);
     window.electronAPI = {
       platform: 'win32',
       versions: {
@@ -92,8 +91,8 @@ describe('GeneralSettings accent color', () => {
       downloadUpdate: vi.fn(),
       cancelUpdate: vi.fn(),
       installUpdate: vi.fn(),
-      getUpdateStatus: vi.fn(),
-      setAutoCheck: vi.fn(),
+      getUpdateStatus: vi.fn().mockResolvedValue({ status: 'idle' }),
+      setAutoCheck: vi.fn().mockResolvedValue(undefined),
       getAppVersion: vi.fn().mockResolvedValue('1.3.0'),
       getCurrentChangelog: getCurrentChangelogMock.mockResolvedValue({
         version: '1.3.0',
@@ -110,8 +109,15 @@ describe('GeneralSettings accent color', () => {
     };
   });
 
-  it('renders accent color picker and updates CSS variable', async () => {
-    render(<GeneralSettings />);
+  const renderGeneralSettings = () =>
+    render(
+      <UpdaterProvider>
+        <GeneralSettings />
+      </UpdaterProvider>,
+    );
+
+  it('renders accent color picker and requests persistence', async () => {
+    renderGeneralSettings();
     // Wait for settings to load
     expect(await screen.findByLabelText(/accent color picker/i)).not.toBeNull();
     const colorInput = screen.getByLabelText(
@@ -119,10 +125,9 @@ describe('GeneralSettings accent color', () => {
     ) as HTMLInputElement;
     // Simulate color change
     fireEvent.change(colorInput, { target: { value: '#ff0000' } });
-    // CSS variable should be set
-    expect(
-      document.documentElement.style.getPropertyValue('--accent-color'),
-    ).toBe('#ff0000');
+    await waitFor(() => {
+      expect(setSettingMock).toHaveBeenCalledWith('accentColor', '#ff0000');
+    });
   });
 
   it('shows update check failure instead of up-to-date on failed responses', async () => {
@@ -132,7 +137,7 @@ describe('GeneralSettings accent color', () => {
       error: 'network down',
     });
 
-    render(<GeneralSettings />);
+    renderGeneralSettings();
 
     fireEvent.click(await screen.findByRole('button', { name: /check now/i }));
 
@@ -140,28 +145,33 @@ describe('GeneralSettings accent color', () => {
     expect(screen.queryByText(/up to date/i)).toBeNull();
   });
 
-  it('updates the document theme class when the theme changes', async () => {
-    render(<GeneralSettings />);
+  it('requests persistence when the theme changes', async () => {
+    renderGeneralSettings();
 
     const selects = await screen.findAllByLabelText('mock-select');
     fireEvent.change(selects[0], { target: { value: 'light' } });
 
-    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    await waitFor(() => {
+      expect(setSettingMock).toHaveBeenCalledWith('colorTheme', 'light');
+    });
   });
 
-  it('updates the app font CSS variable when the font changes', async () => {
-    render(<GeneralSettings />);
+  it('requests persistence when the font changes', async () => {
+    renderGeneralSettings();
 
     const selects = await screen.findAllByLabelText('mock-select');
     fireEvent.change(selects[1], { target: { value: 'jetbrains-mono' } });
 
-    expect(
-      document.documentElement.style.getPropertyValue('--app-font-family'),
-    ).toBe(getFontFamilyCSS('jetbrains-mono'));
+    await waitFor(() => {
+      expect(setSettingMock).toHaveBeenCalledWith(
+        'fontFamily',
+        'jetbrains-mono',
+      );
+    });
   });
 
   it('loads the current changelog in electron mode', async () => {
-    render(<GeneralSettings />);
+    renderGeneralSettings();
 
     fireEvent.click(await screen.findByRole('button', { name: /^view$/i }));
 

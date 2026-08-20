@@ -1,5 +1,5 @@
 import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,8 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useCachedSearch } from '@/hooks/useCachedSearch';
+import {
+  downloadCharacterImage,
+  searchCharacterImages,
+} from '@/lib/providers/imageSearchProvider';
 import type { ImageSearchResult } from '@/lib/types';
-import { fetchImageAsBase64, getApiBase } from '@/lib/utils';
+
+const getSearchErrorMessage = () =>
+  'Image search failed. Check your internet connection.';
 
 interface CharacterSearchDialogProps {
   open: boolean;
@@ -26,85 +33,27 @@ export function CharacterSearchDialog({
   searchQuery,
   onImageSelect,
 }: CharacterSearchDialogProps) {
-  const ddgApiBase = getApiBase('ddg');
-  const [inputValue, setInputValue] = useState(searchQuery);
-  const [results, setResults] = useState<ImageSearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  const prevOpenRef = useRef(false);
-  const resultsCacheRef = useRef<Map<string, ImageSearchResult[]>>(new Map());
-
-  const handleSearch = useCallback(
-    async (query?: string) => {
-      const q = (typeof query === 'string' ? query : inputValue).trim();
-      if (!q) return;
-
-      const cached = resultsCacheRef.current.get(q);
-      if (cached) {
-        setError(null);
-        setResults(cached);
-        setHasSearched(true);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      setResults([]);
-      setHasSearched(true);
-      try {
-        const res = await fetch(`${ddgApiBase}/image-search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q }),
-        });
-        if (!res.ok) {
-          setError('Search failed');
-          return;
-        }
-        const data: ImageSearchResult[] = await res.json();
-        resultsCacheRef.current.set(q, data);
-        setResults(data);
-      } catch {
-        setError('Image search failed. Check your internet connection.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [ddgApiBase, inputValue],
-  );
-
-  // Only reset and re-search when dialog opens with a changed or uncached query
-  useEffect(() => {
-    if (open && !prevOpenRef.current) {
-      setInputValue(searchQuery);
-      const trimmed = searchQuery.trim();
-      const cached = resultsCacheRef.current.get(trimmed);
-      if (cached) {
-        setError(null);
-        setResults(cached);
-        setHasSearched(true);
-      } else {
-        setResults([]);
-        setError(null);
-        setHasSearched(false);
-        if (trimmed) {
-          handleSearch(searchQuery);
-        }
-      }
-    }
-    prevOpenRef.current = open;
-  }, [open, searchQuery, handleSearch]);
+  const {
+    query: inputValue,
+    setQuery: setInputValue,
+    results,
+    loading,
+    error,
+    hasSearched,
+    runSearch: handleSearch,
+  } = useCachedSearch<ImageSearchResult>({
+    open,
+    initialQuery: searchQuery,
+    search: searchCharacterImages,
+    getErrorMessage: getSearchErrorMessage,
+  });
 
   const handleImageSelect = async (result: ImageSearchResult) => {
     if (!result.imageUrl || downloading) return;
     setDownloading(result.imageUrl);
     try {
-      const dataUrl = await fetchImageAsBase64(
-        `${ddgApiBase}/download`,
-        result.imageUrl,
-      );
+      const dataUrl = await downloadCharacterImage(result.imageUrl);
       if (dataUrl) {
         onImageSelect(dataUrl);
         toast.success('Image applied');

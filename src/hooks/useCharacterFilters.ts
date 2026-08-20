@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { compareEntityNames, compareFavoritesFirst } from '@/lib/entitySorting';
 import type { Character } from '@/lib/types';
 
 export type CharacterSort = 'name-asc' | 'name-desc' | 'combos' | 'modified';
@@ -18,25 +19,38 @@ export function useCharacterFilters(
   const filteredAndSorted = useMemo(() => {
     let result = [...characters];
     if (filterSearch) {
-      const q = filterSearch.toLowerCase();
-      result = result.filter((c) => c.name.toLowerCase().includes(q));
+      const query = filterSearch.toLowerCase();
+      result = result.filter((character) =>
+        character.name.toLowerCase().includes(query),
+      );
     }
 
-    result.sort((a, b) => {
+    result.sort((left, right) => {
+      const favoriteOrder = compareFavoritesFirst(left, right);
+      if (favoriteOrder !== 0) return favoriteOrder;
+
+      let sortOrder: number;
       switch (sortBy) {
         case 'name-asc':
-          return a.name.localeCompare(b.name);
+          sortOrder = compareEntityNames(left, right);
+          break;
         case 'name-desc':
-          return b.name.localeCompare(a.name);
+          sortOrder = compareEntityNames(right, left);
+          break;
         case 'combos':
-          return (comboCountByChar[b.id] || 0) - (comboCountByChar[a.id] || 0);
+          sortOrder =
+            (comboCountByChar[right.id] || 0) -
+            (comboCountByChar[left.id] || 0);
+          break;
         case 'modified':
-          return (
-            (lastModifiedByChar[b.id] || 0) - (lastModifiedByChar[a.id] || 0)
-          );
+          sortOrder =
+            (lastModifiedByChar[right.id] || 0) -
+            (lastModifiedByChar[left.id] || 0);
+          break;
         default:
-          return 0;
+          sortOrder = 0;
       }
+      return sortOrder || compareEntityNames(left, right);
     });
 
     return result;
@@ -52,7 +66,7 @@ export function useCharacterFilters(
   };
 
   const toggleFilters = () => {
-    setShowFilters((prev) => !prev);
+    setShowFilters((previous) => !previous);
   };
 
   return {

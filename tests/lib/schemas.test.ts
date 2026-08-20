@@ -4,6 +4,7 @@ import {
   characterSchema,
   externalHttpUrlSchema,
   gameSchema,
+  legacyGameSchema,
 } from '@/lib/schemas';
 
 const timestamps = { createdAt: 1, updatedAt: 1 };
@@ -35,6 +36,7 @@ describe('cover image adjustment validation', () => {
         id: 'game-1',
         name: 'Game',
         buttonLayout: [],
+        notationProfile: 'standard',
         coverZoom: 200,
         coverPanX: 0,
         coverPanY: 100,
@@ -54,10 +56,24 @@ describe('cover image adjustment validation', () => {
         id: 'game-1',
         name: 'Game',
         buttonLayout: [],
+        notationProfile: 'standard',
         ...adjustment,
         ...timestamps,
       }).success,
     ).toBe(false);
+  });
+
+  it('keeps legacy notation fields at ingestion only', () => {
+    const legacyGame = {
+      id: 'legacy-game',
+      name: 'Legacy Game',
+      buttonLayout: [],
+      inputType: 'button-numbers' as const,
+      ...timestamps,
+    };
+
+    expect(legacyGameSchema.safeParse(legacyGame).success).toBe(true);
+    expect(gameSchema.safeParse(legacyGame).success).toBe(false);
   });
 
   it('rejects out-of-range character portrait values', () => {

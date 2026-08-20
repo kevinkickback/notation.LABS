@@ -1,40 +1,28 @@
 import { useState } from 'react';
 
-/**
- * Manages multi-select state and operations for characters.
- */
-export function useCharacterSelection() {
+export function useSelection() {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
+    setSelectedIds((current) => {
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
   };
 
-  const selectAll = (ids: string[]) => {
-    setSelectedIds(new Set(ids));
-  };
-
-  const deselectAll = () => {
-    setSelectedIds(new Set());
-  };
-
+  const selectAll = (ids: string[]) => setSelectedIds(new Set(ids));
+  const deselectAll = () => setSelectedIds(new Set());
   const clearSelection = () => {
     setSelectedIds(new Set());
     setIsSelecting(false);
   };
-
   const toggleSelectionMode = () => {
-    setIsSelecting((prev) => {
-      if (prev) {
-        setSelectedIds(new Set());
-      }
-      return !prev;
+    setIsSelecting((current) => {
+      if (current) setSelectedIds(new Set());
+      return !current;
     });
   };
 

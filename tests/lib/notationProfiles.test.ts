@@ -4,9 +4,9 @@ import {
   migrateLegacyNotationProfile,
   resolveNotationProfile,
 } from '@/lib/notationProfiles';
-import type { Game } from '@/lib/types';
+import type { LegacyGame } from '@/lib/types';
 
-function legacyGame(inputType: Game['inputType']): Game {
+function legacyGame(inputType: LegacyGame['inputType']): LegacyGame {
   return {
     id: `legacy-${inputType}`,
     name: 'Legacy Game',
@@ -42,6 +42,12 @@ describe('notation profiles', () => {
   it('provides accessible meanings for standardized Tekken mechanics', () => {
     expect(getMechanicAccessibilityLabel('tekken', 'S!')).toBe(
       'S!, Screw attack',
+    );
+    expect(getMechanicAccessibilityLabel('tekken', 'T!')).toBe(
+      'T!, Tornado attack',
+    );
+    expect(getMechanicAccessibilityLabel('tekken', 'CL')).toBe(
+      'CL, Clean hit',
     );
     expect(getMechanicAccessibilityLabel('tekken', '*(max)')).toBe(
       '*(max), Hold the preceding button to maximum level',

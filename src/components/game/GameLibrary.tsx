@@ -1,24 +1,19 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { useSettings } from '@/context/SettingsContext';
 import { useGameDelete } from '@/hooks/useGameDelete';
 import { useGameFilters } from '@/hooks/useGameFilters';
 import { useGameOperations } from '@/hooks/useGameOperations';
+import { useGameStatistics } from '@/hooks/useGameStatistics';
 import { useGameStats } from '@/hooks/useGameStats';
 import { useGameViewMode } from '@/hooks/useGameViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSelection } from '@/hooks/useSelection';
+import { setGameFavorite } from '@/lib/application/gameCommands';
+import { compareEntityNames, compareFavoritesFirst } from '@/lib/entitySorting';
+import { reportError } from '@/lib/errors';
 import { useAppStore } from '@/lib/store';
 import type { Game } from '@/lib/types';
 import { GameFormDialog } from './GameFormDialog';
@@ -36,8 +31,8 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const isMobile = useIsMobile();
   const { setSelectedGame } = useAppStore();
   const settings = useSettings();
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { isSelecting, setIsSelecting, selectedIds, setSelectedIds } =
+    useSelection();
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   const filters = useGameFilters();
@@ -46,7 +41,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const operations = useGameOperations();
 
   // Read stats inputs in one reactive transaction to reduce query churn.
-  const gameStatsData = useLiveQuery(indexedDbStorage.gameStats.getInputs, []);
+  const gameStatsData = useGameStatistics();
   const characters = gameStatsData?.characters;
   const combos = gameStatsData?.combos;
 
@@ -59,29 +54,36 @@ export function GameLibrary({ games }: GameLibraryProps) {
       result = result.filter((g) => g.name.toLowerCase().includes(q));
     }
     result.sort((a, b) => {
+      const favoriteOrder = compareFavoritesFirst(a, b);
+      if (favoriteOrder !== 0) return favoriteOrder;
+
+      let sortOrder: number;
       switch (filters.sortBy) {
         case 'name-asc':
-          return a.name.localeCompare(b.name);
+          sortOrder = compareEntityNames(a, b);
+          break;
         case 'name-desc':
-          return b.name.localeCompare(a.name);
+          sortOrder = compareEntityNames(b, a);
+          break;
         case 'characters':
-          return (
+          sortOrder =
             (stats.charCountByGame[b.id] || 0) -
-            (stats.charCountByGame[a.id] || 0)
-          );
+            (stats.charCountByGame[a.id] || 0);
+          break;
         case 'combos':
-          return (
+          sortOrder =
             (stats.comboCountByGame[b.id] || 0) -
-            (stats.comboCountByGame[a.id] || 0)
-          );
+            (stats.comboCountByGame[a.id] || 0);
+          break;
         case 'modified':
-          return (
+          sortOrder =
             (stats.lastModifiedByGame[b.id] || 0) -
-            (stats.lastModifiedByGame[a.id] || 0)
-          );
+            (stats.lastModifiedByGame[a.id] || 0);
+          break;
         default:
-          return 0;
+          sortOrder = 0;
       }
+      return sortOrder || compareEntityNames(a, b);
     });
     return result;
   }, [
@@ -93,18 +95,29 @@ export function GameLibrary({ games }: GameLibraryProps) {
     stats.lastModifiedByGame,
   ]);
 
+  const handleToggleFavorite = async (game: Game) => {
+    try {
+      await setGameFavorite(game.id, !game.favorite);
+    } catch (error) {
+      reportError('GameLibrary.toggleFavorite', error);
+      toast.error('Failed to update favorite');
+    }
+  };
+
   // Handle delete with optional confirmation
   const handleDelete = async (game: Game) => {
     if (settings.confirmBeforeDelete) {
       deleteState.setDeleteTarget(game);
     } else {
-      await deleteState.handleDeleteGame(game);
-      setSelectedIds((prev) => {
-        if (!prev.has(game.id)) return prev;
-        const next = new Set(prev);
-        next.delete(game.id);
-        return next;
-      });
+      const deleted = await deleteState.handleDeleteGame(game);
+      if (deleted) {
+        setSelectedIds((prev) => {
+          if (!prev.has(game.id)) return prev;
+          const next = new Set(prev);
+          next.delete(game.id);
+          return next;
+        });
+      }
     }
   };
 
@@ -112,13 +125,17 @@ export function GameLibrary({ games }: GameLibraryProps) {
   const handleConfirmedDelete = async () => {
     if (deleteState.deleteTarget) {
       const deletedId = deleteState.deleteTarget.id;
-      await deleteState.handleDeleteGame(deleteState.deleteTarget);
-      setSelectedIds((prev) => {
-        if (!prev.has(deletedId)) return prev;
-        const next = new Set(prev);
-        next.delete(deletedId);
-        return next;
-      });
+      const deleted = await deleteState.handleDeleteGame(
+        deleteState.deleteTarget,
+      );
+      if (deleted) {
+        setSelectedIds((prev) => {
+          if (!prev.has(deletedId)) return prev;
+          const next = new Set(prev);
+          next.delete(deletedId);
+          return next;
+        });
+      }
     }
   };
 
@@ -142,9 +159,11 @@ export function GameLibrary({ games }: GameLibraryProps) {
       return;
     }
     const selectedGames = games.filter((g) => selectedIds.has(g.id));
-    await deleteState.handleBulkDeleteGames(selectedGames);
-    setSelectedIds(new Set());
-    setIsSelecting(false);
+    const deleted = await deleteState.handleBulkDeleteGames(selectedGames);
+    if (deleted) {
+      setSelectedIds(new Set());
+      setIsSelecting(false);
+    }
   };
 
   const selectedCascadeCounts = useMemo(() => {
@@ -231,6 +250,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
               onSelect={() => handleGameSelect(game.id)}
               onEdit={() => operations.openEditDialog(game)}
               onDelete={() => handleDelete(game)}
+              onToggleFavorite={() => void handleToggleFavorite(game)}
             />
           ) : (
             <GameListCard
@@ -245,6 +265,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
               onSelect={() => handleGameSelect(game.id)}
               onEdit={() => operations.openEditDialog(game)}
               onDelete={() => handleDelete(game)}
+              onToggleFavorite={() => void handleToggleFavorite(game)}
             />
           ),
         )}
@@ -258,75 +279,44 @@ export function GameLibrary({ games }: GameLibraryProps) {
       />
 
       {settings.confirmBeforeDelete && (
-        <AlertDialog
+        <DestructiveConfirmationDialog
           open={!!deleteState.deleteTarget}
           onOpenChange={(open) => !open && deleteState.setDeleteTarget(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Delete {deleteState.deleteTarget?.name}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {(() => {
-                  if (!deleteState.deleteTarget) return '';
-                  const charCount =
-                    stats.charCountByGame[deleteState.deleteTarget.id] || 0;
-                  const comboCount =
-                    stats.comboCountByGame[deleteState.deleteTarget.id] || 0;
-                  if (charCount === 0)
-                    return 'This game has no characters or combos. This action cannot be undone.';
-                  return `This will also delete ${charCount} character${charCount !== 1 ? 's' : ''} and ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
-                })()}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleConfirmedDelete}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title={`Delete ${deleteState.deleteTarget?.name}?`}
+          description={(() => {
+            if (!deleteState.deleteTarget) return '';
+            const characterCount =
+              stats.charCountByGame[deleteState.deleteTarget.id] || 0;
+            const comboCount =
+              stats.comboCountByGame[deleteState.deleteTarget.id] || 0;
+            if (characterCount === 0) {
+              return 'This game has no characters or combos. This action cannot be undone.';
+            }
+            return `This will also delete ${characterCount} character${characterCount !== 1 ? 's' : ''} and ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
+          })()}
+          onConfirm={handleConfirmedDelete}
+        />
       )}
 
-      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selectedIds.size} game{selectedIds.size !== 1 ? 's' : ''}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will also delete {selectedCascadeCounts.characterCount}{' '}
-              character
-              {selectedCascadeCounts.characterCount !== 1 ? 's' : ''} and{' '}
-              {selectedCascadeCounts.comboCount} combo
-              {selectedCascadeCounts.comboCount !== 1 ? 's' : ''}. This action
-              cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
-                const selectedGames = games.filter((g) =>
-                  selectedIds.has(g.id),
-                );
-                await deleteState.handleBulkDeleteGames(selectedGames);
-                setBulkDeleteConfirm(false);
-                setSelectedIds(new Set());
-                setIsSelecting(false);
-              }}
-            >
-              Delete Selected ({selectedIds.size})
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveConfirmationDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selectedIds.size} game${selectedIds.size !== 1 ? 's' : ''}?`}
+        description={`This will also delete ${selectedCascadeCounts.characterCount} character${selectedCascadeCounts.characterCount !== 1 ? 's' : ''} and ${selectedCascadeCounts.comboCount} combo${selectedCascadeCounts.comboCount !== 1 ? 's' : ''}. This action cannot be undone.`}
+        actionLabel={`Delete Selected (${selectedIds.size})`}
+        onConfirm={async () => {
+          const selectedGames = games.filter((game) =>
+            selectedIds.has(game.id),
+          );
+          const deleted =
+            await deleteState.handleBulkDeleteGames(selectedGames);
+          if (deleted) {
+            setBulkDeleteConfirm(false);
+            setSelectedIds(new Set());
+            setIsSelecting(false);
+          }
+        }}
+      />
     </div>
   );
 }

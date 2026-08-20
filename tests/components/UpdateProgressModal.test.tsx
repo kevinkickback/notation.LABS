@@ -1,46 +1,30 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 
-let onUpdateCancelledCallback: (() => void) | null = null;
+const { useUpdaterMock } = vi.hoisted(() => ({
+  useUpdaterMock: vi.fn(),
+}));
+
+vi.mock('@/context/UpdaterContext', () => ({
+  useUpdater: () => useUpdaterMock(),
+}));
 
 describe('UpdateProgressModal', () => {
   beforeEach(() => {
-    onUpdateCancelledCallback = null;
-    window.electronAPI = {
-      platform: 'win32',
-      versions: {
-        electron: '40.0.0',
-        chrome: '140.0.0',
-        node: '22.0.0',
-      },
-      checkForUpdate: vi.fn(),
+    useUpdaterMock.mockReturnValue({
+      status: { status: 'downloading' },
       downloadUpdate: vi.fn(),
       cancelUpdate: vi.fn(),
       installUpdate: vi.fn(),
-      getUpdateStatus: vi.fn(),
-      setAutoCheck: vi.fn(),
-      getAppVersion: vi.fn(),
-      getCurrentChangelog: vi.fn(),
-      onUpdateChecking: vi.fn(() => () => { }),
-      onUpdateAvailable: vi.fn(() => () => { }),
-      onUpdateNotAvailable: vi.fn(() => () => { }),
-      onUpdateError: vi.fn(() => () => { }),
-      onDownloadProgress: vi.fn(() => () => { }),
-      onUpdateDownloaded: vi.fn(() => () => { }),
-      onUpdateCancelled: vi.fn((callback: () => void) => {
-        onUpdateCancelledCallback = callback;
-        return () => { };
-      }),
-      saveFile: vi.fn(),
-    };
+    });
   });
 
   it('allows cancelled downloads to close the modal', () => {
     const onOpenChange = vi.fn();
 
-    render(
+    const { rerender } = render(
       <UpdateProgressModal
         open={true}
         version="1.4.2"
@@ -48,9 +32,19 @@ describe('UpdateProgressModal', () => {
       />,
     );
 
-    act(() => {
-      onUpdateCancelledCallback?.();
+    useUpdaterMock.mockReturnValue({
+      status: { status: 'cancelled' },
+      downloadUpdate: vi.fn(),
+      cancelUpdate: vi.fn(),
+      installUpdate: vi.fn(),
     });
+    rerender(
+      <UpdateProgressModal
+        open={true}
+        version="1.4.2"
+        onOpenChange={onOpenChange}
+      />,
+    );
 
     expect(screen.getByText(/download cancelled/i)).not.toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: /^close$/i })[0]);

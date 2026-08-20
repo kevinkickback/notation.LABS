@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const writeFileMock = vi.fn();
 
-async function loadMainModule() {
+type LoadMainModuleOptions = {
+  mainLoadError?: Error;
+  splashLoadError?: Error;
+};
+
+async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
   vi.resetModules();
 
   const appEvents: Record<string, (...args: unknown[]) => unknown> = {};
@@ -19,8 +24,20 @@ async function loadMainModule() {
       send: vi.fn(),
       mainFrame: {},
     };
-    loadFile = vi.fn();
-    loadURL = vi.fn();
+    loadFile = vi.fn(async () => {
+      const windowIndex = browserWindows.indexOf(this);
+      if (windowIndex === 0 && loadOptions.splashLoadError) {
+        throw loadOptions.splashLoadError;
+      }
+      if (windowIndex === 1 && loadOptions.mainLoadError) {
+        throw loadOptions.mainLoadError;
+      }
+    });
+    loadURL = vi.fn(async () => {
+      if (loadOptions.mainLoadError) {
+        throw loadOptions.mainLoadError;
+      }
+    });
     show = vi.fn();
     center = vi.fn();
     close = vi.fn();
@@ -112,6 +129,7 @@ async function loadMainModule() {
 
   return {
     appEvents,
+    appMock,
     ipcHandlers,
     rawIpcHandlers,
     browserWindows,
@@ -123,6 +141,7 @@ async function loadMainModule() {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.resetModules();
   writeFileMock.mockReset();
@@ -136,8 +155,8 @@ describe('electron main process wiring', () => {
 
     expect(context.browserWindows).toHaveLength(2);
     expect(context.browserWindows[0]?.options).toMatchObject({
-      width: 480,
-      height: 360,
+      width: 478,
+      height: 358,
       useContentSize: true,
       frame: false,
       hasShadow: false,
@@ -211,6 +230,46 @@ describe('electron main process wiring', () => {
       'C:/Exports/backup.json',
       expect.any(Buffer),
     );
+  });
+
+  it('continues to the main window when the splash cannot load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const context = await loadMainModule({
+      splashLoadError: new Error('missing splash'),
+    });
+
+    await context.appEvents.ready();
+
+    expect(context.browserWindows).toHaveLength(2);
+    expect(context.browserWindows[0].close).toHaveBeenCalled();
+    expect(context.browserWindows[1].show).toHaveBeenCalled();
+    expect(context.appMock.quit).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      'Unable to load the splash window; continuing.',
+      expect.any(Error),
+    );
+  });
+
+  it('reports a fatal startup error when the main window cannot load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const context = await loadMainModule({
+      mainLoadError: new Error('missing application bundle'),
+    });
+
+    await context.appEvents.ready();
+
+    expect(context.browserWindows).toHaveLength(2);
+    expect(context.browserWindows[0].close).toHaveBeenCalled();
+    expect(context.browserWindows[1].show).not.toHaveBeenCalled();
+    expect(context.browserWindows[1].close).toHaveBeenCalled();
+    expect(context.dialogMock.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        title: 'Notation Labs could not start',
+        detail: 'missing application bundle',
+      }),
+    );
+    expect(context.appMock.quit).toHaveBeenCalled();
   });
 
   it('wraps updater errors and toggles the auto-check scheduler', async () => {

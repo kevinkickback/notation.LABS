@@ -25,6 +25,10 @@ export const COMMON_SYNTAX: GuideEntry[] = [
     notation: 'XxN / (sequence)xN',
     meaning: 'Repeat an input or grouped sequence N times',
   },
+  {
+    notation: 'A or B / (A or B)',
+    meaning: 'Alternative inputs; parentheses group the alternatives',
+  },
   { notation: '(N)', meaning: 'Hit N of a move or a required hit count' },
   { notation: 'CH', meaning: 'Counter hit' },
   { notation: '(whiff)', meaning: 'The move must miss intentionally' },
@@ -80,12 +84,17 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
     ],
     separators: [
       { notation: '> / → / »', meaning: 'Proceed to the next move' },
+      { notation: '/\\', meaning: 'Homing jump or launch-follow-up jump' },
       { notation: ',', meaning: 'Link or continue into the next move' },
       { notation: 'xx', meaning: 'Cancel into a special move' },
       { notation: '~', meaning: 'Cancel into a follow-up' },
     ],
     mechanics: [
       { notation: 'jc. / sjc.', meaning: 'Jump cancel / super jump cancel' },
+      {
+        notation: 'hjc.',
+        meaning: 'High jump cancel; commonly synonymous with super jump cancel',
+      },
       { notation: 'dl.', meaning: 'Delay the following move' },
       {
         notation: 'j. / sj. / dj. / nj.',
@@ -97,6 +106,7 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
       },
       { notation: 'iad', meaning: 'Instant air dash' },
       { notation: 'tk.', meaning: 'Tiger-knee input or setup' },
+      { notation: 'OTG / FC', meaning: 'Off the ground / Fatal Counter' },
     ],
     examples: [
       {
@@ -149,6 +159,14 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
       {
         notation: 'TH / BL / FL / S / K',
         meaning: 'Throw, Block, Flip or Stance Switch, and Kameo inputs',
+      },
+      {
+        notation: 'FP / BP / FK / BK',
+        meaning: 'Classic named punch and kick aliases for buttons 1–4',
+      },
+      {
+        notation: 'FS / SS / KM',
+        meaning: 'Flip Stance / Stance Switch / Kameo aliases',
       },
       {
         notation: 'FB / EX / DELAY / (DELAY)',
@@ -244,6 +262,8 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
       },
       { notation: '<', meaning: 'Delayed input' },
       { notation: ':', meaning: 'Just-frame input' },
+      { notation: '#', meaning: 'Inputs pressed together on the same frame' },
+      { notation: '.', meaning: 'Input performed from the preceding stance' },
       { notation: '~', meaning: 'Immediate or slide input' },
       { notation: '(...)', meaning: 'Required omitted input' },
       { notation: '(Switch)', meaning: 'Switch sides during the combo' },
@@ -253,6 +273,10 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
       {
         notation: 'WS / FC / BT / WR',
         meaning: 'While Standing / Full Crouch / Back Turned / While Running',
+      },
+      {
+        notation: 'hFC / SW',
+        meaning: 'Half Crouch / Sidewalk',
       },
       {
         notation: 'SS / SSL / SSR',
@@ -275,8 +299,20 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
         meaning: 'Wall splat / break / blast / bounce',
       },
       {
-        notation: 'F! / FBl! / BB! / S!',
-        meaning: 'Floor break / floor blast / balcony break / Tekken 7 screw',
+        notation: 'B! / S! / T!',
+        meaning: 'Bound / Tekken 7 screw / Tekken 8 Tornado',
+      },
+      {
+        notation: 'F! / FB! / FBl! / BB!',
+        meaning: 'Floor break aliases / floor blast / balcony break',
+      },
+      {
+        notation: 'CL / OTG / JG / KND',
+        meaning: 'Clean hit / grounded opponent / juggle starter / knockdown',
+      },
+      {
+        notation: 'P / J / H / R',
+        meaning: 'Parry / jumping / Heat / Rage state markers',
       },
       {
         notation: 'WGF / TGF / EWGF / OTGF / ETGF',
@@ -285,6 +321,10 @@ export const PROFILE_GUIDES: Record<NotationProfile, ProfileGuideContent> = {
       {
         notation: 'FD/FT / FD/FA / FU/FT / FU/FA',
         meaning: 'Grounded position and facing',
+      },
+      {
+        notation: 'FDFT / FDFA / FUFT / FUFA',
+        meaning: 'Compact grounded position and facing aliases',
       },
       {
         notation: '{1+2}',
@@ -368,6 +408,8 @@ export const GUIDE_PARSER_SAMPLES: {
     '1 (Land) 2',
     '1x3',
     '(1 > 2)x3',
+    '1 or 2',
+    '(1 or 2)',
     '(3)',
     'CH',
     '(whiff)',
@@ -380,12 +422,14 @@ export const GUIDE_PARSER_SAMPLES: {
       '22 66 44 88 dd ff bb uu hcbf',
       '[L] ]L[',
       'L,M L xx M L~M',
-      'jc. sjc. dl. j. sj. dj. nj. cr. st. cl. f. iad tk.',
+      'L /\\ M',
+      'jc. sjc. hjc. dl. j. sj. dj. nj. cr. st. cl. f. iad tk. OTG FC',
     ],
     nrs: [
       'F B U D U/F U/B D/F D/B DF1 df1 114',
       '1 xx 2 1~2 1,2',
       'TH BL FL S K FB EX DELAY (DELAY)',
+      'FP BP FK BK FS KM SS',
       '(hold) (swap side) J JF JB AIR (AIR)',
       'Block Grab Throw DASH BACK DASH EN AMP KB PB',
       'NJP NJK JIP JIK RUN RC SH MD MB JI Trait Interactable',
@@ -393,14 +437,15 @@ export const GUIDE_PARSER_SAMPLES: {
     tekken: [
       'f d/f d d/b b u/b u u/f F D/F D D/B B U/B U U/F',
       'df db uf ub DF DB UF UB N dp ff fff bb dash',
-      '1 ► 2 1 > 2 1 → 2 1 » 2 1,3 1* 2*(max) f<1 1:2 1~2',
+      '1 ► 2 1 > 2 1 → 2 1 » 2 1,3 1* 2*(max) f<1 1:2 1#2 1~2',
       '(...) (Switch) 1_2 1=2',
-      'WS FC BT WR SS SSL SSR SWL SWR iWS iWR',
+      'WS FC hFC BT WR SS SSL SSR SW SWL SWR iWS iWR',
       'cc cd LP AIR any H. R.',
       'During Heat Heat Burst Heat Smash Rage Art',
-      'W! WB! WBl! WBo! F! FBl! BB! S!',
+      'B! S! T! W! WB! WBl! WBo! F! FB! FBl! BB!',
+      'CL OTG JG KND P J H R',
       'WGF TGF EWGF OTGF ETGF',
-      'FD/FT FD/FA FU/FT FU/FA {1+2}',
+      'FD/FT FD/FA FU/FT FU/FA FDFT.1 FDFA.2 FUFT.3 FUFA.4 {1+2}',
     ],
   },
 };

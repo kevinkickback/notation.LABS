@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { reportError } from '@/lib/errors';
 import {
-  getLocalVideoId,
-  indexedDbStorage,
-} from '@/lib/storage/indexedDbStorage';
+  duplicateCombo,
+  markCombosOutdated,
+} from '@/lib/application/comboCommands';
+import { reportError } from '@/lib/errors';
 import type { Combo } from '@/lib/types';
 
 /**
@@ -21,12 +21,7 @@ export function useComboOperations() {
 
   const handleDuplicate = useCallback(async (combo: Combo) => {
     try {
-      const { id, createdAt, updatedAt, sortOrder, ...rest } = combo;
-      await indexedDbStorage.combos.add({
-        ...rest,
-        name: `${combo.name} (copy)`,
-        demoUrl: getLocalVideoId(combo.demoUrl) ? undefined : combo.demoUrl,
-      });
+      await duplicateCombo(combo);
       toast.success('Combo duplicated');
     } catch (err) {
       reportError('useComboOperations.handleDuplicate', err);
@@ -38,7 +33,7 @@ export function useComboOperations() {
     async (selectedIds: Set<string>, outdated: boolean) => {
       if (selectedIds.size === 0) return;
       try {
-        await indexedDbStorage.combos.markOutdated([...selectedIds], outdated);
+        await markCombosOutdated([...selectedIds], outdated);
         toast.success(
           `${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
         );

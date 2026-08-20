@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useUpdater } from '@/context/UpdaterContext';
 
 interface UpdateProgressModalProps {
   open: boolean;
@@ -31,66 +32,26 @@ export function UpdateProgressModal({
   version,
   onOpenChange,
 }: UpdateProgressModalProps) {
-  const [phase, setPhase] = useState<UpdatePhase>('downloading');
-  const [percentage, setPercentage] = useState(0);
-  const [bytesPerSecond, setBytesPerSecond] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [transferred, setTransferred] = useState(0);
+  const { status, cancelUpdate, downloadUpdate, installUpdate } = useUpdater();
   const [restartCountdown, setRestartCountdown] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const phase: UpdatePhase =
+    status.status === 'downloaded' ||
+    status.status === 'error' ||
+    status.status === 'cancelled'
+      ? status.status
+      : 'downloading';
+  const percentage = status.progress?.percentage ?? 0;
+  const bytesPerSecond = status.progress?.bytesPerSecond ?? 0;
+  const total = status.progress?.total ?? 0;
+  const transferred = status.progress?.transferred ?? 0;
 
   useEffect(() => {
     if (!open) {
-      setPhase('downloading');
-      setPercentage(0);
-      setBytesPerSecond(0);
-      setTotal(0);
-      setTransferred(0);
       setRestartCountdown(null);
-      setError(null);
       return;
     }
-
-    const unsubs: (() => void)[] = [];
-
-    if (window.electronAPI) {
-      unsubs.push(
-        window.electronAPI.onDownloadProgress((data) => {
-          setPhase('downloading');
-          setPercentage(data.percentage);
-          setBytesPerSecond(data.bytesPerSecond);
-          setTotal(data.total);
-          setTransferred(data.transferred);
-        }),
-      );
-
-      unsubs.push(
-        window.electronAPI.onUpdateDownloaded(() => {
-          setPhase('downloaded');
-          setRestartCountdown(3);
-        }),
-      );
-
-      unsubs.push(
-        window.electronAPI.onUpdateError((data) => {
-          setPhase('error');
-          setError(data.message);
-        }),
-      );
-
-      unsubs.push(
-        window.electronAPI.onUpdateCancelled(() => {
-          setPhase('cancelled');
-        }),
-      );
-    }
-
-    return () => {
-      unsubs.forEach((unsub) => {
-        unsub();
-      });
-    };
-  }, [open]);
+    if (status.status === 'downloaded') setRestartCountdown(3);
+  }, [open, status.status]);
 
   // Restart countdown
   useEffect(() => {
@@ -105,25 +66,16 @@ export function UpdateProgressModal({
 
   // Auto-install when countdown reaches 0
   useEffect(() => {
-    if (restartCountdown === 0 && window.electronAPI) {
-      window.electronAPI.installUpdate();
-    }
-  }, [restartCountdown]);
+    if (restartCountdown === 0) void installUpdate();
+  }, [installUpdate, restartCountdown]);
 
   const handleCancel = useCallback(() => {
-    if (window.electronAPI) {
-      window.electronAPI.cancelUpdate();
-    }
-  }, []);
+    void cancelUpdate();
+  }, [cancelUpdate]);
 
   const handleRetry = useCallback(() => {
-    setPhase('downloading');
-    setPercentage(0);
-    setError(null);
-    if (window.electronAPI) {
-      window.electronAPI.downloadUpdate();
-    }
-  }, []);
+    void downloadUpdate();
+  }, [downloadUpdate]);
 
   const handleDismiss = useCallback(() => {
     onOpenChange(false);
@@ -148,7 +100,7 @@ export function UpdateProgressModal({
               'Please wait while the update is being downloaded.'}
             {phase === 'downloaded' && `Restarting in ${restartCountdown}s...`}
             {phase === 'error' &&
-              (error ?? 'An error occurred during download.')}
+              (status.error ?? 'An error occurred during download.')}
             {phase === 'cancelled' && 'The download was cancelled.'}
           </DialogDescription>
         </DialogHeader>

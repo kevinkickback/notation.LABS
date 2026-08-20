@@ -1,4 +1,4 @@
-import type { Game, NotationProfile } from './types';
+import type { Game, LegacyGame, NotationProfile } from './types';
 
 export interface NotationProfileDefinition {
   id: NotationProfile;
@@ -67,6 +67,19 @@ export const TEKKEN_MECHANIC_LABELS: Readonly<Record<string, string>> = {
   'FBl!': 'Floor blast',
   'BB!': 'Balcony break',
   'S!': 'Screw attack',
+  'T!': 'Tornado attack',
+  'B!': 'Bound',
+  'FB!': 'Floor break',
+  hFC: 'Half crouch',
+  SW: 'Sidewalk',
+  OTG: 'Grounded opponent',
+  CL: 'Clean hit',
+  JG: 'Juggle starter',
+  KND: 'Knockdown',
+  P: 'Successful parry',
+  J: 'Jumping state',
+  H: 'During Heat state',
+  R: 'Rage state',
   'During Heat': 'During Heat state',
   'Heat Burst': 'Heat Burst',
   'Heat Smash': 'Heat Smash',
@@ -120,6 +133,13 @@ const BUTTON_MEANINGS: Record<
     TH: 'Throw',
     BL: 'Block',
     FL: 'Flip Stance',
+    FP: 'Front Punch',
+    BP: 'Back Punch',
+    FK: 'Front Kick',
+    BK: 'Back Kick',
+    FS: 'Flip Stance',
+    KM: 'Kameo Input',
+    SS: 'Stance Switch',
   },
   tekken: {
     '1': 'Left Punch',
@@ -130,7 +150,7 @@ const BUTTON_MEANINGS: Record<
 };
 
 export function resolveNotationProfile(
-  game?: Pick<Game, 'notationProfile' | 'inputType'> | null,
+  game?: Pick<LegacyGame, 'notationProfile' | 'inputType'> | null,
 ): NotationProfile {
   if (game?.notationProfile) {
     return game.notationProfile;
@@ -175,12 +195,12 @@ export function getMechanicAccessibilityLabel(
     : `${normalizedValue} mechanic`;
 }
 
-export function migrateLegacyNotationProfile(game: Game): void {
+export function migrateLegacyNotationProfile(game: LegacyGame): void {
   game.notationProfile = resolveNotationProfile(game);
   delete game.inputType;
 }
 
-export function normalizeGameNotationProfile(game: Game): Game {
+export function normalizeGameNotationProfile(game: LegacyGame): Game {
   const { inputType: _legacyInputType, ...currentGame } = game;
   return {
     ...currentGame,

@@ -1,11 +1,10 @@
 import { type ReactNode, useMemo } from 'react';
+import { getTokenColor } from '@/components/combo/comboDisplayUtils';
 import { useSettings } from '@/context/SettingsContext';
 import {
   getButtonAccessibilityLabel,
   getMechanicAccessibilityLabel,
-  resolveNotationProfile,
 } from '@/lib/notationProfiles';
-import { getTokenColor } from '@/lib/parser';
 import type { ComboToken, Game } from '@/lib/types';
 import {
   DIRECTION_MODIFIERS,
@@ -16,6 +15,7 @@ import {
   groupTokensWithButtons,
   isDescriptiveBracketAnnotation,
   isLiteralParenUnknown,
+  isStructuralGroupingParen,
   LETTER_DIR_TO_NUMPAD,
   REPEAT_PAREN_COLOR,
   shouldRenderMechanicBadge,
@@ -43,7 +43,7 @@ export function ComboDisplay({
   const comboScale = settings.comboScale ?? 1;
   const iconStyle = settings.iconStyle ?? 'hexagon';
   const motionIconStyle = settings.motionIconStyle ?? 'joystick';
-  const notationProfile = resolveNotationProfile(game);
+  const notationProfile = game?.notationProfile ?? 'standard';
   const nrsHoldAssociations = useMemo(
     () =>
       notationProfile === 'nrs'
@@ -78,12 +78,17 @@ export function ComboDisplay({
   ) => {
     const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
     const isParenUnknown = isLiteralParenUnknown(token);
+    const isStructuralParen = isStructuralGroupingParen(token);
     const isTekkenNeutral =
       notationProfile === 'tekken' &&
       token.type === 'direction' &&
       token.value.toLowerCase() === 'n';
     const color =
-      !isDescriptiveBracket && !isParenUnknown && !isTekkenNeutral && groupColor
+      !isDescriptiveBracket &&
+      !isParenUnknown &&
+      !isStructuralParen &&
+      !isTekkenNeutral &&
+      groupColor
         ? groupColor
         : getTokenColor(token, colors, game?.buttonColors);
 
@@ -145,7 +150,7 @@ export function ComboDisplay({
       <span
         key={idx}
         style={{ color }}
-        className={
+        className={`${
           token.type === 'separator'
             ? `font-medium tracking-tight whitespace-pre${hasAdjacentSeparatorSpacing ? '' : ' mx-1'}`
             : isCH || isParenAnnotation
@@ -153,7 +158,7 @@ export function ComboDisplay({
               : isDescriptiveBracket
                 ? 'font-medium tracking-tight whitespace-pre mr-1'
                 : 'font-medium tracking-tight whitespace-pre'
-        }
+        }${isStructuralParen ? ' opacity-60' : ''}`}
       >
         {token.rawValue}
       </span>
@@ -167,12 +172,17 @@ export function ComboDisplay({
   ) => {
     const isDescriptiveBracket = isDescriptiveBracketAnnotation(token);
     const isParenUnknown = isLiteralParenUnknown(token);
+    const isStructuralParen = isStructuralGroupingParen(token);
     const isTekkenNeutral =
       notationProfile === 'tekken' &&
       token.type === 'direction' &&
       token.value.toLowerCase() === 'n';
     const color =
-      !isDescriptiveBracket && !isParenUnknown && !isTekkenNeutral && groupColor
+      !isDescriptiveBracket &&
+      !isParenUnknown &&
+      !isStructuralParen &&
+      !isTekkenNeutral &&
+      groupColor
         ? groupColor
         : getTokenColor(token, colors, game?.buttonColors);
 
@@ -414,7 +424,7 @@ export function ComboDisplay({
         return (
           <span
             key={idx}
-            className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : isDescriptiveBracketAnnotation(token) ? ' mr-1' : ''}`}
+            className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : isDescriptiveBracketAnnotation(token) ? ' mr-1' : ''}${isStructuralParen ? ' opacity-60' : ''}`}
             style={{ color, fontSize: `${1.25 * comboScale}rem` }}
           >
             {token.value}

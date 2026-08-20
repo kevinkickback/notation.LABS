@@ -1,7 +1,7 @@
-import type { ComboToken, NotationProfile } from './types';
+import type { ComboToken } from './types';
 
 // Bump when parser behavior changes and stored combo tokens need refreshing.
-export const COMBO_NOTATION_PARSER_VERSION = 10;
+export const COMBO_NOTATION_PARSER_VERSION = 12;
 
 import {
   COMMON_BUTTONS,
@@ -27,6 +27,15 @@ import {
   TEKKEN_MECHANICS,
   TEKKEN_MODIFIERS,
 } from './parserDefinitions';
+import {
+  consumeUnknownPhrase,
+  findMatchingDelimiter,
+  hasLetterBoundaryForButton,
+  hasLetterBoundaryForWordToken,
+  matchRepeat,
+  type ParserOptions,
+  resolveParserProfile,
+} from './parserHelpers';
 
 /**
  * Parses raw combo notation into displayable tokens.
@@ -34,14 +43,9 @@ import {
 export function parseComboNotation(
   notation: string,
   customButtons: string[] = [],
-  options?: {
-    profile?: NotationProfile;
-    inputType?: 'numpad' | 'button-numbers';
-  },
+  options?: ParserOptions,
 ): ComboToken[] {
-  const profile =
-    options?.profile ??
-    (options?.inputType === 'button-numbers' ? 'tekken' : 'standard');
+  const profile = resolveParserProfile(options);
   const isButtonNumberProfile = profile !== 'standard';
   const isNrs = profile === 'nrs';
   const isTekken = profile === 'tekken';
@@ -59,7 +63,23 @@ export function parseComboNotation(
     allButtons.push('1', '2', '3', '4');
   }
   if (isNrs) {
-    allButtons.push('K', 'S', 'TH', 'BL', 'FL', 'BLOCK', 'GRAB', 'THROW');
+    allButtons.push(
+      'K',
+      'S',
+      'TH',
+      'BL',
+      'FL',
+      'FP',
+      'BP',
+      'FK',
+      'BK',
+      'FS',
+      'KM',
+      'SS',
+      'BLOCK',
+      'GRAB',
+      'THROW',
+    );
   }
   const sortedButtons = [...allButtons].sort((a, b) => b.length - a.length);
   const activeDirections = isButtonNumberProfile
@@ -70,136 +90,13 @@ export function parseComboNotation(
     : isTekken
       ? [...SORTED_TEKKEN_MODIFIERS, ...SORTED_ALL_MODIFIERS]
       : SORTED_ALL_MODIFIERS;
-
-  const isAsciiLetter = (value: string | undefined): boolean => {
-    if (!value) {
-      return false;
-    }
-    return /[a-z]/i.test(value);
-  };
-
-  const hasLetterBoundaryForButton = (
-    inputText: string,
-    start: number,
-    buttonLength: number,
-    buttonText: string,
-  ): boolean => {
-    // Only apply boundary checks to plain alphabetic buttons (A, B, C, D, LP, RC, etc.).
-    if (!/^[a-z]+$/i.test(buttonText)) {
-      return true;
-    }
-
-    const prevChar = start > 0 ? inputText[start - 1] : undefined;
-    const nextChar = inputText[start + buttonLength];
-    if (!isAsciiLetter(prevChar) && !isAsciiLetter(nextChar)) {
-      return true;
-    }
-
-    // Allow adjacent repeats of the same configured button (LLL, LPLP) while
-    // still rejecting button-shaped fragments inside words such as ENDER.
-    const normalizedButton = buttonText.toLowerCase();
-    let runStart = start;
-    let runEnd = start + buttonLength;
-
-    while (
-      runStart >= buttonLength &&
-      inputText.substring(runStart - buttonLength, runStart).toLowerCase() ===
-        normalizedButton
-    ) {
-      runStart -= buttonLength;
-    }
-    while (
-      inputText.substring(runEnd, runEnd + buttonLength).toLowerCase() ===
-      normalizedButton
-    ) {
-      runEnd += buttonLength;
-    }
-
-    const isRepeatedRun = runEnd - runStart > buttonLength;
-    return (
-      isRepeatedRun &&
-      !isAsciiLetter(inputText[runStart - 1]) &&
-      !isAsciiLetter(inputText[runEnd])
-    );
-  };
-
-  const hasLetterBoundaryForWordToken = (
-    inputText: string,
-    start: number,
-    tokenLength: number,
-    tokenText: string,
-  ): boolean => {
-    if (!/^[a-z]+$/i.test(tokenText)) {
-      return true;
-    }
-
-    const prevChar = start > 0 ? inputText[start - 1] : undefined;
-    const nextChar = inputText[start + tokenLength];
-    return !isAsciiLetter(prevChar) && !isAsciiLetter(nextChar);
-  };
-
-  const consumeUnknownPhrase = (start: number): string => {
-    let end = start;
-
-    while (end < input.length) {
-      const char = input[end];
-
-      // Keep single spaces only when they are between letters.
-      if (char === ' ') {
-        const prevChar = end > start ? input[end - 1] : undefined;
-        const nextChar = end + 1 < input.length ? input[end + 1] : undefined;
-        if (isAsciiLetter(prevChar) && isAsciiLetter(nextChar)) {
-          end++;
-          continue;
-        }
-        // Also include a space + lone trailing digit when the digit is not
-        // followed by more alphanumerics (e.g. "SUPER 1" stays as one label,
-        // but "ENDER 5B" still parses as unknown + direction + button).
-        if (
-          !isButtonNumberProfile &&
-          isAsciiLetter(prevChar) &&
-          nextChar &&
-          /[0-9]/.test(nextChar)
-        ) {
-          const charAfterDigit = end + 2 < input.length ? input[end + 2] : '';
-          if (!charAfterDigit || /[^a-zA-Z0-9]/.test(charAfterDigit)) {
-            end += 2;
-            continue;
-          }
-        }
-        break;
-      }
-
-      // Stop phrase before notation delimiters and structural symbols.
-      if ('()[]{}<>+~,/|'.includes(char)) {
-        break;
-      }
-
-      // Stop at motion-friendly digits so inputs like 5A keep parsing correctly.
-      if (/[0-9]/.test(char)) {
-        break;
-      }
-
-      // Keep contiguous letters as a single unknown phrase token.
-      if (isAsciiLetter(char)) {
-        end++;
-        continue;
-      }
-
-      break;
-    }
-
-    return input.substring(start, end);
-  };
+  if (isButtonNumberProfile) {
+    activeModifierKeys.sort((a, b) => b.length - a.length);
+  }
 
   const tryInlineRepeat = (pos: number): number => {
-    const remaining = input.substring(pos);
-    const match = remaining.match(/^[xX*](\d+|N)/i);
+    const match = matchRepeat(input.substring(pos));
     if (match) {
-      const repeatValue = match[1];
-      const repeatTokenFields = /^\d+$/.test(repeatValue)
-        ? { repeatCount: parseInt(repeatValue, 10) }
-        : { repeatLabel: repeatValue.toUpperCase() };
       const lastToken = tokens.pop();
       if (lastToken) {
         tokens.push({ type: 'repeat-start', value: '(', rawValue: '(' });
@@ -208,65 +105,41 @@ export function parseComboNotation(
           type: 'repeat-end',
           value: ')',
           rawValue: ')',
-          ...repeatTokenFields,
+          ...(match.repeatCount === undefined
+            ? { repeatLabel: match.repeatLabel }
+            : { repeatCount: match.repeatCount }),
         });
       }
-      return match[0].length;
+      return match.length;
     }
     return 0;
   };
 
-  const findMatchingParen = (startIndex: number): number => {
-    let depth = 0;
-
-    for (let index = startIndex; index < input.length; index++) {
-      if (input[index] === '(') {
-        depth++;
-      }
-
-      if (input[index] === ')') {
-        depth--;
-        if (depth === 0) {
-          return index;
-        }
-      }
-    }
-
-    return -1;
-  };
-
-  const findMatchingBracket = (startIndex: number): number => {
-    let depth = 0;
-
-    for (let index = startIndex; index < input.length; index++) {
-      if (input[index] === '[') {
-        depth++;
-      }
-
-      if (input[index] === ']') {
-        depth--;
-        if (depth === 0) {
-          return index;
-        }
-      }
-    }
-
-    return -1;
-  };
-
-  const isNotationLikeParenthetical = (content: string): boolean => {
+  const parseNotationLikeParenthetical = (
+    content: string,
+  ): ComboToken[] | undefined => {
     const trimmed = content.trim();
     if (!trimmed) {
-      return false;
+      return undefined;
     }
 
-    // A lone single digit is a descriptive note (e.g. "2A(3)"), not embedded notation.
-    if (/^[1-9]$/.test(trimmed)) {
-      return false;
+    // A lone digit in Standard notation is commonly a descriptive note (e.g.
+    // "2A(3)"). In numbered-button profiles it is an actual input instead.
+    if (!isButtonNumberProfile && /^[1-9]$/.test(trimmed)) {
+      return undefined;
     }
 
-    // Treat grouped expressions as notation if they include common combo syntax.
-    return /[0-9><+~,/|.]/.test(trimmed);
+    const nestedTokens = parseComboNotation(content, customButtons, options);
+    const containsInput = nestedTokens.some((token) =>
+      ['direction', 'motion', 'button'].includes(token.type),
+    );
+    const containsUnknown = nestedTokens.some(
+      (token) => token.type === 'unknown',
+    );
+
+    // Reparse only fully recognized input expressions. This avoids treating
+    // descriptive numeric notes such as "(Level 3)" as combo notation.
+    return containsInput && !containsUnknown ? nestedTokens : undefined;
   };
 
   let i = 0;
@@ -292,7 +165,7 @@ export function parseComboNotation(
     let matched = false;
 
     if (input[i] === '(') {
-      const closeParenIndex = findMatchingParen(i);
+      const closeParenIndex = findMatchingDelimiter(input, i, '(', ')');
       if (closeParenIndex !== -1) {
         const afterParen = input.substring(closeParenIndex + 1);
         const repeatMatch = afterParen.match(/^\s*[xX*](\d+|N)/i);
@@ -337,6 +210,7 @@ export function parseComboNotation(
           const normalizedParenthetical = content
             .toLowerCase()
             .replace(/\s+/g, '');
+          const nestedNotationTokens = parseNotationLikeParenthetical(content);
 
           if (normalizedParenthetical === '...' && isTekken) {
             const fullText = input.substring(i, closeParenIndex + 1);
@@ -362,22 +236,13 @@ export function parseComboNotation(
               rawValue: fullText,
             });
             i = closeParenIndex + 1;
-          } else if (
-            isTekken &&
-            (isNotationLikeParenthetical(content) ||
-              /^[1-4]$/.test(content.trim()))
-          ) {
+          } else if (nestedNotationTokens) {
             tokens.push({
               type: 'modifier',
               value: '(',
               rawValue: '(',
             });
-            const nestedTokens = parseComboNotation(
-              content,
-              customButtons,
-              options,
-            );
-            tokens.push(...nestedTokens);
+            tokens.push(...nestedNotationTokens);
             tokens.push({
               type: 'modifier',
               value: ')',
@@ -436,7 +301,7 @@ export function parseComboNotation(
     if (matched) continue;
 
     if (input[i] === '[') {
-      const closeBracketIndex = findMatchingBracket(i);
+      const closeBracketIndex = findMatchingDelimiter(input, i, '[', ']');
       if (closeBracketIndex !== -1) {
         let tokenEnd = closeBracketIndex + 1;
         while (tokenEnd < input.length && input[tokenEnd] === ' ') {
@@ -513,6 +378,10 @@ export function parseComboNotation(
           'fd/fa': 'FD/FA',
           'fu/ft': 'FU/FT',
           'fu/fa': 'FU/FA',
+          fdft: 'FD/FT',
+          fdfa: 'FD/FA',
+          fuft: 'FU/FT',
+          fufa: 'FU/FA',
         };
         for (const [key, value] of Object.entries(groundPositions)) {
           if (input.substring(i, i + key.length).toLowerCase() === key) {
@@ -554,8 +423,10 @@ export function parseComboNotation(
 
     for (const sep of SEPARATORS) {
       const chunk = input.substring(i, i + sep.length);
+      const isWordSeparator = /^[a-z]+$/i.test(sep);
       if (
-        (chunk === sep || (sep === 'xx' && chunk.toLowerCase() === 'xx')) &&
+        (chunk === sep ||
+          (isWordSeparator && chunk.toLowerCase() === sep.toLowerCase())) &&
         hasLetterBoundaryForWordToken(input, i, sep.length, sep)
       ) {
         tokens.push({
@@ -571,6 +442,15 @@ export function parseComboNotation(
     if (matched) continue;
 
     for (const modKey of activeModifierKeys) {
+      if (
+        isTekken &&
+        /^[a-z]$/i.test(modKey) &&
+        customButtons.some(
+          (button) => button.toUpperCase() === modKey.toUpperCase(),
+        )
+      ) {
+        continue;
+      }
       const normalizedInput = input
         .substring(i, i + modKey.length)
         .toLowerCase()
@@ -682,7 +562,7 @@ export function parseComboNotation(
     if (isNrs) {
       const directionRun = input
         .substring(i)
-        .match(/^[fbud]+(?=[1-4+~,:=_<>\s]|$)/i);
+        .match(/^[fbud]+(?=[1-4+~,:=_<>#.\x5b\x5d()\s]|$)/i);
       if (directionRun) {
         const rawDirection = input[i];
         tokens.push({
@@ -755,7 +635,7 @@ export function parseComboNotation(
     }
     if (matched) continue;
 
-    const unknownPhrase = consumeUnknownPhrase(i);
+    const unknownPhrase = consumeUnknownPhrase(input, i, isButtonNumberProfile);
     const unknownChar = unknownPhrase || input[i];
     tokens.push({
       type: 'unknown',
@@ -802,74 +682,4 @@ export function parseComboNotation(
   }
 
   return collapsed;
-}
-
-/**
- * Resolves the color for a parsed combo token.
- */
-export function getTokenColor(
-  token: ComboToken,
-  colors: Record<string, string> | { [key: string]: string },
-  buttonColors?: Record<string, string>,
-): string {
-  switch (token.type) {
-    case 'direction':
-      return colors.direction || '#bdceef';
-    case 'motion':
-      return colors.direction || '#bdceef';
-    case 'button':
-      if (buttonColors?.[token.value]) {
-        return buttonColors[token.value];
-      }
-      return colors.direction || '#bdceef';
-    case 'modifier':
-      if (token.value === 'CH') {
-        return colors.separator || '#6c727e';
-      }
-      if (token.value.startsWith('(')) {
-        return colors.separator || '#6c727e';
-      }
-      if (token.value.startsWith('[') || token.value.startsWith(']')) {
-        const trimmed = token.value.trim();
-        const delimitedButtonMatch = trimmed.match(
-          /^(?:\[([^[\]]+)\]|\]([^[\]]+)\[)$/,
-        );
-        if (delimitedButtonMatch) {
-          const upperContent = (
-            delimitedButtonMatch[1] ?? delimitedButtonMatch[2]
-          )
-            .trim()
-            .toUpperCase();
-          if (buttonColors?.[upperContent]) {
-            return buttonColors[upperContent];
-          }
-        }
-        return colors.separator || '#6c727e';
-      }
-      return colors.direction || '#bdceef';
-    case 'separator':
-      return colors.separator || '#6c727e';
-    default:
-      return colors.direction || '#bdceef';
-  }
-}
-
-/**
- * Converts motion notation to a human-readable name.
- */
-export function getMotionName(motion: string): string {
-  const names: Record<string, string> = {
-    '236': 'Quarter Circle Forward',
-    '214': 'Quarter Circle Back',
-    '623': 'Dragon Punch',
-    '41236': 'Half Circle Forward',
-    '63214': 'Half Circle Back',
-    '22': 'Down Down',
-    '66': 'Forward Forward',
-    '44': 'Back Back',
-    '88': 'Up Up',
-    '360': 'Full Circle',
-    '720': 'Double Circle',
-  };
-  return names[motion] || motion;
 }

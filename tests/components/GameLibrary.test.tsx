@@ -5,11 +5,16 @@ import { GameLibrary } from '@/components/game/GameLibrary';
 import type { Game } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
+const { setSettingMock } = vi.hoisted(() => ({
+  setSettingMock: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     games: {
       add: vi.fn().mockResolvedValue('new-game-id'),
       update: vi.fn().mockResolvedValue(undefined),
+      setFavorite: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
       bulkDelete: vi.fn().mockResolvedValue(undefined),
     },
@@ -40,14 +45,15 @@ vi.mock('@/context/SettingsContext', () => ({
     notationColors: { direction: '#fff', separator: '#ccc' },
     displayMode: 'colored-text',
     iconStyle: 'round',
-    uiTheme: 'default',
     comboScale: 1,
     autoUpdate: true,
     confirmBeforeDelete: true,
     videoPlayerSize: 'lg',
     gameCardSize: 180,
     characterCardSize: 180,
-    showChangelogBeforeUpdate: true,
+  }),
+  useSettingsActions: vi.fn().mockReturnValue({
+    setSetting: setSettingMock,
   }),
 }));
 
@@ -69,6 +75,7 @@ const mockGames: Game[] = [
     id: 'game-1',
     name: 'Street Fighter 6',
     buttonLayout: ['L', 'M', 'H', 'S'],
+    notationProfile: 'standard',
     createdAt: now,
     updatedAt: now,
   },
@@ -76,6 +83,7 @@ const mockGames: Game[] = [
     id: 'game-2',
     name: 'Guilty Gear Strive',
     buttonLayout: ['P', 'K', 'S', 'H', 'D'],
+    notationProfile: 'standard',
     createdAt: now - 1000,
     updatedAt: now - 1000,
   },
@@ -83,6 +91,7 @@ const mockGames: Game[] = [
     id: 'game-3',
     name: 'Tekken 8',
     buttonLayout: ['1', '2', '3', '4'],
+    notationProfile: 'tekken',
     createdAt: now - 2000,
     updatedAt: now - 2000,
   },
@@ -91,6 +100,7 @@ const mockGames: Game[] = [
 describe('GameLibrary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setSettingMock.mockResolvedValue(true);
   });
 
   it('renders empty state when there are no games', () => {
@@ -106,6 +116,61 @@ describe('GameLibrary', () => {
     expect(screen.getByText('Street Fighter 6')).not.toBeNull();
     expect(screen.getByText('Guilty Gear Strive')).not.toBeNull();
     expect(screen.getByText('Tekken 8')).not.toBeNull();
+  });
+
+  it('pins favorite games ahead of the selected alphabetical sort', () => {
+    render(
+      <GameLibrary
+        games={mockGames.map((game) => ({
+          ...game,
+          favorite: game.id === 'game-3',
+        }))}
+      />,
+    );
+
+    const names = screen
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent);
+    expect(names).toEqual([
+      'Tekken 8',
+      'Guilty Gear Strive',
+      'Street Fighter 6',
+    ]);
+  });
+
+  it('favorites a game without navigating into it', async () => {
+    const user = userEvent.setup();
+    render(<GameLibrary games={mockGames} />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Add to favorites: Street Fighter 6',
+      }),
+    );
+
+    expect(indexedDbStorage.games.setFavorite).toHaveBeenCalledWith(
+      'game-1',
+      true,
+    );
+  });
+
+  it('places the favorite action before edit in list view', async () => {
+    const user = userEvent.setup();
+    render(<GameLibrary games={mockGames} />);
+
+    await user.click(screen.getByRole('button', { name: /view/i }));
+    await user.click(screen.getByRole('button', { name: 'List' }));
+    await user.keyboard('{Escape}');
+
+    const favorite = screen.getByRole('button', {
+      name: 'Add to favorites: Street Fighter 6',
+    });
+    const edit = screen.getByRole('button', {
+      name: 'Edit Street Fighter 6',
+    });
+    expect(
+      favorite.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('displays the game count badge', () => {

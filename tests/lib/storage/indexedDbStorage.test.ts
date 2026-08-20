@@ -1,8 +1,15 @@
 import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { characterRepository } from '@/lib/storage/characterRepository';
+import { comboRepository } from '@/lib/storage/comboRepository';
+import { gameRepository } from '@/lib/storage/gameRepository';
+import { gameStatsRepository } from '@/lib/storage/gameStatsRepository';
+import { settingsRepository } from '@/lib/storage/settingsRepository';
+import { videoRepository } from '@/lib/storage/videoRepository';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
 beforeEach(async () => {
@@ -20,6 +27,20 @@ function assertDefined<T>(
     throw new Error(`Expected value to be defined, but got ${value}`);
   }
 }
+
+describe('indexedDbStorage facade contract', () => {
+  it('preserves the repository-backed public surface', () => {
+    expect(indexedDbStorage.games).toBe(gameRepository);
+    expect(indexedDbStorage.characters).toBe(characterRepository);
+    expect(indexedDbStorage.combos).toBe(comboRepository);
+    expect(indexedDbStorage.settings).toBe(settingsRepository);
+    expect(indexedDbStorage.gameStats).toBe(gameStatsRepository);
+    expect(indexedDbStorage.demoVideos).toBe(videoRepository);
+    expect(indexedDbStorage.export).toEqual(expect.any(Function));
+    expect(indexedDbStorage.import).toEqual(expect.any(Function));
+    expect(indexedDbStorage.importZip).toEqual(expect.any(Function));
+  });
+});
 
 describe('indexedDbStorage.games', () => {
   const gameData = {
@@ -73,6 +94,21 @@ describe('indexedDbStorage.games', () => {
     assertDefined(updated);
     expect(updated.name).toBe('SF6');
     expect(updated.buttonLayout).toEqual(['LP', 'MP', 'HP', 'LK', 'MK', 'HK']);
+  });
+
+  it('persists favorites without changing content modification time', async () => {
+    const id = await indexedDbStorage.games.add(gameData);
+    const before = await indexedDbStorage.games.get(id);
+    assertDefined(before);
+
+    await indexedDbStorage.games.setFavorite(id, true);
+    const favorite = await indexedDbStorage.games.get(id);
+    assertDefined(favorite);
+    expect(favorite.favorite).toBe(true);
+    expect(favorite.updatedAt).toBe(before.updatedAt);
+
+    await indexedDbStorage.games.setFavorite(id, false);
+    expect((await indexedDbStorage.games.get(id))?.favorite).toBe(false);
   });
 
   it('reparses existing combos when button layout is updated', async () => {
@@ -318,6 +354,21 @@ describe('indexedDbStorage.characters', () => {
     expect(updated.name).toBe('New Name');
   });
 
+  it('persists favorites without changing content modification time', async () => {
+    const id = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Favorite Fighter',
+    });
+    const before = await indexedDbStorage.characters.get(id);
+    assertDefined(before);
+
+    await indexedDbStorage.characters.setFavorite(id, true);
+    const favorite = await indexedDbStorage.characters.get(id);
+    assertDefined(favorite);
+    expect(favorite.favorite).toBe(true);
+    expect(favorite.updatedAt).toBe(before.updatedAt);
+  });
+
   it('deletes a character', async () => {
     const id = await indexedDbStorage.characters.add({
       gameId,
@@ -407,6 +458,21 @@ describe('indexedDbStorage.combos', () => {
     expect(id).toBeDefined();
   });
 
+  it('clears legacy video references on ordinary writes', async () => {
+    const id = await indexedDbStorage.combos.add({
+      ...comboData(),
+      demoUrl: 'local-video://legacy-video',
+      demoFileName: 'legacy.mp4',
+      demoVideoTitle: 'Legacy video',
+    });
+
+    const combo = await indexedDbStorage.combos.get(id);
+    assertDefined(combo);
+    expect(combo.demoUrl).toBeUndefined();
+    expect(combo.demoFileName).toBeUndefined();
+    expect(combo.demoVideoTitle).toBeUndefined();
+  });
+
   it('retrieves a combo by id', async () => {
     const id = await indexedDbStorage.combos.add(comboData());
     const combo = await indexedDbStorage.combos.get(id);
@@ -470,6 +536,44 @@ describe('indexedDbStorage.combos', () => {
     expect(combos[2].name).toBe('B');
   });
 
+  it('retrieves combos for multiple characters', async () => {
+    const secondCharacterId = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Second Fighter',
+    });
+    const otherGameId = await indexedDbStorage.games.add({
+      name: 'Other Game',
+      buttonLayout: [],
+    });
+    const unrelatedCharacterId = await indexedDbStorage.characters.add({
+      gameId: otherGameId,
+      name: 'Unrelated Fighter',
+    });
+
+    await indexedDbStorage.combos.add(comboData());
+    await indexedDbStorage.combos.add({
+      ...comboData(),
+      characterId: secondCharacterId,
+    });
+    await indexedDbStorage.combos.add({
+      ...comboData(),
+      characterId: unrelatedCharacterId,
+    });
+
+    const combos = await indexedDbStorage.combos.getByCharacters([
+      charId,
+      secondCharacterId,
+    ]);
+
+    expect(combos).toHaveLength(2);
+    expect(new Set(combos.map((combo) => combo.characterId))).toEqual(
+      new Set([charId, secondCharacterId]),
+    );
+    await expect(
+      indexedDbStorage.combos.getByCharacters([]),
+    ).resolves.toEqual([]);
+  });
+
   it('updates a combo', async () => {
     const id = await indexedDbStorage.combos.add(comboData());
     await indexedDbStorage.combos.update(id, {
@@ -487,6 +591,82 @@ describe('indexedDbStorage.combos', () => {
     await indexedDbStorage.combos.delete(id);
     const combo = await indexedDbStorage.combos.get(id);
     expect(combo).toBeUndefined();
+  });
+
+  it('commits a combo and its pending video together', async () => {
+    const video = {
+      id: 'pending-video',
+      data: new Uint8Array([1, 2, 3]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'demo.mp4',
+    };
+
+    const id = await indexedDbStorage.combos.addWithVideo(
+      { ...comboData(), demoUrl: `local:${video.id}` },
+      video,
+    );
+
+    expect((await indexedDbStorage.combos.get(id))?.demoUrl).toBe(
+      'local:pending-video',
+    );
+    expect(await indexedDbStorage.demoVideos.get(video.id)).toEqual(video);
+  });
+
+  it('replaces local video references atomically and removes the old orphan', async () => {
+    await indexedDbStorage.demoVideos.add({
+      id: 'old-video',
+      data: new Uint8Array([1]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'old.mp4',
+    });
+    const comboId = await indexedDbStorage.combos.add({
+      ...comboData(),
+      demoUrl: 'local:old-video',
+    });
+    const nextVideo = {
+      id: 'new-video',
+      data: new Uint8Array([2]).buffer,
+      mimeType: 'video/webm',
+      fileName: 'new.webm',
+    };
+
+    await indexedDbStorage.combos.updateWithVideo(
+      comboId,
+      { demoUrl: 'local:new-video' },
+      nextVideo,
+    );
+
+    expect((await indexedDbStorage.combos.get(comboId))?.demoUrl).toBe(
+      'local:new-video',
+    );
+    expect(await indexedDbStorage.demoVideos.get('new-video')).toBeDefined();
+    expect(await indexedDbStorage.demoVideos.get('old-video')).toBeUndefined();
+  });
+
+  it('preserves a local video until its final combo reference is deleted', async () => {
+    await indexedDbStorage.demoVideos.add({
+      id: 'shared-video',
+      data: new Uint8Array([1]).buffer,
+      mimeType: 'video/mp4',
+      fileName: 'shared.mp4',
+    });
+    const firstId = await indexedDbStorage.combos.add({
+      ...comboData(),
+      demoUrl: 'local:shared-video',
+    });
+    const secondId = await indexedDbStorage.combos.add({
+      ...comboData(),
+      name: 'Shared Demo Combo',
+      demoUrl: 'local:shared-video',
+    });
+
+    await indexedDbStorage.combos.delete(firstId);
+    expect(await indexedDbStorage.demoVideos.get('shared-video')).toBeDefined();
+
+    await indexedDbStorage.combos.delete(secondId);
+    expect(
+      await indexedDbStorage.demoVideos.get('shared-video'),
+    ).toBeUndefined();
   });
 
   it('reorders combos', async () => {
@@ -522,71 +702,6 @@ describe('indexedDbStorage.combos', () => {
     const all = await indexedDbStorage.combos.getAll();
     expect(all).toHaveLength(2);
   });
-
-  describe('search', () => {
-    beforeEach(async () => {
-      await indexedDbStorage.combos.add({
-        ...comboData(),
-        name: 'Hadouken Combo',
-        notation: '236P',
-        description: 'Basic fireball combo',
-        tags: ['fireball', 'easy'],
-      });
-      await indexedDbStorage.combos.add({
-        ...comboData(),
-        name: 'Shoryuken Punish',
-        notation: '623HP',
-        description: 'Anti-air punish',
-        tags: ['anti-air', 'advanced'],
-      });
-      await indexedDbStorage.combos.add({
-        ...comboData(),
-        name: 'Throw Loop',
-        notation: '6LP+LK',
-        description: 'Command grab setup',
-        tags: ['grab', 'loop'],
-      });
-    });
-
-    it('searches by combo name', async () => {
-      const results = await indexedDbStorage.combos.search('hadouken');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Hadouken Combo');
-    });
-
-    it('searches by notation', async () => {
-      const results = await indexedDbStorage.combos.search('623');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Shoryuken Punish');
-    });
-
-    it('searches by description', async () => {
-      const results = await indexedDbStorage.combos.search('basic');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Hadouken Combo');
-    });
-
-    it('searches by tags', async () => {
-      const results = await indexedDbStorage.combos.search('loop');
-      expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('Throw Loop');
-    });
-
-    it('search is case-insensitive', async () => {
-      const results = await indexedDbStorage.combos.search('HADOUKEN');
-      expect(results).toHaveLength(1);
-    });
-
-    it('returns empty array for no matches', async () => {
-      const results = await indexedDbStorage.combos.search('nonexistent');
-      expect(results).toHaveLength(0);
-    });
-
-    it('returns multiple matches', async () => {
-      const results = await indexedDbStorage.combos.search('6');
-      expect(results.length).toBeGreaterThanOrEqual(1);
-    });
-  });
 });
 
 describe('indexedDbStorage.settings', () => {
@@ -602,7 +717,6 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.videoPlayerSize).toBe('lg');
     expect(settings.gameCardSize).toBe(180);
     expect(settings.characterCardSize).toBe(180);
-    expect(settings.showChangelogBeforeUpdate).toBe(true);
   });
 
   it('auto-initializes settings in DB on first get', async () => {
@@ -643,6 +757,21 @@ describe('indexedDbStorage.settings', () => {
     const settings = await indexedDbStorage.settings.get();
     expect(settings.fontFamily).toBe('jetbrains-mono');
     expect(settings.colorTheme).toBe('dark'); // default preserved
+  });
+
+  it('atomically adds and removes a notes override', async () => {
+    await indexedDbStorage.settings.setNotesOverride('game-1', true);
+    await indexedDbStorage.settings.setNotesOverride('game-1', true);
+
+    await expect(
+      indexedDbStorage.settings.getNotesOverrides(),
+    ).resolves.toEqual(['game-1']);
+
+    await indexedDbStorage.settings.setNotesOverride('game-1', false);
+
+    await expect(
+      indexedDbStorage.settings.getNotesOverrides(),
+    ).resolves.toEqual([]);
   });
 
   it('migrates legacy oklch notation colors during init', async () => {
@@ -959,6 +1088,40 @@ describe('indexedDbStorage.export', () => {
 });
 
 describe('indexedDbStorage.import', () => {
+  it('rejects oversized zip files before reading them into memory', async () => {
+    const arrayBuffer = vi.fn();
+    const oversizedFile = {
+      size: MAX_ZIP_BACKUP_BYTES + 1,
+      arrayBuffer,
+    } as unknown as Blob;
+
+    await expect(indexedDbStorage.importZip(oversizedFile)).rejects.toThrow(
+      '512 MB import limit',
+    );
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('rejects zip metadata declaring too many videos', async () => {
+    const zip = new JSZip();
+    zip.file(
+      'backup.json',
+      JSON.stringify({
+        version: 3,
+        exported: new Date().toISOString(),
+        demoVideos: Array.from({ length: 101 }, (_, index) => ({
+          id: `video-${index}`,
+          fileName: `${index}.mp4`,
+          mimeType: 'video/mp4',
+          path: `videos/${index}.mp4`,
+        })),
+      }),
+    );
+    const backup = await zip.generateAsync({ type: 'blob' });
+
+    await expect(indexedDbStorage.importZip(backup, true)).rejects.toThrow(
+      'more than 100 videos',
+    );
+  });
   it('imports games, characters, and combos', async () => {
     const data = JSON.stringify({
       version: 1,
@@ -1038,8 +1201,8 @@ describe('indexedDbStorage.import', () => {
     assertDefined(standardGame);
     expect(numberedGame.notationProfile).toBe('tekken');
     expect(standardGame.notationProfile).toBe('standard');
-    expect(numberedGame.inputType).toBeUndefined();
-    expect(standardGame.inputType).toBeUndefined();
+    expect(numberedGame).not.toHaveProperty('inputType');
+    expect(standardGame).not.toHaveProperty('inputType');
   });
 
   it('imports settings', async () => {
@@ -1052,14 +1215,12 @@ describe('indexedDbStorage.import', () => {
         notationColors: { direction: '#fff', separator: '#ccc' },
         displayMode: 'visual-icons',
         iconStyle: 'round',
-        uiTheme: 'default',
         comboScale: 2.5,
         autoUpdate: true,
         confirmBeforeDelete: true,
         videoPlayerSize: 'lg',
         gameCardSize: 180,
         characterCardSize: 180,
-        showChangelogBeforeUpdate: true,
       },
     });
 
@@ -1068,6 +1229,14 @@ describe('indexedDbStorage.import', () => {
     assertDefined(raw);
     expect(raw.comboScale).toBe(2.5);
     expect(raw.displayMode).toBe('visual-icons');
+    expect(raw).not.toHaveProperty('uiTheme');
+    expect(raw).not.toHaveProperty('showChangelogBeforeUpdate');
+
+    const exported = JSON.parse(
+      await (await indexedDbStorage.export()).text(),
+    );
+    expect(exported.settings).not.toHaveProperty('uiTheme');
+    expect(exported.settings).not.toHaveProperty('showChangelogBeforeUpdate');
   });
 
   it('does not import settings unless includeSettings is true', async () => {
@@ -1102,7 +1271,7 @@ describe('indexedDbStorage.import', () => {
     expect(settings.comboScale).toBe(1);
   });
 
-  it('marks parser version stale when importing combos without settings', async () => {
+  it('reparses imported combos immediately when importing without settings', async () => {
     await indexedDbStorage.settings.update({
       parsedNotationVersion: 999,
       colorTheme: 'light',
@@ -1147,8 +1316,12 @@ describe('indexedDbStorage.import', () => {
     await indexedDbStorage.import(data);
 
     const settings = await indexedDbStorage.settings.get();
-    expect(settings.parsedNotationVersion).toBe(0);
+    expect(settings.parsedNotationVersion).toBe(
+      COMBO_NOTATION_PARSER_VERSION,
+    );
     expect(settings.colorTheme).toBe('light');
+    const combo = await indexedDbStorage.combos.get('combo1');
+    expect(combo?.parsedNotation).toEqual(parseComboNotation('A', ['A']));
   });
 
 
@@ -1236,6 +1409,8 @@ describe('indexedDbStorage.import', () => {
       gameId,
       name: 'Round Trip Hero',
     });
+    await indexedDbStorage.games.setFavorite(gameId, true);
+    await indexedDbStorage.characters.setFavorite(characterId, true);
     const videoBytes = new Uint8Array([0, 5, 10, 200, 255]);
     await indexedDbStorage.demoVideos.add({
       id: 'video-roundtrip',
@@ -1281,6 +1456,8 @@ describe('indexedDbStorage.import', () => {
 
     expect(importedGames).toHaveLength(1);
     expect(importedCharacters).toHaveLength(1);
+    expect(importedGames[0].favorite).toBe(true);
+    expect(importedCharacters[0].favorite).toBe(true);
     expect(importedCombos).toHaveLength(1);
     expect(importedCombos[0].demoUrl).toBe('local:video-roundtrip');
     expect(importedSettings.fontFamily).toBe('jetbrains-mono');
@@ -1293,7 +1470,7 @@ describe('indexedDbStorage.import', () => {
     );
   });
 
-  it('marks parser version stale when importing zip combos without settings', async () => {
+  it('reparses imported zip combos immediately without replacing settings', async () => {
     await indexedDbStorage.settings.update({
       parsedNotationVersion: 999,
       colorTheme: 'light',
@@ -1324,7 +1501,9 @@ describe('indexedDbStorage.import', () => {
     await indexedDbStorage.importZip(exportedBlob, true, false);
 
     const settings = await indexedDbStorage.settings.get();
-    expect(settings.parsedNotationVersion).toBe(0);
+    expect(settings.parsedNotationVersion).toBe(
+      COMBO_NOTATION_PARSER_VERSION,
+    );
     expect(settings.colorTheme).toBe('light');
   });
 

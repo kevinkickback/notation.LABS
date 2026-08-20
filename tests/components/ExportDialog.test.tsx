@@ -9,6 +9,7 @@ const mockGames: Game[] = [
     id: 'game-1',
     name: 'Street Fighter 6',
     buttonLayout: ['L', 'M', 'H', 'S'],
+    notationProfile: 'standard',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -16,6 +17,7 @@ const mockGames: Game[] = [
     id: 'game-2',
     name: 'Guilty Gear Strive',
     buttonLayout: ['P', 'K', 'S', 'H', 'D'],
+    notationProfile: 'standard',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -132,6 +134,17 @@ describe('ExportDialog', () => {
       expect(screen.getByText('Street Fighter 6')).toBeTruthy();
       expect(screen.getByText('Guilty Gear Strive')).toBeTruthy();
     });
+  });
+
+  it('sorts game entries alphabetically by default', async () => {
+    await renderDialog();
+
+    const guiltyGear = await screen.findByText('Guilty Gear Strive');
+    const streetFighter = screen.getByText('Street Fighter 6');
+    expect(
+      guiltyGear.compareDocumentPosition(streetFighter) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('shows character counts for each game', async () => {

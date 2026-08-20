@@ -1,38 +1,21 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
+import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
+import { EntityNoteDialog } from '@/components/shared/EntityNoteDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
+import { useCharacterComboStatistics } from '@/hooks/useCharacterComboStatistics';
 import { useCharacterDelete } from '@/hooks/useCharacterDelete';
 import { useCharacterFilters } from '@/hooks/useCharacterFilters';
 import { useCharacterOperations } from '@/hooks/useCharacterOperations';
-import { useCharacterSelection } from '@/hooks/useCharacterSelection';
 import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
-import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useSelection } from '@/hooks/useSelection';
+import { setCharacterFavorite } from '@/lib/application/characterCommands';
+import { updateGame } from '@/lib/application/gameCommands';
+import { reportError } from '@/lib/errors';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 import { CharacterFormDialog } from './CharacterFormDialog';
@@ -59,7 +42,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(game.notes || '');
 
-  const selection = useCharacterSelection();
+  const selection = useSelection();
   const viewMode = useCharacterViewMode(settings.characterCardSize);
   const deleteState = useCharacterDelete();
   const operations = useCharacterOperations();
@@ -69,13 +52,8 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     settings.notesDefaultOpen ?? false,
   );
 
-  const combos = useLiveQuery(
-    () =>
-      db.combos
-        .where('characterId')
-        .anyOf(characters.map((c) => c.id))
-        .toArray(),
-    [characters],
+  const combos = useCharacterComboStatistics(
+    characters.map((character) => character.id),
   );
 
   const comboCountByChar = useMemo(() => {
@@ -105,14 +83,26 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     lastModifiedByChar,
   );
 
+  const handleToggleFavorite = async (character: Character) => {
+    try {
+      await setCharacterFavorite(character.id, !character.favorite);
+    } catch (error) {
+      reportError('CharacterView.toggleFavorite', error);
+      toast.error('Failed to update favorite');
+    }
+  };
+
   const handleDeleteCharacter = async (character: Character) => {
-    await deleteState.handleDeleteCharacter(character);
-    selection.setSelectedIds((prev) => {
-      if (!prev.has(character.id)) return prev;
-      const next = new Set(prev);
-      next.delete(character.id);
-      return next;
-    });
+    const deleted = await deleteState.handleDeleteCharacter(character);
+    if (deleted) {
+      selection.setSelectedIds((prev) => {
+        if (!prev.has(character.id)) return prev;
+        const next = new Set(prev);
+        next.delete(character.id);
+        return next;
+      });
+    }
+    return deleted;
   };
 
   const handleCharacterSelect = (characterId: string) => {
@@ -137,13 +127,14 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       setBulkDeleteConfirm(true);
       return;
     }
-    for (const id of selection.selectedIds) {
-      const character = characters.find((c) => c.id === id);
-      if (character) {
-        await handleDeleteCharacter(character);
-      }
+    const selectedCharacters = characters.filter((character) =>
+      selection.selectedIds.has(character.id),
+    );
+    const deleted =
+      await deleteState.handleBulkDeleteCharacters(selectedCharacters);
+    if (deleted) {
+      selection.clearSelection();
     }
-    selection.clearSelection();
   };
 
   const openNoteDialog = useCallback(() => {
@@ -153,12 +144,13 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 
   const handleSaveNote = useCallback(async () => {
     try {
-      await indexedDbStorage.games.update(game.id, {
+      await updateGame(game.id, {
         notes: noteDraft.trim(),
       });
       toast.success('Note updated');
       setNoteDialogOpen(false);
-    } catch {
+    } catch (error) {
+      reportError('CharacterView.handleSaveNote', error);
       toast.error('Failed to update note');
     }
   }, [game.id, noteDraft]);
@@ -255,6 +247,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
                   void handleDeleteCharacter(character);
                 }
               }}
+              onToggleFavorite={() => void handleToggleFavorite(character)}
             />
           ) : (
             <CharacterListCard
@@ -276,6 +269,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
                   void handleDeleteCharacter(character);
                 }
               }}
+              onToggleFavorite={() => void handleToggleFavorite(character)}
             />
           ),
         )}
@@ -289,76 +283,47 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       />
 
       {settings.confirmBeforeDelete && (
-        <AlertDialog
+        <DestructiveConfirmationDialog
           open={!!deleteState.deleteTarget}
           onOpenChange={(open) => !open && deleteState.setDeleteTarget(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Delete {deleteState.deleteTarget?.name}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {(() => {
-                  if (!deleteState.deleteTarget) return '';
-                  const comboCount =
-                    comboCountByChar[deleteState.deleteTarget.id] || 0;
-                  if (comboCount === 0)
-                    return 'This character has no combos. This action cannot be undone.';
-                  return `This will also delete ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
-                })()}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
-                  if (deleteState.deleteTarget) {
-                    void handleDeleteCharacter(deleteState.deleteTarget);
-                  }
-                }}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title={`Delete ${deleteState.deleteTarget?.name}?`}
+          description={(() => {
+            if (!deleteState.deleteTarget) return '';
+            const comboCount =
+              comboCountByChar[deleteState.deleteTarget.id] || 0;
+            if (comboCount === 0) {
+              return 'This character has no combos. This action cannot be undone.';
+            }
+            return `This will also delete ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
+          })()}
+          onConfirm={async () => {
+            if (deleteState.deleteTarget) {
+              await handleDeleteCharacter(deleteState.deleteTarget);
+            }
+          }}
+        />
       )}
 
-      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selection.selectedIds.size} character
-              {selection.selectedIds.size !== 1 ? 's' : ''}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will also delete {selectedComboCount} combo
-              {selectedComboCount !== 1 ? 's' : ''}. This action cannot be
-              undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
-                for (const id of selection.selectedIds) {
-                  const character = characters.find((c) => c.id === id);
-                  if (character) {
-                    await handleDeleteCharacter(character);
-                  }
-                }
-                setBulkDeleteConfirm(false);
-                selection.clearSelection();
-              }}
-            >
-              Delete Selected ({selection.selectedIds.size})
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveConfirmationDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selection.selectedIds.size} character${
+          selection.selectedIds.size !== 1 ? 's' : ''
+        }?`}
+        description={`This will also delete ${selectedComboCount} combo${selectedComboCount !== 1 ? 's' : ''}. This action cannot be undone.`}
+        actionLabel={`Delete Selected (${selection.selectedIds.size})`}
+        onConfirm={async () => {
+          const selectedCharacters = characters.filter((character) =>
+            selection.selectedIds.has(character.id),
+          );
+          const deleted =
+            await deleteState.handleBulkDeleteCharacters(selectedCharacters);
+          if (deleted) {
+            setBulkDeleteConfirm(false);
+            selection.clearSelection();
+          }
+        }}
+      />
 
       <ButtonColorDialog
         open={colorDialogOpen}
@@ -366,31 +331,15 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         game={game}
       />
 
-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Note</DialogTitle>
-            <DialogDescription>
-              Update notes for {game.name}. Markdown is supported.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor={gameNoteEditorId}>Note</Label>
-            <Textarea
-              id={gameNoteEditorId}
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              rows={8}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSaveNote()}>Save Note</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EntityNoteDialog
+        open={noteDialogOpen}
+        onOpenChange={setNoteDialogOpen}
+        editorId={gameNoteEditorId}
+        entityName={game.name}
+        value={noteDraft}
+        onValueChange={setNoteDraft}
+        onSave={() => void handleSaveNote()}
+      />
     </div>
   );
 }

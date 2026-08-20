@@ -26,6 +26,7 @@ const game: Game = {
   id: 'game-1',
   name: 'Street Fighter 6',
   buttonLayout: ['L', 'M', 'H', 'S'],
+  notationProfile: 'standard',
   createdAt: 1,
   updatedAt: 1,
 };

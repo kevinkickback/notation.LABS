@@ -3,7 +3,14 @@ import type { FontFamily, UserSettings } from './types';
 export const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 // Practical ceiling for JSON backups in the renderer process.
 // Larger files are likely to fail during text decode / JSON.parse.
-export const MAX_JSON_BACKUP_BYTES = 450 * 1024 * 1024;
+export const MAX_JSON_BACKUP_BYTES = 100 * 1024 * 1024;
+export const MAX_ZIP_BACKUP_BYTES = 512 * 1024 * 1024;
+export const MAX_BACKUP_METADATA_BYTES = 10 * 1024 * 1024;
+export const MAX_BACKUP_VIDEO_COUNT = 100;
+export const MAX_BACKUP_VIDEO_BYTES = 500 * 1024 * 1024;
+export const MAX_BACKUP_ENTRY_COUNT = MAX_BACKUP_VIDEO_COUNT + 10;
+export const MAX_BACKUP_UNCOMPRESSED_BYTES =
+  MAX_BACKUP_METADATA_BYTES + MAX_BACKUP_VIDEO_BYTES;
 
 export const DEFAULT_BUTTON_PALETTE = [
   '#e53e3e',
@@ -58,7 +65,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   displayMode: 'colored-text',
   iconStyle: 'round',
-  uiTheme: 'default',
   comboScale: 1,
   autoUpdate: true,
   confirmBeforeDelete: true,
@@ -68,7 +74,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notesDefaultOpen: false,
   notesOverrides: [],
   parsedNotationVersion: 0,
-  showChangelogBeforeUpdate: true,
   accentColor: '#3b82f6',
   characterCardOrientation: 'landscape',
   motionIconStyle: 'joystick',

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { searchIGDB } from '@/lib/igdb';
+import { searchIgdbGames } from '@/lib/providers/igdbProvider';
 
-describe('searchIGDB', () => {
+describe('searchIgdbGames', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe('searchIGDB', () => {
     vi.clearAllMocks();
   });
 
-  it('posts the search query to the IGDB worker and returns the response body', async () => {
+  it('posts the search query and returns normalized results', async () => {
     const results = [
       { id: 7, name: 'Street Fighter 6', coverImageId: 'abc123' },
     ];
@@ -23,13 +23,21 @@ describe('searchIGDB', () => {
       json: async () => results,
     });
 
-    await expect(searchIGDB('street fighter')).resolves.toEqual(results);
+    await expect(searchIgdbGames('street fighter')).resolves.toEqual([
+      {
+        igdbId: 7,
+        name: 'Street Fighter 6',
+        coverImageId: 'abc123',
+        firstReleaseDate: null,
+      },
+    ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://igdb.capitol-k.workers.dev',
+      '/api/igdb',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: 'street fighter' }),
+        signal: undefined,
       },
     );
   });
@@ -37,7 +45,7 @@ describe('searchIGDB', () => {
   it('throws a descriptive error when the worker request fails', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
 
-    await expect(searchIGDB('guilty gear')).rejects.toThrow(
+    await expect(searchIgdbGames('guilty gear')).rejects.toThrow(
       'IGDB search failed: 503',
     );
   });

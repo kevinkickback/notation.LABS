@@ -1,5 +1,5 @@
 import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,9 +10,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { type RawIGDBApiResult, searchIGDB } from '@/lib/igdb';
+import { useCachedSearch } from '@/hooks/useCachedSearch';
+import {
+  downloadIgdbCover,
+  getIgdbCoverUrl,
+  searchIgdbGames,
+} from '@/lib/providers/igdbProvider';
 import type { IGDBSearchResult } from '@/lib/types';
-import { fetchImageAsBase64 } from '@/lib/utils';
+
+const getSearchErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Search failed';
 
 interface CoverSearchDialogProps {
   open: boolean;
@@ -27,141 +34,43 @@ export function CoverSearchDialog({
   defaultQuery,
   onCoverSelect,
 }: CoverSearchDialogProps) {
-  const [searchQuery, setSearchQuery] = useState(defaultQuery);
-  const searchQueryRef = useRef(searchQuery);
-  const [results, setResults] = useState<IGDBSearchResult[]>([]);
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  const prevOpenRef = useRef(false);
-  const resultsCacheRef = useRef<
-    Map<
-      string,
-      { results: IGDBSearchResult[]; thumbnails: Record<string, string> }
-    >
-  >(new Map());
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleSearch = useCallback(async (query?: string) => {
-    const q = (query ?? searchQueryRef.current).trim();
-    if (!q) return;
-
-    const cached = resultsCacheRef.current.get(q);
-    if (cached) {
-      setError(null);
-      setResults(cached.results);
-      setThumbnails(cached.thumbnails);
-      setHasSearched(true);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    setThumbnails({});
-    setHasSearched(true);
-
-    try {
-      const rawData: RawIGDBApiResult[] = await searchIGDB(q);
-      const data: IGDBSearchResult[] = (rawData || []).map(
-        (g: RawIGDBApiResult) => {
-          const coverId = g.coverImageId ?? g.cover?.image_id ?? null;
-          const release = g.firstReleaseDate ?? g.first_release_date ?? null;
-          return {
-            igdbId: g.id,
-            name: g.name,
-            coverImageId: coverId,
-            firstReleaseDate: release,
-          };
-        },
-      );
-      const thumbs: Record<string, string> = {};
-      for (const g of data) {
-        if (g.coverImageId) {
-          thumbs[g.coverImageId] =
-            `https://images.igdb.com/igdb/image/upload/t_cover_big/${g.coverImageId}.jpg`;
-        }
-      }
-      resultsCacheRef.current.set(q, { results: data, thumbnails: thumbs });
-      setError(null);
-      setResults(data);
-      setThumbnails(thumbs);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Search failed';
-      setError(msg);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const debouncedSearch = useCallback(
-    (query?: string) => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-      debounceTimeoutRef.current = setTimeout(() => {
-        handleSearch(query);
-      }, 300);
-    },
-    [handleSearch],
-  );
-
-  useEffect(() => {
-    if (open && !prevOpenRef.current) {
-      setSearchQuery(defaultQuery);
-      searchQueryRef.current = defaultQuery;
-
-      const trimmed = defaultQuery.trim();
-      if (resultsCacheRef.current.has(trimmed)) {
-        const cached = resultsCacheRef.current.get(trimmed);
-        if (cached) {
-          setError(null);
-          setResults(cached.results);
-          setThumbnails(cached.thumbnails);
-          setHasSearched(true);
-        }
-      } else {
-        setResults([]);
-        setThumbnails({});
-        setError(null);
-        setHasSearched(false);
-        if (trimmed) {
-          handleSearch(defaultQuery);
-        }
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    results,
+    loading,
+    error,
+    hasSearched,
+    runDebouncedSearch,
+  } = useCachedSearch<IGDBSearchResult>({
+    open,
+    initialQuery: defaultQuery,
+    search: searchIgdbGames,
+    getErrorMessage: getSearchErrorMessage,
+    debounceMs: 300,
+  });
+  const thumbnails = useMemo(() => {
+    const urls: Record<string, string> = {};
+    for (const result of results) {
+      if (result.coverImageId) {
+        urls[result.coverImageId] = getIgdbCoverUrl(
+          result.coverImageId,
+          't_cover_big',
+        );
       }
     }
-    prevOpenRef.current = open;
-  }, [open, defaultQuery, handleSearch]);
+    return urls;
+  }, [results]);
 
   const handleCoverSelect = async (result: IGDBSearchResult) => {
     if (!result.coverImageId || downloading) return;
     setDownloading(result.coverImageId);
     try {
-      // Try IGDB cover sizes in order of quality
-      const sizes = [
-        't_cover_big_2x',
-        't_cover_big',
-        't_cover_small_2x',
-        't_cover_small',
-        't_thumb',
-      ];
-      let found = false;
-      for (const size of sizes) {
-        const url = `https://images.igdb.com/igdb/image/upload/${size}/${result.coverImageId}.jpg`;
-        const dataUrl = await fetchImageAsBase64(
-          'https://igdb.capitol-k.workers.dev/download',
-          url,
-        );
-        if (dataUrl) {
-          onCoverSelect(dataUrl);
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
+      const dataUrl = await downloadIgdbCover(result.coverImageId);
+      if (dataUrl) {
+        onCoverSelect(dataUrl);
+      } else {
         toast.error('Failed to download cover (no available sizes)');
       }
     } catch {
@@ -190,15 +99,12 @@ export function CoverSearchDialog({
           <Input
             placeholder="Search for a game..."
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              searchQueryRef.current = e.target.value;
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && debouncedSearch()}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && runDebouncedSearch()}
             aria-label="Game search query"
           />
           <Button
-            onClick={() => debouncedSearch()}
+            onClick={() => runDebouncedSearch()}
             disabled={loading || !searchQuery.trim()}
           >
             <MagnifyingGlassIcon className="w-4 h-4" />

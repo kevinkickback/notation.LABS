@@ -19,7 +19,8 @@ import { NotesMarkdown } from '@/components/shared/NotesMarkdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateCharacter } from '@/lib/application/characterCommands';
+import { reportError } from '@/lib/errors';
 import type { CharacterLink } from '@/lib/types';
 
 export interface CharacterInfoCardRef {
@@ -124,7 +125,7 @@ export const CharacterInfoCard = forwardRef<
         return;
       }
       try {
-        await indexedDbStorage.characters.update(characterId, {
+        await updateCharacter(characterId, {
           links: links.map((l) =>
             l.id === id
               ? {
@@ -136,7 +137,8 @@ export const CharacterInfoCard = forwardRef<
           ),
         });
         cancelEditLink();
-      } catch {
+      } catch (error) {
+        reportError('CharacterInfoCard.handleSaveEdit', error);
         toast.error('Failed to update link');
       }
     },
@@ -164,11 +166,12 @@ export const CharacterInfoCard = forwardRef<
     };
 
     try {
-      await indexedDbStorage.characters.update(characterId, {
+      await updateCharacter(characterId, {
         links: [...links, newLink],
       });
       cancelAdd();
-    } catch {
+    } catch (error) {
+      reportError('CharacterInfoCard.handleAdd', error);
       toast.error('Failed to add link');
     }
   }, [characterId, links, urlDraft, labelDraft, cancelAdd]);
@@ -176,10 +179,11 @@ export const CharacterInfoCard = forwardRef<
   const handleDelete = useCallback(
     async (id: string) => {
       try {
-        await indexedDbStorage.characters.update(characterId, {
+        await updateCharacter(characterId, {
           links: links.filter((l) => l.id !== id),
         });
-      } catch {
+      } catch (error) {
+        reportError('CharacterInfoCard.handleDelete', error);
         toast.error('Failed to remove link');
       }
     },

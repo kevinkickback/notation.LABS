@@ -2,11 +2,52 @@ import {
   NRS_MECHANIC_LABELS,
   TEKKEN_MECHANIC_LABELS,
 } from '@/lib/notationProfiles';
-import { getTokenColor } from '@/lib/parser';
 import type { ComboToken, NotationColors, NotationProfile } from '@/lib/types';
 
 export const REPEAT_PAREN_COLOR = 'oklch(0.65 0.02 265)';
 export const TEKKEN_EXPLICIT_MOVE_BOUNDARIES = new Set(['►', '>', '→', '»']);
+
+export function getTokenColor(
+  token: ComboToken,
+  colors: Record<string, string>,
+  buttonColors?: Record<string, string>,
+): string {
+  switch (token.type) {
+    case 'direction':
+    case 'motion':
+      return colors.direction || '#bdceef';
+    case 'button':
+      return buttonColors?.[token.value] ?? colors.direction ?? '#bdceef';
+    case 'modifier': {
+      if (token.value === 'CH') {
+        return colors.separator || '#6c727e';
+      }
+      if (token.value.startsWith('(') || token.value === ')') {
+        return colors.separator || '#6c727e';
+      }
+      if (token.value.startsWith('[') || token.value.startsWith(']')) {
+        const delimitedButtonMatch = token.value
+          .trim()
+          .match(/^(?:\[([^[\]]+)\]|\]([^[\]]+)\[)$/);
+        const delimitedButton = (
+          delimitedButtonMatch?.[1] ?? delimitedButtonMatch?.[2]
+        )
+          ?.trim()
+          .toUpperCase();
+        return (
+          (delimitedButton ? buttonColors?.[delimitedButton] : undefined) ??
+          colors.separator ??
+          '#6c727e'
+        );
+      }
+      return colors.direction || '#bdceef';
+    }
+    case 'separator':
+      return colors.separator || '#6c727e';
+    default:
+      return colors.direction || '#bdceef';
+  }
+}
 
 export const DIRECTION_MODIFIERS: Record<string, string> = {
   'st.': '5',
@@ -68,12 +109,15 @@ const COMMON_LABELED_MECHANICS = new Set([
   'dj.',
   'dl.',
   'iad',
+  'hjc.',
   'j.',
   'jc.',
   'nj.',
   'sj.',
   'sjc.',
   'tk.',
+  'OTG',
+  'FC',
 ]);
 
 const PROFILE_LABELED_MECHANICS: Record<
@@ -118,6 +162,12 @@ export function shouldRenderMechanicBadge(
 export function isLiteralParenUnknown(token: ComboToken): boolean {
   return (
     token.type === 'unknown' && (token.value === '(' || token.value === ')')
+  );
+}
+
+export function isStructuralGroupingParen(token: ComboToken): boolean {
+  return (
+    token.type === 'modifier' && (token.value === '(' || token.value === ')')
   );
 }
 

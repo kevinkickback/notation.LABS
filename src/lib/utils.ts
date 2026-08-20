@@ -68,7 +68,7 @@ function hasKnownImageSignature(bytes: Uint8Array): boolean {
 
 /**
  * Fetches an image from a remote worker and returns a base64 data URL.
- * @param workerUrl The worker endpoint (e.g., https://igdb.capitol-k.workers.dev/download)
+ * @param workerUrl The provider download endpoint.
  * @param imageUrl The image URL to download
  * @returns The base64 data URL, or null if failed
  */
@@ -130,14 +130,4 @@ export async function isAllowedImageUpload(file: File): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export function getApiBase(type: 'igdb' | 'ddg'): string {
-  if (type === 'igdb') {
-    return 'https://igdb.capitol-k.workers.dev';
-  }
-  if (type === 'ddg') {
-    return 'https://ddg.capitol-k.workers.dev';
-  }
-  return '';
 }

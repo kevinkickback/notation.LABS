@@ -26,35 +26,18 @@ import { ComboViewToolbar } from '@/components/combo/ComboViewToolbar';
 import { SortableComboCard } from '@/components/combo/SortableComboCard';
 import { VideoPlayerDialog } from '@/components/combo/VideoPlayerDialog';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useSettings } from '@/context/SettingsContext';
+import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
+import { EntityNoteDialog } from '@/components/shared/EntityNoteDialog';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { useComboDelete } from '@/hooks/useComboDelete';
 import { useComboFilters } from '@/hooks/useComboFilters';
 import { useComboOperations } from '@/hooks/useComboOperations';
-import { useComboSelection } from '@/hooks/useComboSelection';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
+import { useSelection } from '@/hooks/useSelection';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { updateCharacter } from '@/lib/application/characterCommands';
+import { reorderCombos } from '@/lib/application/comboCommands';
+import { reportError } from '@/lib/errors';
 import type { Character, Combo, DisplayMode, Game } from '@/lib/types';
 
 interface ComboViewProps {
@@ -65,6 +48,7 @@ interface ComboViewProps {
 
 export function ComboView({ game, character, combos }: ComboViewProps) {
   const settings = useSettings();
+  const { setSetting } = useSettingsActions();
   const characterNoteEditorId = useId();
   const displayMode = settings.displayMode;
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
@@ -72,7 +56,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
   const [noteDraft, setNoteDraft] = useState(character.notes || '');
 
   const filters = useComboFilters(combos);
-  const selection = useComboSelection();
+  const selection = useSelection();
   const videoPlayer = useVideoPlayer(settings.videoPlayerSize);
   const deleteState = useComboDelete({
     confirmBeforeDelete: settings.confirmBeforeDelete ?? false,
@@ -102,9 +86,12 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
     }),
   );
 
-  const handleDisplayModeChange = useCallback(async (mode: DisplayMode) => {
-    await indexedDbStorage.settings.update({ displayMode: mode });
-  }, []);
+  const handleDisplayModeChange = useCallback(
+    async (mode: DisplayMode) => {
+      await setSetting('displayMode', mode);
+    },
+    [setSetting],
+  );
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
@@ -120,7 +107,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
       if (oldIndex === -1 || newIndex === -1) return;
 
       const reordered = arrayMove(filters.filteredCombos, oldIndex, newIndex);
-      await indexedDbStorage.combos.reorder(reordered.map((c) => c.id));
+      await reorderCombos(reordered.map((combo) => combo.id));
     },
     [filters.filteredCombos],
   );
@@ -140,9 +127,12 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
     [filters],
   );
 
-  const handleBulkDelete = useCallback(() => {
-    deleteState.handleBulkDelete(selection.selectedIds);
-  }, [deleteState, selection.selectedIds]);
+  const handleBulkDelete = useCallback(async () => {
+    const deleted = await deleteState.handleBulkDelete(selection.selectedIds);
+    if (deleted) {
+      selection.clearSelection();
+    }
+  }, [deleteState, selection.selectedIds, selection.clearSelection]);
 
   const handleBulkMarkOutdated = useCallback(async () => {
     await operations.handleBulkMarkOutdated(selection.selectedIds, true);
@@ -160,183 +150,145 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 
   const handleSaveNote = useCallback(async () => {
     try {
-      await indexedDbStorage.characters.update(character.id, {
+      await updateCharacter(character.id, {
         notes: noteDraft.trim(),
       });
       toast.success('Note updated');
       setNoteDialogOpen(false);
-    } catch {
+    } catch (error) {
+      reportError('ComboView.handleSaveNote', error);
       toast.error('Failed to update note');
     }
   }, [character.id, noteDraft]);
 
-  if (combos.length === 0) {
-    return (
-      <div>
+  return (
+    <div>
+      {combos.length === 0 ? (
         <ComboViewEmptyState
           game={game}
           character={character}
           onAddCombo={() => operations.setDialogOpen(true)}
           onEditNote={openNoteDialog}
         />
-        <ComboFormDialog
-          open={operations.dialogOpen}
-          onOpenChange={(open) => {
-            operations.setDialogOpen(open);
-            if (!open) operations.setEditingCombo(null);
-          }}
-          game={game}
-          character={character}
-          editingCombo={operations.editingCombo}
-          allTags={filters.allTags}
-        />
-        <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Note</DialogTitle>
-              <DialogDescription>
-                Update notes for {character.name}. Markdown is supported.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor={characterNoteEditorId}>Note</Label>
-              <Textarea
-                id={characterNoteEditorId}
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                rows={8}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setNoteDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={() => void handleSaveNote()}>Save Note</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Header with character info and toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-        <ComboViewHeader
-          character={character}
-          game={game}
-          comboCount={combos.length}
-        />
-        {selection.isSelecting ? (
-          <ComboSelectionToolbar
-            selectedCount={selection.selectedIds.size}
-            onSelectAll={() =>
-              selection.selectAll(filters.filteredCombos.map((c) => c.id))
-            }
-            onDeselectAll={selection.deselectAll}
-            onMarkOutdated={handleBulkMarkOutdated}
-            onDelete={handleBulkDelete}
-            onCancel={selection.clearSelection}
-          />
-        ) : (
-          <ComboViewToolbar
-            displayMode={displayMode}
-            onDisplayModeChange={handleDisplayModeChange}
-            showFilters={filters.showFilters}
-            onToggleFilters={() => filters.setShowFilters(!filters.showFilters)}
-            activeFilterCount={filters.activeFilterCount}
-            isSelecting={selection.isSelecting}
-            onToggleSelect={() => {
-              selection.setIsSelecting(!selection.isSelecting);
-              if (selection.isSelecting) selection.deselectAll();
-            }}
-            onAddCombo={() => operations.setDialogOpen(true)}
-            onOpenColorDialog={() => setColorDialogOpen(true)}
-            onAddResourceLink={handleAddResourceLink}
-            onEditNote={openNoteDialog}
-            showInfoCard={
-              Boolean(character.notes?.trim()) ||
-              (character.links?.length ?? 0) > 0
-            }
-          />
-        )}
-      </div>
-
-      {/* Character info: notes + resource links */}
-      <CharacterInfoCard
-        ref={infoCardRef}
-        characterId={character.id}
-        notes={character.notes || ''}
-        links={character.links ?? []}
-        isOpen={showInfo}
-        onToggle={handleToggleInfo}
-        onEditNote={openNoteDialog}
-      />
-
-      {/* Filter panel */}
-      {filters.showFilters && (
-        <ComboFilters
-          filterSearch={filters.filterSearch}
-          onFilterSearchChange={filters.setFilterSearch}
-          filterTags={filters.filterTags}
-          onToggleFilterTag={filters.toggleFilterTag}
-          filterDifficulty={filters.filterDifficulty}
-          onFilterDifficultyChange={filters.setFilterDifficulty}
-          filterOutdated={filters.filterOutdated}
-          onFilterOutdatedChange={filters.setFilterOutdated}
-          allTags={filters.allTags}
-          hasActiveFilters={filters.hasActiveFilters}
-          onClearFilters={filters.clearFilters}
-          filteredCount={filters.filteredCombos.length}
-          totalCount={combos.length}
-        />
-      )}
-
-      {/* Multi-select toolbar is now inline in the header row */}
-
-      {/* Combo list with DnD */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={filters.filteredCombos.map((c) => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="grid grid-cols-1 gap-4">
-            {filters.filteredCombos.map((combo) => (
-              <SortableComboCard
-                key={combo.id}
-                combo={combo}
-                game={game}
-                displayMode={displayMode}
-                onEdit={operations.handleEdit}
-                onDuplicate={operations.handleDuplicate}
-                onDelete={handleDelete}
-                onTagClick={handleTagClick}
-                onWatchDemo={videoPlayer.handleWatchDemo}
-                isDragDisabled={
-                  filters.hasActiveFilters || selection.isSelecting
+      ) : (
+        <>
+          {/* Header with character info and toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <ComboViewHeader
+              character={character}
+              game={game}
+              comboCount={combos.length}
+            />
+            {selection.isSelecting ? (
+              <ComboSelectionToolbar
+                selectedCount={selection.selectedIds.size}
+                onSelectAll={() =>
+                  selection.selectAll(filters.filteredCombos.map((c) => c.id))
                 }
-                isSelecting={selection.isSelecting}
-                isSelected={selection.selectedIds.has(combo.id)}
-                onToggleSelect={selection.toggleSelect}
+                onDeselectAll={selection.deselectAll}
+                onMarkOutdated={handleBulkMarkOutdated}
+                onDelete={handleBulkDelete}
+                onCancel={selection.clearSelection}
               />
-            ))}
+            ) : (
+              <ComboViewToolbar
+                displayMode={displayMode}
+                onDisplayModeChange={handleDisplayModeChange}
+                showFilters={filters.showFilters}
+                onToggleFilters={() =>
+                  filters.setShowFilters(!filters.showFilters)
+                }
+                activeFilterCount={filters.activeFilterCount}
+                isSelecting={selection.isSelecting}
+                onToggleSelect={() => {
+                  selection.setIsSelecting(!selection.isSelecting);
+                  if (selection.isSelecting) selection.deselectAll();
+                }}
+                onAddCombo={() => operations.setDialogOpen(true)}
+                onOpenColorDialog={() => setColorDialogOpen(true)}
+                onAddResourceLink={handleAddResourceLink}
+                onEditNote={openNoteDialog}
+                showInfoCard={
+                  Boolean(character.notes?.trim()) ||
+                  (character.links?.length ?? 0) > 0
+                }
+              />
+            )}
           </div>
-        </SortableContext>
-      </DndContext>
 
-      {/* Empty filter results message */}
-      {filters.filteredCombos.length === 0 && combos.length > 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          No combos match the current filters.
-        </div>
+          {/* Character info: notes + resource links */}
+          <CharacterInfoCard
+            ref={infoCardRef}
+            characterId={character.id}
+            notes={character.notes || ''}
+            links={character.links ?? []}
+            isOpen={showInfo}
+            onToggle={handleToggleInfo}
+            onEditNote={openNoteDialog}
+          />
+
+          {/* Filter panel */}
+          {filters.showFilters && (
+            <ComboFilters
+              filterSearch={filters.filterSearch}
+              onFilterSearchChange={filters.setFilterSearch}
+              filterTags={filters.filterTags}
+              onToggleFilterTag={filters.toggleFilterTag}
+              filterDifficulty={filters.filterDifficulty}
+              onFilterDifficultyChange={filters.setFilterDifficulty}
+              filterOutdated={filters.filterOutdated}
+              onFilterOutdatedChange={filters.setFilterOutdated}
+              allTags={filters.allTags}
+              hasActiveFilters={filters.hasActiveFilters}
+              onClearFilters={filters.clearFilters}
+              filteredCount={filters.filteredCombos.length}
+              totalCount={combos.length}
+            />
+          )}
+
+          {/* Multi-select toolbar is now inline in the header row */}
+
+          {/* Combo list with DnD */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={filters.filteredCombos.map((c) => c.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="grid grid-cols-1 gap-4">
+                {filters.filteredCombos.map((combo) => (
+                  <SortableComboCard
+                    key={combo.id}
+                    combo={combo}
+                    game={game}
+                    displayMode={displayMode}
+                    onEdit={operations.handleEdit}
+                    onDuplicate={operations.handleDuplicate}
+                    onDelete={handleDelete}
+                    onTagClick={handleTagClick}
+                    onWatchDemo={videoPlayer.handleWatchDemo}
+                    isDragDisabled={
+                      filters.hasActiveFilters || selection.isSelecting
+                    }
+                    isSelecting={selection.isSelecting}
+                    isSelected={selection.selectedIds.has(combo.id)}
+                    onToggleSelect={selection.toggleSelect}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {/* Empty filter results message */}
+          {filters.filteredCombos.length === 0 && combos.length > 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              No combos match the current filters.
+            </div>
+          )}
+        </>
       )}
 
       {/* Dialogs */}
@@ -352,31 +304,15 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
         allTags={filters.allTags}
       />
 
-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Note</DialogTitle>
-            <DialogDescription>
-              Update notes for {character.name}. Markdown is supported.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor={characterNoteEditorId}>Note</Label>
-            <Textarea
-              id={characterNoteEditorId}
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              rows={8}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSaveNote()}>Save Note</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EntityNoteDialog
+        open={noteDialogOpen}
+        onOpenChange={setNoteDialogOpen}
+        editorId={characterNoteEditorId}
+        entityName={character.name}
+        value={noteDraft}
+        onValueChange={setNoteDraft}
+        onSave={() => void handleSaveNote()}
+      />
 
       <ButtonColorDialog
         open={colorDialogOpen}
@@ -393,67 +329,40 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
         onVideoSizeChange={videoPlayer.setVideoSize}
       />
 
-      {/* Delete confirmation dialogs */}
-      <AlertDialog
+      <DestructiveConfirmationDialog
         open={!!deleteState.deleteTarget}
         onOpenChange={(open) => !open && deleteState.setDeleteTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete combo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "
-              {combos.find((c) => c.id === deleteState.deleteTarget)?.name}
-              ". This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={() => {
-                if (deleteState.deleteTarget) {
-                  deleteState.executeDelete(deleteState.deleteTarget);
-                }
-                deleteState.setDeleteTarget(null);
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete combo?"
+        description={`This will permanently delete "${
+          combos.find((combo) => combo.id === deleteState.deleteTarget)?.name
+        }". This action cannot be undone.`}
+        onConfirm={async () => {
+          if (!deleteState.deleteTarget) return;
+          const deleted = await deleteState.executeDelete(
+            deleteState.deleteTarget,
+          );
+          if (deleted) deleteState.setDeleteTarget(null);
+        }}
+      />
 
-      <AlertDialog
+      <DestructiveConfirmationDialog
         open={deleteState.bulkDeleteConfirm}
         onOpenChange={deleteState.setBulkDeleteConfirm}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selection.selectedIds.size} combo
-              {selection.selectedIds.size > 1 ? 's' : ''}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the selected combos. This action
-              cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={async () => {
-                await deleteState.executeBulkDelete(selection.selectedIds);
-                deleteState.setBulkDeleteConfirm(false);
-                selection.clearSelection();
-              }}
-            >
-              Delete ({selection.selectedIds.size})
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={`Delete ${selection.selectedIds.size} combo${
+          selection.selectedIds.size > 1 ? 's' : ''
+        }?`}
+        description="This will permanently delete the selected combos. This action cannot be undone."
+        actionLabel={`Delete (${selection.selectedIds.size})`}
+        onConfirm={async () => {
+          const deleted = await deleteState.executeBulkDelete(
+            selection.selectedIds,
+          );
+          if (deleted) {
+            deleteState.setBulkDeleteConfirm(false);
+            selection.clearSelection();
+          }
+        }}
+      />
     </div>
   );
 }

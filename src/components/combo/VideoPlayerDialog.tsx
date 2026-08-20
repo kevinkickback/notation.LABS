@@ -1,7 +1,6 @@
 import { ArrowsOutIcon } from '@phosphor-icons/react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useCallback, useRef } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,9 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useSettingsActions } from '@/context/SettingsContext';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { cn, getYouTubeEmbedUrl } from '@/lib/utils';
 
 interface VideoPlayerDialogProps {
@@ -35,18 +33,14 @@ export function VideoPlayerDialog({
   videoSize,
   onVideoSizeChange,
 }: VideoPlayerDialogProps) {
+  const { setSetting } = useSettingsActions();
   const isMobile = useIsMobile();
   const youtubeEmbedUrl = videoUrl ? getYouTubeEmbedUrl(videoUrl) : null;
   const mediaContainerRef = useRef<HTMLDivElement>(null);
 
   const handleSizeChange = async (size: 'sm' | 'md' | 'lg' | 'xl') => {
     onVideoSizeChange(size);
-    try {
-      await indexedDbStorage.settings.update({ videoPlayerSize: size });
-    } catch (err) {
-      reportError('VideoPlayerDialog.handleSizeChange', err);
-      toast.error('Failed to save video player size setting');
-    }
+    await setSetting('videoPlayerSize', size);
   };
 
   const handleFullscreen = () => {

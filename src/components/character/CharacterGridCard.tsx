@@ -5,6 +5,7 @@ import {
 } from '@phosphor-icons/react';
 import defaultCharacterImage from '@/assets/images/defaultCharacter.jpg';
 import { CoverImage } from '@/components/shared/CoverImage';
+import { FavoriteButton } from '@/components/shared/FavoriteButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Character } from '@/lib/types';
@@ -19,6 +20,7 @@ interface CharacterGridCardProps {
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleFavorite: () => void;
 }
 
 export function CharacterGridCard({
@@ -31,6 +33,7 @@ export function CharacterGridCard({
   onSelect,
   onEdit,
   onDelete,
+  onToggleFavorite,
 }: CharacterGridCardProps) {
   return (
     <Card
@@ -45,6 +48,16 @@ export function CharacterGridCard({
             onChange={onSelect}
             onClick={(e) => e.stopPropagation()}
             className="w-4 h-4 accent-primary cursor-pointer"
+          />
+        </div>
+      )}
+      {!isSelecting && (
+        <div className="absolute top-1.5 left-1.5 z-30">
+          <FavoriteButton
+            entityName={character.name}
+            isFavorite={Boolean(character.favorite)}
+            onToggle={onToggleFavorite}
+            revealOnGroupHover={!isMobile}
           />
         </div>
       )}
@@ -90,6 +103,7 @@ export function CharacterGridCard({
             <Button
               variant="ghost"
               size="icon"
+              aria-label={`Edit ${character.name}`}
               className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
@@ -101,6 +115,7 @@ export function CharacterGridCard({
             <Button
               variant="ghost"
               size="icon"
+              aria-label={`Delete ${character.name}`}
               className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
