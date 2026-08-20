@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { CharacterView } from '@/components/character/CharacterView';
 import { ComboView } from '@/components/combo/ComboView';
@@ -7,11 +7,8 @@ import { GameLibrary } from '@/components/game/GameLibrary';
 import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
 import { Header } from '@/components/header/Header';
 import { Toaster } from '@/components/ui/sonner';
-import { ChangelogModal } from '@/components/updates/ChangelogModal';
-import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings } from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
-import { reportError } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 
@@ -21,10 +18,8 @@ function App() {
   const {
     status: updateStatus,
     availabilityEventId,
-    downloadUpdate,
+    showAvailableUpdate,
   } = useUpdater();
-  const [showAutoChangelog, setShowAutoChangelog] = useState(false);
-  const [showAutoProgress, setShowAutoProgress] = useState(false);
 
   useEffect(() => {
     if (availabilityEventId === 0 || updateStatus.status !== 'available')
@@ -32,29 +27,16 @@ function App() {
     toast.info(`Update v${updateStatus.version} available`, {
       action: {
         label: 'View',
-        onClick: () => setShowAutoChangelog(true),
+        onClick: () => showAvailableUpdate(),
       },
       duration: 10000,
     });
-  }, [availabilityEventId, updateStatus.status, updateStatus.version]);
-
-  const handleAutoInstall = useCallback(async () => {
-    setShowAutoChangelog(false);
-    if (!updateStatus.isPortable) {
-      setShowAutoProgress(true);
-    }
-    try {
-      const result = await downloadUpdate();
-      if (!result.success) {
-        setShowAutoProgress(false);
-        toast.error(result.error ?? 'Could not start the update.');
-      }
-    } catch (err) {
-      setShowAutoProgress(false);
-      reportError('App.handleAutoInstall', err);
-      toast.error('Could not start the update.');
-    }
-  }, [downloadUpdate, updateStatus.isPortable]);
+  }, [
+    availabilityEventId,
+    showAvailableUpdate,
+    updateStatus.status,
+    updateStatus.version,
+  ]);
 
   const games = useLiveQuery(indexedDbStorage.games.getAll, []);
   const characters = useLiveQuery(
@@ -106,23 +88,6 @@ function App() {
       </main>
 
       <Toaster />
-
-      <ChangelogModal
-        open={showAutoChangelog}
-        onOpenChange={setShowAutoChangelog}
-        version={updateStatus.version ?? ''}
-        changelog={updateStatus.changelog ?? null}
-        onInstall={handleAutoInstall}
-        installLabel={
-          updateStatus.isPortable ? 'Open Download Page' : undefined
-        }
-      />
-
-      <UpdateProgressModal
-        open={showAutoProgress}
-        version={updateStatus.version ?? ''}
-        onOpenChange={setShowAutoProgress}
-      />
     </div>
   );
 }

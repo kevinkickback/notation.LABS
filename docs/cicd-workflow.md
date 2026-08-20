@@ -1,58 +1,122 @@
 # CI/CD Workflow
 
-## Branches
+Run every command in this guide from the repository root. In command examples,
+replace `X.Y.Z` with the release's semantic version, without a leading `v`. The
+corresponding Git tag and changelog name are `vX.Y.Z`.
+
+The release operator needs Git, npm, an authenticated GitHub CLI (`gh`), push
+access to the repository, and permission to manage its releases and workflow
+runs.
+
+## Toolchain
+
+CI uses the Node.js version declared in `.nvmrc`. Use that version locally and
+install the committed dependency set before running checks:
+
+```bash
+npm ci
+```
+
+Keep `package-lock.json` synchronized with `package.json`. GitHub Actions are
+pinned to immutable commits for reproducibility and should be updated separately
+when their maintained versions change.
+
+## Branches and continuous integration
 
 | Branch | Purpose |
 |---|---|
 | `dev` | Active development and integration |
 | `main` | Release-ready code, updated through pull requests from `dev` |
 
-Pushes to `dev` and pull requests into `main` run dependency auditing, version checks, linting, type-checking, unit tests with coverage, and Playwright browser tests.
+Pushes to `dev` and pull requests targeting `main` run dependency auditing,
+version checks, linting, type-checking, unit tests with coverage, and Playwright
+browser tests. CI has read-only repository permissions and does not create build
+packages or releases.
 
 ## Prepare a release
 
-1. Update the version in both package files without creating a tag:
+1. Start from an up-to-date `dev` branch with the Node.js version from `.nvmrc`.
 
    ```bash
-   npm version 1.7.0 --no-git-tag-version
-   npm run version:check
+   git switch dev
+   git pull --ff-only
+   npm ci
    ```
 
-2. Add user-facing notes at `changelogs/v1.7.0.md`.
-3. Run the same release checks locally before committing:
+2. Update both package files without creating a Git tag:
 
    ```bash
-   npm run version:check
+   npm version X.Y.Z --no-git-tag-version
+   ```
+
+3. Add non-empty, user-facing release notes at `changelogs/vX.Y.Z.md`.
+
+4. Confirm that the package metadata, intended tag, and changelog agree:
+
+   ```bash
+   npm run version:check -- --tag=vX.Y.Z
+   ```
+
+5. Run the release checks locally:
+
+   ```bash
    npm audit --omit=dev --audit-level=high
-   npx biome ci .
+   npm run lint
    npx tsc -b
    npm run test:coverage
    npx playwright install chromium
    npm run test:e2e
    ```
 
-4. Commit and push the version, changelog, and release-ready changes to `dev`. This must include any updated build assets (icons, NSIS artwork in `build/`) — the Windows installer build will fail at package time if referenced files like `build/installerHeader.bmp` or `build/installerSidebar.bmp` are missing from the repo.
-5. Open and merge a pull request from `dev` into `main` after CI repeats and passes the checks.
-6. Update local `main`, create the version tag on that verified commit, and push it:
+   On Linux, use `npx playwright install --with-deps chromium` when the required
+   browser system packages are not already installed.
+
+6. Commit and push the version, changelog, and release-ready changes to `dev`.
+   Include every referenced build resource, such as icons and NSIS artwork in
+   `build/`; packaging fails when a configured resource is missing.
+
+7. Open a pull request from `dev` into `main`. Merge it only after CI passes.
+
+8. Update local `main`, verify the intended tag against the merged files, create
+   the tag on that exact commit, and push it:
 
    ```bash
    git switch main
    git pull --ff-only
-   git tag v1.7.0
-   git push origin v1.7.0
+   npm run version:check -- --tag=vX.Y.Z
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
    git switch dev
    ```
 
-## Automated release checks
+Pushing the tag starts the release workflow. Do not move or reuse a published
+release tag.
+
+## Automated release workflow
 
 The tag workflow stops unless all of these conditions pass:
 
-- The tag matches `package.json` and `package-lock.json`, and `changelogs/<tag>.md` exists and is not empty.
+- The tag matches the versions in `package.json` and `package-lock.json`.
+- `changelogs/<tag>.md` exists and is not empty.
 - The tagged commit belongs to `main`.
 - Production dependencies pass the high-severity audit.
 - Linting, type-checking, coverage thresholds, and browser tests pass.
 
-The workflow then creates a draft GitHub release using the matching `changelogs/<tag>.md` file as its notes. Windows, macOS, and Linux builds explicitly publish their artifacts to that draft. Each runner verifies its local packages, and a final job verifies that the release remains a draft, its notes still exactly match that changelog, and all required platform packages are attached on GitHub.
+After verification, the workflow performs these steps:
+
+1. Creates a draft GitHub release whose notes exactly match the tag's changelog.
+2. Builds and locally verifies the Windows, macOS, and Linux packages on their
+   respective runners.
+3. Stages the packages and update metadata as workflow artifacts. These staging
+   artifacts are retained for one day and are not the final release downloads.
+4. Downloads all staged artifacts in one publishing job and uploads them to the
+   draft release. Existing assets with the same names are replaced, making a
+   failed publishing step safe to retry.
+5. Verifies that the release is still a draft, its notes still match the
+   changelog, and all required platform packages are attached.
+
+Only the jobs that create the draft and publish its assets receive repository
+write permission. All other jobs use read-only permission.
 
 | Package | Platform |
 |---|---|
@@ -60,16 +124,54 @@ The workflow then creates a draft GitHub release using the matching `changelogs/
 | `Notation-Labs-<version>-Mac.dmg` | macOS |
 | `Notation-Labs-<version>-Linux.AppImage` and `Notation-Labs-<version>-Linux.deb` | Linux |
 
-Auto-update metadata generated by electron-builder is uploaded with supported installed packages. Review the draft and its assets before publishing it.
+Auto-update metadata generated by electron-builder is uploaded with the
+supported installed packages. Review the draft notes and every attached asset
+before publishing the release.
 
 ## Recover a failed release
 
-Inspect the failed job in GitHub Actions, fix the problem on `dev`, and merge the fix into `main`. Before retrying with the same version, remove the failed draft release and both local and remote tags, then tag the corrected `main` commit.
+Never publish a partially built draft. Choose the recovery path based on the
+cause of the failure.
+
+### Transient workflow failure
+
+If the tagged source is correct and the failure was transient, use **Re-run
+failed jobs** in GitHub Actions. Retry before the one-day staging-artifact
+retention expires. The publishing job replaces same-named release assets.
+
+If staged artifacts have expired or the run must be restarted from the
+beginning, delete the incomplete draft release and re-run the workflow for the
+unchanged tag:
 
 ```bash
-gh release delete v1.7.0 --repo kevinkickback/notation.LABS --yes
-git push origin --delete v1.7.0
-git tag -d v1.7.0
+gh release delete vX.Y.Z --yes
 ```
 
-Never publish a partially built draft. A successful workflow verifies artifact creation, but the final draft review remains the release owner's approval point.
+### Source or configuration fix required
+
+A tag must continue to identify one immutable release commit. If code,
+configuration, metadata, or release notes must change:
+
+1. Fix the problem on `dev` and merge the fix into `main` through a passing pull
+   request.
+2. Delete the incomplete draft release and the old remote and local tags:
+
+   ```bash
+   gh release delete vX.Y.Z --yes
+   git push origin --delete vX.Y.Z
+   git tag -d vX.Y.Z
+   ```
+
+3. Update local `main`, verify it, and tag the corrected commit:
+
+   ```bash
+   git switch main
+   git pull --ff-only
+   npm run version:check -- --tag=vX.Y.Z
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   git switch dev
+   ```
+
+A successful workflow verifies artifact creation and attachment, but publishing
+the draft remains the release owner's explicit approval step.

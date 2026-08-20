@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
+import { characterRepository } from '@/lib/storage/characterRepository';
+import { comboRepository } from '@/lib/storage/comboRepository';
+import { gameRepository } from '@/lib/storage/gameRepository';
+import { gameStatsRepository } from '@/lib/storage/gameStatsRepository';
+import { settingsRepository } from '@/lib/storage/settingsRepository';
+import { videoRepository } from '@/lib/storage/videoRepository';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
 beforeEach(async () => {
@@ -21,6 +27,20 @@ function assertDefined<T>(
     throw new Error(`Expected value to be defined, but got ${value}`);
   }
 }
+
+describe('indexedDbStorage facade contract', () => {
+  it('preserves the repository-backed public surface', () => {
+    expect(indexedDbStorage.games).toBe(gameRepository);
+    expect(indexedDbStorage.characters).toBe(characterRepository);
+    expect(indexedDbStorage.combos).toBe(comboRepository);
+    expect(indexedDbStorage.settings).toBe(settingsRepository);
+    expect(indexedDbStorage.gameStats).toBe(gameStatsRepository);
+    expect(indexedDbStorage.demoVideos).toBe(videoRepository);
+    expect(indexedDbStorage.export).toEqual(expect.any(Function));
+    expect(indexedDbStorage.import).toEqual(expect.any(Function));
+    expect(indexedDbStorage.importZip).toEqual(expect.any(Function));
+  });
+});
 
 describe('indexedDbStorage.games', () => {
   const gameData = {
@@ -74,6 +94,21 @@ describe('indexedDbStorage.games', () => {
     assertDefined(updated);
     expect(updated.name).toBe('SF6');
     expect(updated.buttonLayout).toEqual(['LP', 'MP', 'HP', 'LK', 'MK', 'HK']);
+  });
+
+  it('persists favorites without changing content modification time', async () => {
+    const id = await indexedDbStorage.games.add(gameData);
+    const before = await indexedDbStorage.games.get(id);
+    assertDefined(before);
+
+    await indexedDbStorage.games.setFavorite(id, true);
+    const favorite = await indexedDbStorage.games.get(id);
+    assertDefined(favorite);
+    expect(favorite.favorite).toBe(true);
+    expect(favorite.updatedAt).toBe(before.updatedAt);
+
+    await indexedDbStorage.games.setFavorite(id, false);
+    expect((await indexedDbStorage.games.get(id))?.favorite).toBe(false);
   });
 
   it('reparses existing combos when button layout is updated', async () => {
@@ -317,6 +352,21 @@ describe('indexedDbStorage.characters', () => {
     const updated = await indexedDbStorage.characters.get(id);
     assertDefined(updated);
     expect(updated.name).toBe('New Name');
+  });
+
+  it('persists favorites without changing content modification time', async () => {
+    const id = await indexedDbStorage.characters.add({
+      gameId,
+      name: 'Favorite Fighter',
+    });
+    const before = await indexedDbStorage.characters.get(id);
+    assertDefined(before);
+
+    await indexedDbStorage.characters.setFavorite(id, true);
+    const favorite = await indexedDbStorage.characters.get(id);
+    assertDefined(favorite);
+    expect(favorite.favorite).toBe(true);
+    expect(favorite.updatedAt).toBe(before.updatedAt);
   });
 
   it('deletes a character', async () => {
@@ -1359,6 +1409,8 @@ describe('indexedDbStorage.import', () => {
       gameId,
       name: 'Round Trip Hero',
     });
+    await indexedDbStorage.games.setFavorite(gameId, true);
+    await indexedDbStorage.characters.setFavorite(characterId, true);
     const videoBytes = new Uint8Array([0, 5, 10, 200, 255]);
     await indexedDbStorage.demoVideos.add({
       id: 'video-roundtrip',
@@ -1404,6 +1456,8 @@ describe('indexedDbStorage.import', () => {
 
     expect(importedGames).toHaveLength(1);
     expect(importedCharacters).toHaveLength(1);
+    expect(importedGames[0].favorite).toBe(true);
+    expect(importedCharacters[0].favorite).toBe(true);
     expect(importedCombos).toHaveLength(1);
     expect(importedCombos[0].demoUrl).toBe('local:video-roundtrip');
     expect(importedSettings.fontFamily).toBe('jetbrains-mono');

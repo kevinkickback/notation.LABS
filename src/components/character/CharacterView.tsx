@@ -1,18 +1,9 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
+import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
 import { EntityNoteDialog } from '@/components/shared/EntityNoteDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { useSettings } from '@/context/SettingsContext';
 import { useCharacterComboStatistics } from '@/hooks/useCharacterComboStatistics';
 import { useCharacterDelete } from '@/hooks/useCharacterDelete';
@@ -22,6 +13,7 @@ import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNotesOverride } from '@/hooks/useNotesOverride';
 import { useSelection } from '@/hooks/useSelection';
+import { setCharacterFavorite } from '@/lib/application/characterCommands';
 import { updateGame } from '@/lib/application/gameCommands';
 import { reportError } from '@/lib/errors';
 import { useAppStore } from '@/lib/store';
@@ -90,6 +82,15 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     comboCountByChar,
     lastModifiedByChar,
   );
+
+  const handleToggleFavorite = async (character: Character) => {
+    try {
+      await setCharacterFavorite(character.id, !character.favorite);
+    } catch (error) {
+      reportError('CharacterView.toggleFavorite', error);
+      toast.error('Failed to update favorite');
+    }
+  };
 
   const handleDeleteCharacter = async (character: Character) => {
     const deleted = await deleteState.handleDeleteCharacter(character);
@@ -246,6 +247,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
                   void handleDeleteCharacter(character);
                 }
               }}
+              onToggleFavorite={() => void handleToggleFavorite(character)}
             />
           ) : (
             <CharacterListCard
@@ -267,6 +269,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
                   void handleDeleteCharacter(character);
                 }
               }}
+              onToggleFavorite={() => void handleToggleFavorite(character)}
             />
           ),
         )}
@@ -280,81 +283,47 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       />
 
       {settings.confirmBeforeDelete && (
-        <AlertDialog
+        <DestructiveConfirmationDialog
           open={!!deleteState.deleteTarget}
           onOpenChange={(open) => !open && deleteState.setDeleteTarget(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Delete {deleteState.deleteTarget?.name}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {(() => {
-                  if (!deleteState.deleteTarget) return '';
-                  const comboCount =
-                    comboCountByChar[deleteState.deleteTarget.id] || 0;
-                  if (comboCount === 0)
-                    return 'This character has no combos. This action cannot be undone.';
-                  return `This will also delete ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
-                })()}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={async (event) => {
-                  event.preventDefault();
-                  if (deleteState.deleteTarget) {
-                    await handleDeleteCharacter(deleteState.deleteTarget);
-                  }
-                }}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title={`Delete ${deleteState.deleteTarget?.name}?`}
+          description={(() => {
+            if (!deleteState.deleteTarget) return '';
+            const comboCount =
+              comboCountByChar[deleteState.deleteTarget.id] || 0;
+            if (comboCount === 0) {
+              return 'This character has no combos. This action cannot be undone.';
+            }
+            return `This will also delete ${comboCount} combo${comboCount !== 1 ? 's' : ''}. This action cannot be undone.`;
+          })()}
+          onConfirm={async () => {
+            if (deleteState.deleteTarget) {
+              await handleDeleteCharacter(deleteState.deleteTarget);
+            }
+          }}
+        />
       )}
 
-      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selection.selectedIds.size} character
-              {selection.selectedIds.size !== 1 ? 's' : ''}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will also delete {selectedComboCount} combo
-              {selectedComboCount !== 1 ? 's' : ''}. This action cannot be
-              undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async (event) => {
-                event.preventDefault();
-                const selectedCharacters = characters.filter((character) =>
-                  selection.selectedIds.has(character.id),
-                );
-                const deleted =
-                  await deleteState.handleBulkDeleteCharacters(
-                    selectedCharacters,
-                  );
-                if (deleted) {
-                  setBulkDeleteConfirm(false);
-                  selection.clearSelection();
-                }
-              }}
-            >
-              Delete Selected ({selection.selectedIds.size})
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveConfirmationDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title={`Delete ${selection.selectedIds.size} character${
+          selection.selectedIds.size !== 1 ? 's' : ''
+        }?`}
+        description={`This will also delete ${selectedComboCount} combo${selectedComboCount !== 1 ? 's' : ''}. This action cannot be undone.`}
+        actionLabel={`Delete Selected (${selection.selectedIds.size})`}
+        onConfirm={async () => {
+          const selectedCharacters = characters.filter((character) =>
+            selection.selectedIds.has(character.id),
+          );
+          const deleted =
+            await deleteState.handleBulkDeleteCharacters(selectedCharacters);
+          if (deleted) {
+            setBulkDeleteConfirm(false);
+            selection.clearSelection();
+          }
+        }}
+      />
 
       <ButtonColorDialog
         open={colorDialogOpen}

@@ -136,6 +136,17 @@ describe('ExportDialog', () => {
     });
   });
 
+  it('sorts game entries alphabetically by default', async () => {
+    await renderDialog();
+
+    const guiltyGear = await screen.findByText('Guilty Gear Strive');
+    const streetFighter = screen.getByText('Street Fighter 6');
+    expect(
+      guiltyGear.compareDocumentPosition(streetFighter) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('shows character counts for each game', async () => {
     await renderDialog();
 

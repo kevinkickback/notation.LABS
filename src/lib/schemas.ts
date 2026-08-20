@@ -48,6 +48,7 @@ const gameFields = {
   buttonLayout: z.array(z.string()),
   buttonColors: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
+  favorite: z.boolean().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 };
@@ -79,6 +80,7 @@ export const characterSchema = z.object({
   portraitPanY: coverPanSchema.optional(),
   portraitFit: coverImageFitSchema.optional(),
   notes: z.string().optional(),
+  favorite: z.boolean().optional(),
   links: z.array(characterLinkSchema).optional(),
   portraitOrientation: z.enum(['landscape', 'portrait']).optional(),
   createdAt: z.number(),

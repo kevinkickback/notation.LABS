@@ -19,6 +19,13 @@ export function updateGame(
   return indexedDbStorage.games.update(gameId, updates);
 }
 
+export function setGameFavorite(
+  gameId: string,
+  favorite: boolean,
+): Promise<void> {
+  return indexedDbStorage.games.setFavorite(gameId, favorite);
+}
+
 export function deleteGame(gameId: string): Promise<void> {
   return indexedDbStorage.games.delete(gameId);
 }

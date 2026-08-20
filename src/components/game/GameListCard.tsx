@@ -5,6 +5,7 @@ import {
   TrashIcon,
   UserIcon,
 } from '@phosphor-icons/react';
+import { FavoriteButton } from '@/components/shared/FavoriteButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Game } from '@/lib/types';
@@ -20,6 +21,7 @@ interface GameListCardProps {
   onSelect: (gameId: string) => void;
   onEdit: (game: Game) => void;
   onDelete: (game: Game) => void;
+  onToggleFavorite: () => void;
 }
 
 export function GameListCard({
@@ -33,6 +35,7 @@ export function GameListCard({
   onSelect,
   onEdit,
   onDelete,
+  onToggleFavorite,
 }: GameListCardProps) {
   return (
     <Card
@@ -54,7 +57,7 @@ export function GameListCard({
           </div>
         )}
         <div
-          className={`flex items-center flex-1 ${isSelecting ? 'pl-2' : 'pl-4'} ${isMobile ? 'gap-2 pr-16' : 'gap-6 pr-2'}`}
+          className={`flex items-center flex-1 ${isSelecting ? 'pl-2' : 'pl-4'} ${isMobile ? 'gap-2 pr-28' : 'gap-6 pr-2'}`}
           style={isMobile ? { minWidth: 0 } : undefined}
         >
           <h3 className="font-bold text-white text-base min-w-[120px] truncate max-w-[40vw]">
@@ -108,15 +111,22 @@ export function GameListCard({
         </div>
         {!isSelecting && (
           <div
-            className={`flex gap-1 pr-3 ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'} ${isMobile ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
+            className={`flex gap-1 pr-3 ${isMobile ? 'absolute right-2 top-1/2 -translate-y-1/2 z-10' : ''}`}
             style={
               isMobile ? { height: 'auto', background: 'none' } : undefined
             }
           >
+            <FavoriteButton
+              entityName={game.name}
+              isFavorite={Boolean(game.favorite)}
+              onToggle={onToggleFavorite}
+              revealOnGroupHover={!isMobile}
+            />
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600"
+              aria-label={`Edit ${game.name}`}
+              className={`h-7 w-7 text-blue-200 bg-blue-900/70 hover:text-white hover:!bg-blue-600 ${isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit(game);
@@ -127,7 +137,8 @@ export function GameListCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600"
+              aria-label={`Delete ${game.name}`}
+              className={`h-7 w-7 text-red-200 bg-red-900/70 hover:text-white hover:!bg-red-600 ${isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(game);

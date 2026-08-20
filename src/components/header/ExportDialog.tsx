@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { loadBackupSelectionData } from '@/lib/application/backupCommands';
+import { compareEntityNames } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
 import { getLocalVideoId } from '@/lib/storage/indexedDbStorage';
 import type { Character, Combo, Game } from '@/lib/types';
@@ -165,6 +166,11 @@ export function ExportDialog({
     }
     return map;
   }, [data.characters]);
+
+  const sortedGames = useMemo(
+    () => [...data.games].sort(compareEntityNames),
+    [data.games],
+  );
 
   const combosByCharacter = useMemo(() => {
     const map = new Map<string, Combo[]>();
@@ -382,7 +388,7 @@ export function ExportDialog({
                 No data to export.
               </p>
             ) : (
-              data.games.map((game) => {
+              sortedGames.map((game) => {
                 const chars = charactersByGame.get(game.id) || [];
                 const gameState = getGameCheckState(game.id);
                 const isExpanded = expandedGames.has(game.id);

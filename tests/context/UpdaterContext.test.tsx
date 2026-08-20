@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UpdaterProvider, useUpdater } from '@/context/UpdaterContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
@@ -17,12 +17,15 @@ vi.mock('@/lib/errors', () => ({
 }));
 
 function StatusProbe() {
-  const { status, availabilityEventId } = useUpdater();
+  const { status, availabilityEventId, showAvailableUpdate } = useUpdater();
   return (
     <div>
       <span>{status.status}</span>
       <span>{status.version}</span>
       <span>{availabilityEventId}</span>
+      <button type="button" onClick={() => showAvailableUpdate()}>
+        Show update
+      </button>
     </div>
   );
 }
@@ -124,5 +127,56 @@ describe('UpdaterProvider', () => {
       'UpdaterProvider.setAutoCheck',
       error,
     );
+  });
+
+  it('owns update presentation and installer download orchestration', async () => {
+    const downloadUpdate = vi.mocked(window.electronAPI?.downloadUpdate);
+    downloadUpdate?.mockResolvedValue({ success: true, data: null, error: null });
+    render(
+      <UpdaterProvider>
+        <StatusProbe />
+      </UpdaterProvider>,
+    );
+    await waitFor(() => expect(listeners.has('available')).toBe(true));
+    act(() => {
+      listeners.get('available')?.({
+        version: '2.0.0',
+        changelog: 'Important fixes',
+        isPortable: false,
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
+    expect(screen.getByText('Update Available — v2.0.0')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
+
+    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledOnce());
+    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+  });
+
+  it('keeps portable downloads out of the installer progress workflow', async () => {
+    const downloadUpdate = vi.mocked(window.electronAPI?.downloadUpdate);
+    downloadUpdate?.mockResolvedValue({ success: true, data: null, error: null });
+    render(
+      <UpdaterProvider>
+        <StatusProbe />
+      </UpdaterProvider>,
+    );
+    await waitFor(() => expect(listeners.has('available')).toBe(true));
+    act(() => {
+      listeners.get('available')?.({
+        version: '2.0.0',
+        changelog: 'Portable fixes',
+        isPortable: true,
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open Download Page' }),
+    );
+
+    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledOnce());
+    expect(screen.queryByText('Downloading v2.0.0...')).toBeNull();
   });
 });

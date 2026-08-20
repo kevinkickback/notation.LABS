@@ -20,6 +20,13 @@ export function updateCharacter(
   return indexedDbStorage.characters.update(characterId, updates);
 }
 
+export function setCharacterFavorite(
+  characterId: string,
+  favorite: boolean,
+): Promise<void> {
+  return indexedDbStorage.characters.setFavorite(characterId, favorite);
+}
+
 export function deleteCharacter(characterId: string): Promise<void> {
   return indexedDbStorage.characters.delete(characterId);
 }

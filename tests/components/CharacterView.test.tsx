@@ -5,9 +5,14 @@ import { CharacterView } from '@/components/character/CharacterView';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { Character, Game } from '@/lib/types';
 
+const { setSettingMock } = vi.hoisted(() => ({
+  setSettingMock: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     characters: {
+      setFavorite: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
       bulkDelete: vi.fn().mockResolvedValue(undefined),
     },
@@ -24,7 +29,7 @@ vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('@/context/SettingsContext', () => ({
   useSettings: vi.fn().mockReturnValue({
     colorTheme: 'dark',
     fontFamily: 'system-ui',
@@ -38,6 +43,9 @@ vi.mock('@/hooks/useSettings', () => ({
     gameCardSize: 180,
     characterCardSize: 180,
     notesDefaultOpen: false,
+  }),
+  useSettingsActions: vi.fn().mockReturnValue({
+    setSetting: setSettingMock,
   }),
 }));
 
@@ -97,6 +105,46 @@ const mockCharacters: Character[] = [
 describe('CharacterView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setSettingMock.mockResolvedValue(true);
+  });
+
+  it('pins favorite characters ahead of the selected alphabetical sort', () => {
+    render(
+      <CharacterView
+        game={mockGame}
+        characters={mockCharacters.map((character) => ({
+          ...character,
+          favorite: character.id === 'char-1',
+        }))}
+      />,
+    );
+
+    const names = screen
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent);
+    expect(names).toEqual(['Ryu', 'Ken']);
+  });
+
+  it('removes a character from favorites without selecting the card', async () => {
+    const user = userEvent.setup();
+    render(
+      <CharacterView
+        game={mockGame}
+        characters={mockCharacters.map((character) => ({
+          ...character,
+          favorite: character.id === 'char-1',
+        }))}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove from favorites: Ryu' }),
+    );
+
+    expect(indexedDbStorage.characters.setFavorite).toHaveBeenCalledWith(
+      'char-1',
+      false,
+    );
   });
 
   it('supports multi-select bulk delete for characters', async () => {

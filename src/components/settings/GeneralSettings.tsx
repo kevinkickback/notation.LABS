@@ -24,8 +24,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ChangelogModal } from '@/components/updates/ChangelogModal';
-import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
 import { FONT_OPTIONS } from '@/lib/defaults';
@@ -38,17 +36,14 @@ export function GeneralSettings() {
   const {
     status: updaterStatus,
     checkForUpdate,
-    downloadUpdate,
-    reset: resetUpdater,
+    showAvailableUpdate,
+    showChangelog,
+    dismissChangelog,
   } = useUpdater();
   const [accentDraft, setAccentDraft] = useState<string>(
     settings.accentColor || '#3b82f6',
   );
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [showChangelog, setShowChangelog] = useState(false);
-  const [showProgress, setShowProgress] = useState(false);
-  const [showCurrentChangelog, setShowCurrentChangelog] = useState(false);
-  const [currentChangelog, setCurrentChangelog] = useState('');
   const [changelogLoading, setChangelogLoading] = useState(false);
   const updateChecking = updaterStatus.status === 'checking';
   const updateStatus =
@@ -73,39 +68,11 @@ export function GeneralSettings() {
     setAccentDraft(settings.accentColor || '#3b82f6');
   }, [settings.accentColor]);
 
-  const handleInstallUpdate = useCallback(async () => {
-    setShowChangelog(false);
-    if (!updaterStatus.isPortable) {
-      setShowProgress(true);
-    }
-    try {
-      const result = await downloadUpdate();
-      if (!result.success) {
-        setShowProgress(false);
-        toast.error(result.error ?? 'Could not start the update.');
-      }
-    } catch (err) {
-      setShowProgress(false);
-      reportError('GeneralSettings.handleInstallUpdate', err);
-      toast.error('Could not start the update.');
-    }
-  }, [downloadUpdate, updaterStatus.isPortable]);
-
-  const handleProgressModalOpenChange = useCallback(
-    (open: boolean) => {
-      setShowProgress(open);
-      if (!open) {
-        resetUpdater();
-      }
-    },
-    [resetUpdater],
-  );
-
   const handleCheckForUpdate = async () => {
     try {
       const status = await checkForUpdate();
       if (status.status === 'available') {
-        setShowChangelog(true);
+        showAvailableUpdate(status);
         return;
       }
 
@@ -147,28 +114,40 @@ export function GeneralSettings() {
   }, []);
 
   const handleViewCurrentChangelog = useCallback(async () => {
-    setCurrentChangelog('');
-    setShowCurrentChangelog(true);
     setChangelogLoading(true);
+    showChangelog({
+      version: appVersion ?? __APP_VERSION__,
+      changelog: null,
+      loading: true,
+    });
 
     try {
       if (window.electronAPI?.getCurrentChangelog) {
         const result = await window.electronAPI.getCurrentChangelog();
-        setCurrentChangelog(result.changelog ?? '');
         setAppVersion(result.version);
+        showChangelog({
+          version: result.version,
+          changelog: result.changelog ?? null,
+        });
         return;
       }
 
       const result = await fetchCurrentChangelogFromWeb();
-      setCurrentChangelog(result.changelog);
       setAppVersion(result.version);
+      showChangelog(result);
     } catch (err) {
+      dismissChangelog();
       reportError('GeneralSettings.handleViewCurrentChangelog', err);
       toast.error('Failed to load changelog');
     } finally {
       setChangelogLoading(false);
     }
-  }, [fetchCurrentChangelogFromWeb]);
+  }, [
+    appVersion,
+    dismissChangelog,
+    fetchCurrentChangelogFromWeb,
+    showChangelog,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -379,28 +358,6 @@ export function GeneralSettings() {
           </div>
         </CardContent>
       </Card>
-      <ChangelogModal
-        open={showChangelog}
-        changelog={updaterStatus.changelog ?? ''}
-        version={updaterStatus.version ?? ''}
-        onOpenChange={setShowChangelog}
-        onInstall={handleInstallUpdate}
-        installLabel={
-          updaterStatus.isPortable ? 'Open Download Page' : undefined
-        }
-      />
-      <UpdateProgressModal
-        open={showProgress}
-        version={updaterStatus.version ?? ''}
-        onOpenChange={handleProgressModalOpenChange}
-      />
-      <ChangelogModal
-        open={showCurrentChangelog}
-        changelog={currentChangelog || null}
-        loading={changelogLoading}
-        version={appVersion ?? ''}
-        onOpenChange={setShowCurrentChangelog}
-      />
       {/* Behavior Card - always shown */}
       <Card>
         <CardHeader>

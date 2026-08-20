@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
@@ -173,6 +173,7 @@ describe('App', () => {
       status: { status: 'idle' },
       availabilityEventId: 0,
       downloadUpdate: vi.fn(),
+      showAvailableUpdate: vi.fn(),
     });
     mocks.useLiveQuery.mockImplementation(
       (_query: unknown, dependencies: unknown[]) => {
@@ -208,12 +209,8 @@ describe('App', () => {
     );
   });
 
-  it('shows controller updates and starts the download', async () => {
-    const downloadUpdate = vi.fn().mockResolvedValue({
-      success: true,
-      data: null,
-      error: null,
-    });
+  it('delegates an available update to the updater controller', () => {
+    const showAvailableUpdate = vi.fn();
     mocks.useUpdater.mockReturnValue({
       status: {
         status: 'available',
@@ -222,7 +219,7 @@ describe('App', () => {
         isPortable: false,
       },
       availabilityEventId: 1,
-      downloadUpdate,
+      showAvailableUpdate,
     });
 
     render(<App />);
@@ -238,18 +235,11 @@ describe('App', () => {
     };
     act(() => toastOptions.action.onClick());
 
-    expect(screen.getByText(/Changelog 2\.0\.0: Important fixes/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Install update' }));
-    expect(downloadUpdate).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Downloading update 2.0.0')).toBeTruthy();
+    expect(showAvailableUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it('opens portable release downloads without showing installer progress', async () => {
-    const downloadUpdate = vi.fn().mockResolvedValue({
-      success: true,
-      data: null,
-      error: null,
-    });
+  it('delegates portable update presentation to the same controller', () => {
+    const showAvailableUpdate = vi.fn();
     mocks.useUpdater.mockReturnValue({
       status: {
         status: 'available',
@@ -258,7 +248,7 @@ describe('App', () => {
         isPortable: true,
       },
       availabilityEventId: 1,
-      downloadUpdate,
+      showAvailableUpdate,
     });
     render(<App />);
 
@@ -266,11 +256,6 @@ describe('App', () => {
       action: { onClick: () => void };
     };
     act(() => toastOptions.action.onClick());
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Open Download Page' }),
-    );
-
-    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText(/Downloading update/)).toBeNull();
+    expect(showAvailableUpdate).toHaveBeenCalledTimes(1);
   });
 });

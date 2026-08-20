@@ -6,7 +6,7 @@
 
 Build, visualize, organize, and share combos using standard fighting game notation with graphical input displays.
 
-[![Electron](https://img.shields.io/badge/Electron-40-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Electron](https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -98,7 +98,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ### Option 3: Build from Source
 
-**Prerequisites:** [Node.js](https://nodejs.org/) (v18 or later)
+**Prerequisites:** [Node.js](https://nodejs.org/) 24 LTS (22.12 or later is supported)
 
 ```bash
 git clone https://github.com/kevinkickback/notation.LABS.git
@@ -106,6 +106,9 @@ cd notation.LABS
 npm install
 npm run dev:web
 ```
+
+The repository includes an `.nvmrc`; run `nvm use` before installing
+dependencies when using a compatible Node version manager.
 
 #### Local provider proxies
 
