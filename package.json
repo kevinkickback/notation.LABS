@@ -18,7 +18,7 @@
     "dev:web": "cross-env ELECTRON=false vite --open",
     "dev:app": "cross-env ELECTRON=true vite --no-open",
     "build:web": "tsc -b && cross-env ELECTRON=false vite build",
-    "build:app": "npm run clean:app && tsc -b && cross-env ELECTRON=true vite build && electron-builder",
+    "build:app": "npm run clean:app && tsc -b && cross-env ELECTRON=true vite build && electron-builder --publish never",
     "clean:app": "node tools/clean-app-build.mjs",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
