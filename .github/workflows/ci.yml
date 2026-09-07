@@ -10,6 +10,47 @@ permissions:
   contents: read
 
 jobs:
+  release-policy:
+    name: Validate production PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.release.outputs.release }}
+    steps:
+      - name: Require this repository's dev branch
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          [[ "$HEAD_BRANCH" == "dev" && "$HEAD_REPOSITORY" == "$GITHUB_REPOSITORY" ]]
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Validate new version tag before merge
+        id: release
+        shell: bash
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          previous="$(git show "$PR_BASE:package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"
+          if [[ "$version" == "$previous" ]]; then
+            echo "No version change; this PR will not release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          tag="v$version"
+          node .github/check-package-version.mjs --tag="$tag"
+          [[ "$(git rev-parse "$tag^{commit}")" == "$PR_HEAD" ]]
+          [[ "$(git rev-parse "$tag^{tree}")" == "$(git rev-parse 'HEAD^{tree}')" ]]
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
   check:
     name: Lint, type-check, and test
     runs-on: ubuntu-latest
@@ -49,3 +90,33 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run browser tests
         run: npm run test:e2e
+
+  merge-production:
+    name: Squash merge validated dev PR
+    if: github.event_name == 'pull_request' && needs.release-policy.outputs.release == 'true'
+    needs: [release-policy, check, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Squash merge and start release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          response="$(gh api --method PUT \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" \
+            -f merge_method=squash \
+            -f sha="$PR_HEAD")"
+          if [[ "$(jq -r '.merged' <<< "$response")" != "true" ]]; then
+            jq -r '.message' <<< "$response" >&2
+            exit 1
+          fi
+
+          merge_sha="$(jq -r '.sha' <<< "$response")"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" \
+            -f event_type=release-main \
+            -F "client_payload[sha]=$merge_sha"

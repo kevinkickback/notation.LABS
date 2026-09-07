@@ -2,82 +2,76 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v[0-9]*'
+    branches: [main]
+  repository_dispatch:
+    types: [release-main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
-  verify-quality:
-    name: Verify release quality
+  release-source:
+    name: Validate tagged dev to main squash merge
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ready: ${{ steps.source.outputs.ready }}
+      tag: ${{ steps.source.outputs.tag }}
+      sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.client_payload.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - name: Match package metadata to tag
-        run: npm run version:check -- --tag="$RELEASE_TAG"
+      - name: Resolve release tag from merged PR
+        id: source
+        run: node .github/release-source.mjs
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
-      - name: Require release commit on main
-        shell: bash
-        run: |
-          git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-      - name: Lint
-        run: npm run lint
-      - name: Type-check
-        run: npx tsc -b
-      - name: Test with coverage
-        run: npm run test:coverage
-
-  e2e:
-    name: Browser tests
-    needs: verify-quality
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - name: Install browser
-        run: npx playwright install --with-deps chromium
-      - name: Run browser tests
-        run: npm run test:e2e
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ github.event.client_payload.sha || github.sha }}
 
   create-release:
     name: Create draft release
-    needs: [verify-quality, e2e]
+    needs: release-source
+    if: needs.release-source.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.release-source.outputs.sha }}
           persist-credentials: false
       - name: Create draft release
-        run: gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file "changelogs/$RELEASE_TAG.md"
+        shell: bash
+        run: |
+          if is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [[ "$is_draft" != "true" ]]; then
+              echo "Refusing to replace published release $RELEASE_TAG." >&2
+              exit 1
+            fi
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_TAG" --notes-file "changelogs/$RELEASE_TAG.md"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes-file "changelogs/$RELEASE_TAG.md"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.release-source.outputs.tag }}
 
   build:
     name: Build (${{ matrix.name }})
-    needs: create-release
+    needs: [release-source, create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.release-source.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -154,7 +149,7 @@ jobs:
 
   publish-release-assets:
     name: Publish draft release assets
-    needs: build
+    needs: [release-source, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -167,15 +162,17 @@ jobs:
           merge-multiple: true
       - name: Publish packages to draft release
         shell: bash
-        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber
+        run: |
+          [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')" == "true" ]]
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.release-source.outputs.tag }}
 
   verify-release-assets:
     name: Verify draft release assets
-    needs: publish-release-assets
+    needs: [release-source, publish-release-assets]
     runs-on: ubuntu-latest
     permissions:
       # GitHub hides draft releases from read-only tokens.
@@ -183,6 +180,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.release-source.outputs.sha }}
           persist-credentials: false
       - name: Verify draft notes and required packages
         shell: bash
@@ -204,22 +202,63 @@ jobs:
           fi
 
           assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
-          required_patterns=(
-            '-Win\.exe$'
-            '-Win-Portable\.exe$'
-            '-Mac\.dmg$'
-            '-Linux\.AppImage$'
-            '-Linux\.deb$'
+          empty_assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | select(.size <= 0) | .name')"
+          version="${RELEASE_TAG#v}"
+          required_assets=(
+            "Notation-Labs-$version-Win.exe"
+            "Notation-Labs-$version-Win-Portable.exe"
+            "Notation-Labs-$version-Win.exe.blockmap"
+            "latest.yml"
+            "Notation-Labs-$version-Mac.dmg"
+            "Notation-Labs-$version-Mac.dmg.blockmap"
+            "latest-mac.yml"
+            "Notation-Labs-$version-Linux.AppImage"
+            "Notation-Labs-$version-Linux.deb"
+            "latest-linux.yml"
           )
 
-          for pattern in "${required_patterns[@]}"; do
-            if ! grep -Eq -- "$pattern" <<< "$assets"; then
-              echo "Missing release asset matching: $pattern"
+          for asset in "${required_assets[@]}"; do
+            if ! grep -Fxq -- "$asset" <<< "$assets"; then
+              echo "Missing release asset: $asset"
               echo "$assets"
               exit 1
             fi
           done
+
+          if [[ -n "$empty_assets" ]]; then
+            echo "Release contains empty assets:"
+            echo "$empty_assets"
+            exit 1
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.release-source.outputs.tag }}
+
+  cleanup-failed-draft:
+    name: Remove failed draft release
+    needs: [release-source, create-release, build, publish-release-assets, verify-release-assets]
+    if: ${{ always() && needs.create-release.result == 'success' && needs.verify-release-assets.result != 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete unpublished draft
+        shell: bash
+        run: |
+          if ! is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            echo "No release exists for $RELEASE_TAG; nothing to remove."
+            exit 0
+          fi
+
+          if [[ "$is_draft" != "true" ]]; then
+            echo "Release $RELEASE_TAG is already published; it will not be removed."
+            exit 0
+          fi
+
+          gh release delete "$RELEASE_TAG" --yes
+          echo "Removed failed draft release $RELEASE_TAG."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.release-source.outputs.tag }}
