@@ -1,58 +1,17 @@
 name: CI
 
 on:
-  push:
-    branches: [dev]
   pull_request:
-    branches: [main]
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
-  release-policy:
-    name: Validate production PR
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      release: ${{ steps.release.outputs.release }}
-    steps:
-      - name: Require this repository's dev branch
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          [[ "$HEAD_BRANCH" == "dev" && "$HEAD_REPOSITORY" == "$GITHUB_REPOSITORY" ]]
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-      - name: Validate new version tag before merge
-        id: release
-        shell: bash
-        env:
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          previous="$(git show "$PR_BASE:package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"
-          if [[ "$version" == "$previous" ]]; then
-            echo "No version change; this PR will not release."
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          tag="v$version"
-          node .github/check-package-version.mjs --tag="$tag"
-          [[ "$(git rev-parse "$tag^{commit}")" == "$PR_HEAD" ]]
-          [[ "$(git rev-parse "$tag^{tree}")" == "$(git rev-parse 'HEAD^{tree}')" ]]
-          echo "release=true" >> "$GITHUB_OUTPUT"
-
   check:
-    name: Lint, type-check, and test
+    name: Lint, type-check, test, and build
+    if: '!github.event.pull_request.draft'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -73,9 +32,12 @@ jobs:
         run: npx tsc -b
       - name: Test with coverage
         run: npm run test:coverage
+      - name: Build web app
+        run: npm run build:web
 
   e2e:
     name: Browser tests
+    if: '!github.event.pull_request.draft'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -91,32 +53,126 @@ jobs:
       - name: Run browser tests
         run: npm run test:e2e
 
-  merge-production:
-    name: Squash merge validated dev PR
-    if: github.event_name == 'pull_request' && needs.release-policy.outputs.release == 'true'
-    needs: [release-policy, check, e2e]
+  squash-merge:
+    name: Squash merge dev into main
+    needs: [check, e2e]
+    if: >-
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'dev' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
       pull-requests: write
+    outputs:
+      sha: ${{ steps.merge.outputs.sha }}
     steps:
-      - name: Squash merge and start release workflow
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          response="$(gh api --method PUT \
-            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" \
-            -f merge_method=squash \
-            -f sha="$PR_HEAD")"
-          if [[ "$(jq -r '.merged' <<< "$response")" != "true" ]]; then
-            jq -r '.message' <<< "$response" >&2
-            exit 1
-          fi
+      - name: Wait for optional Copilot review
+        continue-on-error: true
+        timeout-minutes: 11
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const expectedHead = context.payload.pull_request.head.sha;
+            const copilotLogins = new Set([
+              'copilot',
+              'copilot-pull-request-reviewer',
+              'copilot-pull-request-reviewer[bot]',
+            ]);
+            const isCopilot = (user) => {
+              const login = (user?.login ?? '').toLowerCase();
+              return copilotLogins.has(login) || (user?.type === 'Bot' && login.includes('copilot'));
+            };
+            const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+            const startedAt = Date.now();
+            const activityGraceDeadline = startedAt + 60_000;
+            const hardDeadline = startedAt + 600_000;
+            let activeReviewSeen = false;
 
-          merge_sha="$(jq -r '.sha' <<< "$response")"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" \
-            -f event_type=release-main \
-            -F "client_payload[sha]=$merge_sha"
+            while (Date.now() < hardDeadline) {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner, repo, pull_number, per_page: 100,
+              });
+              const reviewedHead = reviews.some((review) =>
+                review.commit_id === expectedHead && isCopilot(review.user),
+              );
+              if (reviewedHead) {
+                core.info(`Copilot reviewed ${expectedHead}; continuing to repository merge checks.`);
+                return;
+              }
+
+              const { data: actionRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner, repo, head_sha: expectedHead, per_page: 100,
+              });
+              const reviewIsActive = actionRuns.workflow_runs.some((run) =>
+                run.event === 'dynamic' &&
+                (run.path === 'dynamic/agents/copilot-pull-request-reviewer' ||
+                  run.name === 'Running Copilot Code Review'),
+              );
+
+              if (reviewIsActive && !activeReviewSeen) {
+                activeReviewSeen = true;
+                core.info('Copilot review run detected; waiting for its review of the checked revision.');
+              }
+              if (!activeReviewSeen && Date.now() >= activityGraceDeadline) {
+                core.notice('No active Copilot review was detected within one minute; continuing without it.');
+                return;
+              }
+
+              const remaining = hardDeadline - Date.now();
+              if (remaining <= 0) break;
+              await sleep(Math.min(10_000, remaining));
+            }
+
+            core.notice('An active Copilot review did not finish within ten minutes; continuing without it.');
+
+      - name: Merge the checked PR revision
+        id: merge
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const expected = context.payload.pull_request;
+            const { data: pr } = await github.rest.pulls.get({
+              owner, repo, pull_number: expected.number,
+            });
+            if (pr.head.sha !== expected.head.sha) {
+              throw new Error('The PR changed; its latest revision must pass checks before merging.');
+            }
+            if (pr.merged) {
+              core.setOutput('sha', pr.merge_commit_sha);
+              return;
+            }
+            if (pr.state !== 'open' || pr.draft || pr.base.ref !== 'main' ||
+                pr.head.ref !== 'dev' || pr.head.repo.full_name !== `${owner}/${repo}`) {
+              throw new Error('The PR is no longer eligible for automatic merging.');
+            }
+            const { data: base } = await github.rest.repos.getBranch({
+              owner, repo, branch: 'main',
+            });
+            if (base.commit.sha !== expected.base.sha) {
+              throw new Error('main changed during checks; update the PR before retrying.');
+            }
+            const { data: result } = await github.rest.pulls.merge({
+              owner, repo, pull_number: pr.number,
+              merge_method: 'squash', sha: expected.head.sha,
+            });
+            if (!result.merged) throw new Error(result.message);
+            core.setOutput('sha', result.sha);
+
+  release:
+    name: Release merged version
+    needs: squash-merge
+    permissions:
+      contents: write
+      pull-requests: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/release.yml
+    with:
+      source-sha: ${{ needs.squash-merge.outputs.sha }}

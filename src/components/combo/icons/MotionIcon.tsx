@@ -1,90 +1,262 @@
-import btn1Url from '@/assets/motion-icons/1.svg?url';
-import btn2Url from '@/assets/motion-icons/2.svg?url';
-import btn3Url from '@/assets/motion-icons/3.svg?url';
-import btn4Url from '@/assets/motion-icons/4.svg?url';
-import bUrl from '@/assets/motion-icons/b.svg?url';
-import bhUrl from '@/assets/motion-icons/bh.svg?url';
-import dUrl from '@/assets/motion-icons/d.svg?url';
-import dbUrl from '@/assets/motion-icons/db.svg?url';
-import dbhUrl from '@/assets/motion-icons/dbh.svg?url';
-import dfUrl from '@/assets/motion-icons/df.svg?url';
-import dfhUrl from '@/assets/motion-icons/dfh.svg?url';
-import dhUrl from '@/assets/motion-icons/dh.svg?url';
-import fUrl from '@/assets/motion-icons/f.svg?url';
-import fhUrl from '@/assets/motion-icons/fh.svg?url';
-import uUrl from '@/assets/motion-icons/u.svg?url';
-import ubUrl from '@/assets/motion-icons/ub.svg?url';
-import ubhUrl from '@/assets/motion-icons/ubh.svg?url';
-import ufUrl from '@/assets/motion-icons/uf.svg?url';
-import ufhUrl from '@/assets/motion-icons/ufh.svg?url';
-import uhUrl from '@/assets/motion-icons/uh.svg?url';
+import btn1Url from '@/assets/button-icons/tekken/1.svg?url';
+import btn2Url from '@/assets/button-icons/tekken/2.svg?url';
+import btn3Url from '@/assets/button-icons/tekken/3.svg?url';
+import btn4Url from '@/assets/button-icons/tekken/4.svg?url';
+import holdBackUrl from '@/assets/motion-icons/arrows/hold/back.svg?url';
+import holdDownUrl from '@/assets/motion-icons/arrows/hold/down.svg?url';
+import holdDownBackUrl from '@/assets/motion-icons/arrows/hold/down-back.svg?url';
+import holdDownForwardUrl from '@/assets/motion-icons/arrows/hold/down-forward.svg?url';
+import holdForwardUrl from '@/assets/motion-icons/arrows/hold/forward.svg?url';
+import holdUpUrl from '@/assets/motion-icons/arrows/hold/up.svg?url';
+import holdUpBackUrl from '@/assets/motion-icons/arrows/hold/up-back.svg?url';
+import holdUpForwardUrl from '@/assets/motion-icons/arrows/hold/up-forward.svg?url';
+import tapBackUrl from '@/assets/motion-icons/arrows/tap/back.svg?url';
+import tapDownUrl from '@/assets/motion-icons/arrows/tap/down.svg?url';
+import tapDownBackUrl from '@/assets/motion-icons/arrows/tap/down-back.svg?url';
+import tapDownForwardUrl from '@/assets/motion-icons/arrows/tap/down-forward.svg?url';
+import tapForwardUrl from '@/assets/motion-icons/arrows/tap/forward.svg?url';
+import tapUpUrl from '@/assets/motion-icons/arrows/tap/up.svg?url';
+import tapUpBackUrl from '@/assets/motion-icons/arrows/tap/up-back.svg?url';
+import tapUpForwardUrl from '@/assets/motion-icons/arrows/tap/up-forward.svg?url';
+import joystickDpUrl from '@/assets/motion-icons/joystick/dp.svg?url';
+import joystickHcbUrl from '@/assets/motion-icons/joystick/hcb.svg?url';
+import joystickHcfUrl from '@/assets/motion-icons/joystick/hcf.svg?url';
+import holdJoystickBackUrl from '@/assets/motion-icons/joystick/hold/back.svg?url';
+import holdJoystickDownUrl from '@/assets/motion-icons/joystick/hold/down.svg?url';
+import holdJoystickDownBackUrl from '@/assets/motion-icons/joystick/hold/down-back.svg?url';
+import holdJoystickDownForwardUrl from '@/assets/motion-icons/joystick/hold/down-forward.svg?url';
+import holdJoystickForwardUrl from '@/assets/motion-icons/joystick/hold/forward.svg?url';
+import holdJoystickUpUrl from '@/assets/motion-icons/joystick/hold/up.svg?url';
+import holdJoystickUpBackUrl from '@/assets/motion-icons/joystick/hold/up-back.svg?url';
+import holdJoystickUpForwardUrl from '@/assets/motion-icons/joystick/hold/up-forward.svg?url';
+import joystickQcbUrl from '@/assets/motion-icons/joystick/qcb.svg?url';
+import joystickQcfUrl from '@/assets/motion-icons/joystick/qcf.svg?url';
+import joystickRdpUrl from '@/assets/motion-icons/joystick/rdp.svg?url';
+import joystickSpdUrl from '@/assets/motion-icons/joystick/spd.svg?url';
+import tapJoystickBackUrl from '@/assets/motion-icons/joystick/tap/back.svg?url';
+import tapJoystickDownUrl from '@/assets/motion-icons/joystick/tap/down.svg?url';
+import tapJoystickDownBackUrl from '@/assets/motion-icons/joystick/tap/down-back.svg?url';
+import tapJoystickDownForwardUrl from '@/assets/motion-icons/joystick/tap/down-forward.svg?url';
+import tapJoystickForwardUrl from '@/assets/motion-icons/joystick/tap/forward.svg?url';
+import tapJoystickUpUrl from '@/assets/motion-icons/joystick/tap/up.svg?url';
+import tapJoystickUpBackUrl from '@/assets/motion-icons/joystick/tap/up-back.svg?url';
+import tapJoystickUpForwardUrl from '@/assets/motion-icons/joystick/tap/up-forward.svg?url';
 
-// Maps both numpad values and case-sensitive letter directions to arrow-style SVG URLs.
-// Uppercase = hold (D/F), lowercase = tap (d/f). Falls back to tap icon if no hold exists.
-const ARROW_ICON_MAP: Record<string, string> = {
-  // Numpad directions (standard mode)
-  '1': dbUrl,
-  '2': dUrl,
-  '3': dfUrl,
-  '4': bUrl,
-  '6': fUrl,
-  '7': ubUrl,
-  '8': uUrl,
-  '9': ufUrl,
-  // Tap letter directions (lowercase)
-  f: fUrl,
-  b: bUrl,
-  u: uUrl,
-  d: dUrl,
-  'd/f': dfUrl,
-  'd/b': dbUrl,
-  'u/f': ufUrl,
-  'u/b': ubUrl,
-  df: dfUrl,
-  db: dbUrl,
-  uf: ufUrl,
-  ub: ubUrl,
-  // Hold letter directions (uppercase)
-  F: fhUrl,
-  B: bhUrl,
-  D: dhUrl,
-  U: uhUrl,
-  'D/F': dfhUrl,
-  'D/B': dbhUrl,
-  'U/F': ufhUrl,
-  'U/B': ubhUrl,
-  DF: dfhUrl,
-  DB: dbhUrl,
-  UF: ufhUrl,
-  UB: ubhUrl,
-  // Numeric button icons for NRS and Tekken profiles
+const ARROW_ICON_MAP: Readonly<Record<string, string>> = {
+  '1': tapDownBackUrl,
+  '2': tapDownUrl,
+  '3': tapDownForwardUrl,
+  '4': tapBackUrl,
+  '6': tapForwardUrl,
+  '7': tapUpBackUrl,
+  '8': tapUpUrl,
+  '9': tapUpForwardUrl,
+  f: tapForwardUrl,
+  b: tapBackUrl,
+  u: tapUpUrl,
+  d: tapDownUrl,
+  'd/f': tapDownForwardUrl,
+  'd/b': tapDownBackUrl,
+  'u/f': tapUpForwardUrl,
+  'u/b': tapUpBackUrl,
+  df: tapDownForwardUrl,
+  db: tapDownBackUrl,
+  uf: tapUpForwardUrl,
+  ub: tapUpBackUrl,
+  F: holdForwardUrl,
+  B: holdBackUrl,
+  D: holdDownUrl,
+  U: holdUpUrl,
+  'D/F': holdDownForwardUrl,
+  'D/B': holdDownBackUrl,
+  'U/F': holdUpForwardUrl,
+  'U/B': holdUpBackUrl,
+  DF: holdDownForwardUrl,
+  DB: holdDownBackUrl,
+  UF: holdUpForwardUrl,
+  UB: holdUpBackUrl,
   '1b': btn1Url,
   '2b': btn2Url,
   '3b': btn3Url,
   '4b': btn4Url,
 };
 
-const HOLD_ARROW_ICON_MAP: Record<string, string> = {
-  '1': dbhUrl,
-  '2': dhUrl,
-  '3': dfhUrl,
-  '4': bhUrl,
-  '6': fhUrl,
-  '7': ubhUrl,
-  '8': uhUrl,
-  '9': ufhUrl,
-  f: fhUrl,
-  b: bhUrl,
-  u: uhUrl,
-  d: dhUrl,
-  'd/f': dfhUrl,
-  'd/b': dbhUrl,
-  'u/f': ufhUrl,
-  'u/b': ubhUrl,
-  df: dfhUrl,
-  db: dbhUrl,
-  uf: ufhUrl,
-  ub: ubhUrl,
+const HOLD_ARROW_ICON_MAP: Readonly<Record<string, string>> = {
+  '1': holdDownBackUrl,
+  '2': holdDownUrl,
+  '3': holdDownForwardUrl,
+  '4': holdBackUrl,
+  '6': holdForwardUrl,
+  '7': holdUpBackUrl,
+  '8': holdUpUrl,
+  '9': holdUpForwardUrl,
+  f: holdForwardUrl,
+  b: holdBackUrl,
+  u: holdUpUrl,
+  d: holdDownUrl,
+  'd/f': holdDownForwardUrl,
+  'd/b': holdDownBackUrl,
+  'u/f': holdUpForwardUrl,
+  'u/b': holdUpBackUrl,
+  df: holdDownForwardUrl,
+  db: holdDownBackUrl,
+  uf: holdUpForwardUrl,
+  ub: holdUpBackUrl,
+};
+
+type DirectionStep = '1' | '2' | '3' | '4' | '6' | '7' | '8' | '9';
+type JoystickStep =
+  | DirectionStep
+  | 'qcf'
+  | 'qcb'
+  | 'dp'
+  | 'rdp'
+  | 'hcf'
+  | 'hcb'
+  | 'spd';
+
+const TAP_JOYSTICK_DIRECTION_MAP: Record<DirectionStep, string> = {
+  '1': tapJoystickDownBackUrl,
+  '2': tapJoystickDownUrl,
+  '3': tapJoystickDownForwardUrl,
+  '4': tapJoystickBackUrl,
+  '6': tapJoystickForwardUrl,
+  '7': tapJoystickUpBackUrl,
+  '8': tapJoystickUpUrl,
+  '9': tapJoystickUpForwardUrl,
+};
+
+const HOLD_JOYSTICK_DIRECTION_MAP: Record<DirectionStep, string> = {
+  '1': holdJoystickDownBackUrl,
+  '2': holdJoystickDownUrl,
+  '3': holdJoystickDownForwardUrl,
+  '4': holdJoystickBackUrl,
+  '6': holdJoystickForwardUrl,
+  '7': holdJoystickUpBackUrl,
+  '8': holdJoystickUpUrl,
+  '9': holdJoystickUpForwardUrl,
+};
+
+const JOYSTICK_MOTION_MAP: Record<
+  Exclude<JoystickStep, DirectionStep>,
+  string
+> = {
+  qcf: joystickQcfUrl,
+  qcb: joystickQcbUrl,
+  dp: joystickDpUrl,
+  rdp: joystickRdpUrl,
+  hcf: joystickHcfUrl,
+  hcb: joystickHcbUrl,
+  spd: joystickSpdUrl,
+};
+
+const JOYSTICK_STEPS: Readonly<Record<string, readonly JoystickStep[]>> = {
+  '1': ['1'],
+  '2': ['2'],
+  '3': ['3'],
+  '4': ['4'],
+  '6': ['6'],
+  '7': ['7'],
+  '8': ['8'],
+  '9': ['9'],
+  '22': ['2', '2'],
+  '28': ['2', '8'],
+  '44': ['4', '4'],
+  '46': ['4', '6'],
+  '64': ['6', '4'],
+  '66': ['6', '6'],
+  '82': ['8', '2'],
+  '88': ['8', '8'],
+  '214': ['qcb'],
+  '236': ['qcf'],
+  '360': ['spd'],
+  '421': ['rdp'],
+  '426': ['4', '2', '6'],
+  '623': ['dp'],
+  '624': ['6', '2', '4'],
+  '632': ['6', '3', '2'],
+  '666': ['6', '6', '6'],
+  '720': ['spd', 'spd'],
+  '1080': ['spd', 'spd', 'spd'],
+  '2369': ['qcf', '9'],
+  '63214': ['hcb'],
+  '41236': ['hcf'],
+  '214214': ['qcb', 'qcb'],
+  '236236': ['qcf', 'qcf'],
+  '412364': ['hcf', '4'],
+  '632146': ['hcb', '6'],
+  qcf: ['qcf'],
+  qcb: ['qcb'],
+  dp: ['dp'],
+  rdp: ['rdp'],
+  hcf: ['hcf'],
+  hcb: ['hcb'],
+  spd: ['spd'],
+};
+
+const CIRCULAR_MOTION_REPEATS: Readonly<Record<string, number>> = {
+  '360': 1,
+  '720': 2,
+  '1080': 3,
+  spd: 1,
+};
+
+const FULL_CIRCLE_ARROW_STEPS: readonly DirectionStep[] = [
+  '6',
+  '3',
+  '2',
+  '1',
+  '4',
+  '7',
+  '8',
+  '9',
+];
+
+const DIRECTION_LABELS: Readonly<Record<string, string>> = {
+  '1': 'DownBack',
+  '2': 'Down',
+  '3': 'DownForward',
+  '4': 'Back',
+  '6': 'Forward',
+  '7': 'UpBack',
+  '8': 'Up',
+  '9': 'UpForward',
+};
+
+const MOTION_LABELS: Readonly<Record<string, string>> = {
+  '22': 'Down',
+  '28': 'Down-Up',
+  '44': 'Back',
+  '46': 'Back-Forward',
+  '64': 'Forward-Back',
+  '66': 'Forward',
+  '82': 'Up-Down',
+  '88': 'Up',
+  '214': 'QCB',
+  '236': 'QCF',
+  '360': '360',
+  '421': 'RDP',
+  '426': 'Back-Down-Forward',
+  '623': 'DP',
+  '624': 'Forward-Down-Back',
+  '632': 'Forward-DownForward-Down',
+  '666': 'Forward',
+  '720': '720',
+  '1080': '1080',
+  '2369': 'Tiger Knee',
+  '63214': 'HCB',
+  '41236': 'HCF',
+  '214214': 'Double QCB',
+  '236236': 'Double QCF',
+  '412364': 'HCF-Back',
+  '632146': 'HCB-Forward',
+  qcf: 'QCF',
+  qcb: 'QCB',
+  dp: 'DP',
+  rdp: 'RDP',
+  hcf: 'HCF',
+  hcb: 'HCB',
+  spd: '360',
 };
 
 interface MotionIconProps {
@@ -97,424 +269,16 @@ interface MotionIconProps {
   iconStyle?: 'joystick' | 'arrows';
 }
 
-interface MotionSVGData {
-  children: React.ReactNode;
-  viewBox: string;
-  alt: string;
-  repeat?: number;
+function getJoystickSource(step: JoystickStep, hold: boolean): string {
+  if (step in TAP_JOYSTICK_DIRECTION_MAP) {
+    const direction = step as DirectionStep;
+    return (hold ? HOLD_JOYSTICK_DIRECTION_MAP : TAP_JOYSTICK_DIRECTION_MAP)[
+      direction
+    ];
+  }
+
+  return JOYSTICK_MOTION_MAP[step as Exclude<JoystickStep, DirectionStep>];
 }
-
-const MIRROR = 'matrix(-1 0 0 1 383.825 -327.476)';
-const MIRROR_CX = -291.825;
-const MIRROR_CY = -419.499;
-
-function MirroredCircle() {
-  return (
-    <circle
-      cx={MIRROR_CX}
-      cy={MIRROR_CY}
-      r={50}
-      transform="rotate(180)"
-      fill="red"
-    />
-  );
-}
-
-export const motionSVGMap: Record<string, MotionSVGData> = {
-  '236': {
-    viewBox: '0 0 184 184',
-    children: (
-      <>
-        <path
-          d="M157 92.044V92h-13l20.035-25L184 92h-12v.045c0 31.797-18.593 59.301-40.002 69.281-13.897 8.023-28.7 11.342-42.992 10.774H84.5v-32.915h15v17.501c30.86-3.69 57.5-29.552 57.5-64.642"
-          fill="#fff"
-        />
-        <circle cx={92} cy={92} r={50} fill="red" />
-      </>
-    ),
-    alt: 'QCF',
-  },
-  '214': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <path
-          d="M356.825 419.567v-.044h-13l20.035-25 19.965 25h-12v.045a80 80 0 01-40.002 69.281c-13.897 8.023-28.7 11.342-42.992 10.774h-4.506v-32.915h15v17.501c30.86-3.691 57.499-29.552 57.5-64.642z"
-          fill="white"
-        />
-        <MirroredCircle />
-      </g>
-    ),
-    alt: 'QCB',
-  },
-  '623': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M254.803 426.976l47.568 54.716h-59.89v12.5l-25-20 25-20v12.5h26.974l-47.568-54.716h69.961v15h-37.045z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'DP',
-  },
-  '421': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M328.902 426.975l-47.568 54.716h59.89v12.5l25-20-25-20v12.5H314.25l47.568-54.716h-69.96v15h37.044z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'RDP',
-  },
-  '412364': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <path
-          d="M338.967 426.975v-15l32.915.001v4.506a78.189 78.189 0 01-2.709 23.748c-12.891 48.946-70.305 75.688-117.347 48.53a80.002 80.002 0 01-40.002-69.282v-.002h.001v-.044h-12l19.965-25 20.035 25h-13v.044c.001 35.09 26.64 60.951 57.5 64.642l.002.003c2.462.294 4.951.447 7.455.453v-.099h.044c5.981 0 11.694-.774 17.075-2.211 5.22-1.446 10.395-3.592 15.425-6.496a64.944 64.944 0 0025.079-26.132 64.964 64.964 0 006.986-22.661z"
-          fill="white"
-        />
-        <MirroredCircle />
-      </g>
-    ),
-    alt: 'HCFB',
-  },
-  '41236': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <path
-          d="M338.967 426.975v-15l32.915.001v4.506a78.189 78.189 0 01-2.709 23.748c-12.891 48.946-70.305 75.688-117.347 48.53a80.002 80.002 0 01-40.002-69.282v-.002h.001v-.044h-12l19.965-25 20.035 25h-13v.044c.001 35.09 26.64 60.951 57.5 64.642l.002.003c2.462.294 4.951.447 7.455.453v-.099h.044c5.981 0 11.694-.774 17.075-2.211 5.22-1.446 10.395-3.592 15.425-6.496a64.944 64.944 0 0025.079-26.132 64.964 64.964 0 006.986-22.661z"
-          fill="white"
-        />
-        <MirroredCircle />
-      </g>
-    ),
-    alt: 'HCF',
-  },
-  '632146': {
-    viewBox: '0 0 184 184.046',
-    children: (
-      <g transform={MIRROR}>
-        <path
-          d="M244.682 427.03v-15l-32.915.002v4.506a78.189 78.189 0 0 0 2.71 23.748c12.89 48.946 70.304 75.688 117.346 48.53a80.002 80.002 0 0 0 40.002-69.282v-.046h12l-19.966-25-20.035 25h13v.044c0 35.09-26.64 60.95-57.5 64.642l-.002.003a64.168 64.168 0 0 1-7.455.453v-.1h-.044c-5.98 0-11.694-.773-17.075-2.21-5.22-1.446-10.395-3.592-15.425-6.496a64.944 64.944 0 0 1-25.079-26.132 64.964 64.964 0 0 1-6.986-22.661z"
-          fill="white"
-        />
-        <circle
-          cx={MIRROR_CX}
-          cy={MIRROR_CY}
-          r={50}
-          transform="rotate(180)"
-          fill="red"
-          pointerEvents="none"
-        />
-      </g>
-    ),
-    alt: 'HCBF',
-  },
-  '63214': {
-    viewBox: '0 0 184 184.046',
-    children: (
-      <g transform={MIRROR}>
-        <path
-          d="M244.682 427.03v-15l-32.915.002v4.506a78.189 78.189 0 0 0 2.71 23.748c12.89 48.946 70.304 75.688 117.346 48.53a80.002 80.002 0 0 0 40.002-69.282v-.046h12l-19.966-25-20.035 25h13v.044c0 35.09-26.64 60.95-57.5 64.642l-.002.003a64.168 64.168 0 0 1-7.455.453v-.1h-.044c-5.98 0-11.694-.773-17.075-2.21-5.22-1.446-10.395-3.592-15.425-6.496a64.944 64.944 0 0 1-25.079-26.132 64.964 64.964 0 0 1-6.986-22.661z"
-          fill="white"
-        />
-        <circle
-          cx={MIRROR_CX}
-          cy={MIRROR_CY}
-          r={50}
-          transform="rotate(180)"
-          fill="red"
-          pointerEvents="none"
-        />
-      </g>
-    ),
-    alt: 'HCB',
-  },
-  '236236': {
-    viewBox: '0 0 184 184',
-    children: (
-      <>
-        <path
-          d="M157 92.044V92h-13l20.035-25L184 92h-12v.045c0 31.797-18.593 59.301-40.002 69.281-13.897 8.023-28.7 11.342-42.992 10.774H84.5v-32.915h15v17.501c30.86-3.69 57.5-29.552 57.5-64.642"
-          fill="white"
-        />
-        <circle cx={92} cy={92} r={50} fill="red" />
-      </>
-    ),
-    alt: 'QCF',
-    repeat: 2,
-  },
-  '214214': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <path
-          d="M356.825 419.567v-.044h-13l20.035-25 19.965 25h-12v.045a80 80 0 01-40.002 69.281c-13.897 8.023-28.7 11.342-42.992 10.774h-4.506v-32.915h15v17.501c30.86-3.691 57.499-29.552 57.5-64.642z"
-          fill="white"
-        />
-        <MirroredCircle />
-      </g>
-    ),
-    alt: 'QCB',
-    repeat: 2,
-  },
-  '22': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M284.324 419.453v67.023h-12.5l20 25 20-25h-12.5v-67.023h-15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Down',
-    repeat: 2,
-  },
-  '44': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M291.801 426.976h67.023v12.5l25-20-25-20v12.5h-67.023v15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Back',
-    repeat: 2,
-  },
-  '66': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M291.848 411.976h-67.023v-12.5l-25 20 25 20v-12.5h67.023v-15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Forward',
-    repeat: 2,
-  },
-  '88': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M299.324 419.5v-67.024h12.5l-20-25-20 25h12.5V419.5h15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Up',
-    repeat: 2,
-  },
-  '1': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M286.505 424.763l47.392 47.393-8.839 8.838 31.82 3.536-3.535-31.82-8.84 8.839-47.392-47.393-10.606 10.607z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'DownBack',
-  },
-  '2': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M284.324 419.453v67.023h-12.5l20 25 20-25h-12.5v-67.023h-15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Down',
-  },
-  '3': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M286.538 414.156l-47.393 47.393-8.838-8.84-3.536 31.82 31.82-3.535-8.839-8.839 47.392-47.392-10.606-10.607z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'DownForward',
-  },
-  '4': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M291.801 426.976h67.023v12.5l25-20-25-20v12.5h-67.023v15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Back',
-  },
-  '6': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M291.848 411.976h-67.023v-12.5l-25 20 25 20v-12.5h67.023v-15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Forward',
-  },
-  '7': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M297.111 424.796l47.392-47.393 8.84 8.84 3.535-31.82-31.82 3.535 8.839 8.839-47.393 47.393 10.607 10.607z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'UpBack',
-  },
-  '8': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M299.324 419.5v-67.024h12.5l-20-25-20 25h12.5V419.5h15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'Up',
-  },
-  '9': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <path
-          d="M297.144 414.19l-47.393-47.393 8.84-8.839-31.82-3.535 3.535 31.82 8.839-8.84 47.392 47.393 10.607-10.607z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: 'UpForward',
-  },
-  '360': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <circle
-          cx={MIRROR_CX}
-          cy={MIRROR_CY}
-          r={35}
-          transform="rotate(180)"
-          fill="none"
-          stroke="white"
-          strokeWidth={8}
-        />
-        <path
-          d="M299.324 352.5v-15h12.5l-20-25-20 25h12.5v15h15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: '360',
-  },
-  '720': {
-    viewBox: '0 0 184 184',
-    children: (
-      <g transform={MIRROR}>
-        <MirroredCircle />
-        <circle
-          cx={MIRROR_CX}
-          cy={MIRROR_CY}
-          r={35}
-          transform="rotate(180)"
-          fill="none"
-          stroke="white"
-          strokeWidth={8}
-        />
-        <circle
-          cx={MIRROR_CX}
-          cy={MIRROR_CY}
-          r={22}
-          transform="rotate(180)"
-          fill="none"
-          stroke="white"
-          strokeWidth={6}
-          opacity={0.7}
-        />
-        <path
-          d="M299.324 352.5v-15h12.5l-20-25-20 25h12.5v15h15z"
-          fill="white"
-        />
-      </g>
-    ),
-    alt: '720',
-  },
-};
-
-/**
- * Pre-computed tight viewBoxes for each motion SVG key.
- * Generated via getBBox() measurement — trims dead transparent space
- * while preserving all visible content (circle + arrow).
- * Format: "minX minY width height"
- */
-export const croppedViewBoxMap: Record<string, string> = {
-  '1': '22 38 124 124',
-  '2': '38 38 108 150',
-  '3': '38 38 124 124',
-  '4': '0 38 146 109',
-  '6': '38 38 151 109',
-  '7': '22 22 124 125',
-  '8': '38 0 108 147',
-  '9': '38 22 124 125',
-  '22': '38 38 108 150',
-  '44': '0 38 146 109',
-  '66': '38 38 151 109',
-  '88': '38 0 108 147',
-  '214': '0 38 146 139',
-  '236': '38 38 150 139',
-  '360': '38 0 108 147',
-  '421': '13 38 133 133',
-  '623': '38 38 133 133',
-  '720': '38 0 108 147',
-  '41236': '7 38 181 139',
-  '63214': '0 38 177 139',
-  '214214': '0 38 146 139',
-  '236236': '38 38 150 139',
-  '412364': '7 38 181 139',
-  '632146': '0 38 177 139',
-};
 
 export function MotionIcon({
   motion,
@@ -546,16 +310,13 @@ export function MotionIcon({
     );
   }
 
-  // Arrows style: use SVG assets for single directions; decompose compound
-  // motions (236, 41236, etc.) into a sequence of individual direction arrows.
-  // Motions containing '0' (360, 720) can't decompose — fall through to joystick.
   if (iconStyle === 'arrows') {
-    // Try exact case first (e.g. 'D/F' → hold icon), then lowercase fallback (e.g. 'D/F' → 'd/f').
     const arrowUrl =
       (hold ? HOLD_ARROW_ICON_MAP[motion.toLowerCase()] : undefined) ??
       ARROW_ICON_MAP[motion] ??
       ARROW_ICON_MAP[motion.toLowerCase()];
     const arrowSize = Math.round(size * 0.8);
+
     if (arrowUrl) {
       return (
         <div className={`inline-flex items-center ${className}`}>
@@ -563,73 +324,69 @@ export function MotionIcon({
             src={arrowUrl}
             width={arrowSize}
             height={arrowSize}
-            alt={label ?? motionSVGMap[motion]?.alt ?? `Direction ${motion}`}
+            alt={label ?? DIRECTION_LABELS[motion] ?? `Direction ${motion}`}
           />
         </div>
       );
     }
-    const digits = motion.split('');
+
+    const circleRepeats = CIRCULAR_MOTION_REPEATS[motion.toLowerCase()];
+    const arrowSteps = circleRepeats
+      ? Array.from(
+          { length: circleRepeats },
+          () => FULL_CIRCLE_ARROW_STEPS,
+        ).flat()
+      : motion.split('');
     const allDecomposable =
-      digits.length > 0 &&
-      digits.length === motion.length &&
-      digits.every((d) => /^[1-9]$/.test(d) && ARROW_ICON_MAP[d]);
+      arrowSteps.length > 0 &&
+      arrowSteps.every((step) => /^[1-9]$/.test(step) && ARROW_ICON_MAP[step]);
+
     if (allDecomposable) {
       return (
         <div className={`inline-flex items-center gap-0.5 ${className}`}>
-          {digits.map((d, i) => (
+          {arrowSteps.map((step, index) => (
             <img
               // biome-ignore lint/suspicious/noArrayIndexKey: order is stable
-              key={i}
-              src={ARROW_ICON_MAP[d]}
+              key={index}
+              src={(hold ? HOLD_ARROW_ICON_MAP : ARROW_ICON_MAP)[step]}
               width={arrowSize}
               height={arrowSize}
-              alt={label ? `${label}, step ${i + 1}` : d}
+              alt={
+                label
+                  ? `${label}, step ${index + 1}`
+                  : (DIRECTION_LABELS[step] ?? step)
+              }
             />
           ))}
         </div>
       );
     }
-    // Fall through to joystick for 360/720 and other non-decomposable motions.
   }
 
-  const motionData = motionSVGMap[motion];
-
-  if (motionData) {
-    const originalViewBox = motionData.viewBox;
-    const viewBox = croppedViewBoxMap[motion] || originalViewBox;
+  const joystickSteps = JOYSTICK_STEPS[motion.toLowerCase()];
+  if (joystickSteps) {
     const motionLabel =
       label ??
-      (motionData.alt.trim() || `Motion ${motion.trim() || 'unknown'}`);
-
-    // Scale pixel dimensions to match the cropped viewBox so content stays the
-    // same visual size as it was with the full 184×184 viewBox.
-    const [, , origW, origH] = originalViewBox.split(' ').map(Number);
-    const [, , cropW, cropH] = viewBox.split(' ').map(Number);
-    const pxPerUnit = size / Math.max(origW, origH);
-    const renderW = Math.round(cropW * pxPerUnit);
-    const renderH = Math.round(cropH * pxPerUnit);
-    const repeatCount = motionData.repeat || 1;
-    const repeatNumbers = Array.from({ length: repeatCount }, (_, n) => n + 1);
+      MOTION_LABELS[motion.toLowerCase()] ??
+      DIRECTION_LABELS[motion] ??
+      `Motion ${motion}`;
+    const renderHeight = Math.round(size * 0.8);
 
     return (
-      <div className={`inline-flex items-center gap-0.5 ${className}`}>
-        {repeatNumbers.map((repeatNumber) => (
-          <span
-            key={`${motion}-${repeatNumber}`}
-            className="relative inline-flex"
-          >
-            <svg
-              width={renderW}
-              height={renderH}
-              viewBox={viewBox}
-              role="img"
-              aria-label={motionLabel}
-              className={`inline-block${hold ? ' motion-icon--hold' : ''}`}
-            >
-              <title>{motionLabel}</title>
-              {motionData.children}
-            </svg>
-          </span>
+      <div
+        className={`inline-flex items-center gap-0.5${hold ? ' motion-icon--hold' : ''} ${className}`}
+        role="img"
+        aria-label={motionLabel}
+      >
+        {joystickSteps.map((step, index) => (
+          <img
+            // biome-ignore lint/suspicious/noArrayIndexKey: order is stable
+            key={index}
+            src={getJoystickSource(step, hold)}
+            height={renderHeight}
+            alt=""
+            aria-hidden="true"
+          />
         ))}
       </div>
     );

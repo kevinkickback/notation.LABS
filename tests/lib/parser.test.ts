@@ -177,6 +177,19 @@ describe('parseComboNotation', () => {
       expect(tokens[0]).toMatchObject({ type: 'motion', value: '360' });
     });
 
+    it.each(['standard', 'nrs', 'tekken'] as const)(
+      'parses spd and 360 circular notation in the %s profile',
+      (profile) => {
+        const buttons = profile === 'standard' ? ['L'] : ['1', '2', '3', '4'];
+
+        for (const notation of ['spd', 'SPD', '360']) {
+          expect(parseComboNotation(notation, buttons, { profile })).toEqual([
+            { type: 'motion', value: '360', rawValue: notation },
+          ]);
+        }
+      },
+    );
+
     it('is case-insensitive for aliases', () => {
       const tokens = parseComboNotation('QCF');
       expect(tokens).toHaveLength(1);

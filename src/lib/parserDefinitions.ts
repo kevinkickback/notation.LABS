@@ -1,5 +1,7 @@
 // Ordered from longest to shortest semantic motions so numeric tokens prefer
 // complete motion matches before falling back to individual directions.
+export const CIRCULAR_MOTIONS = ['1080', '720', '360'] as const;
+
 const MOTIONS = [
   '236236',
   '214214',
@@ -20,9 +22,6 @@ const MOTIONS = [
   '426',
   '624',
   '632',
-  '360',
-  '720',
-  '1080',
 ];
 
 // Human-friendly aliases are normalized before button parsing, which lets
@@ -398,4 +397,7 @@ export const SORTED_ALL_ALIASES = [
   ...Object.keys(MOTION_ALIASES),
   ...Object.keys(MULTI_STEP_ALIASES),
 ].sort((a, b) => b.length - a.length);
+export const SORTED_CIRCULAR_MOTIONS = [...CIRCULAR_MOTIONS].sort(
+  (a, b) => b.length - a.length,
+);
 export const SORTED_MOTIONS = [...MOTIONS].sort((a, b) => b.length - a.length);

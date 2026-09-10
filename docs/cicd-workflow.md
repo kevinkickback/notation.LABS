@@ -1,50 +1,46 @@
-# CI/CD and Release Workflow
+# CI/CD and release workflow
 
-All development happens on `dev`. `main` is production only and receives squash
-merges from `dev`. A release requires a new stable `vX.Y.Z` tag on the final PR
-head, matching package metadata and `changelogs/vX.Y.Z.md`.
+`dev` is the integration branch and `main` is the stable production branch. Short-lived branches
+merge into `dev`; `main` receives only squash merges from a same-repository `dev` to `main` pull
+request. Do not push commits or tags directly to `main`.
 
-## Repository setup (once)
+## Repository setup
 
-In GitHub repository settings:
+Configure GitHub to:
 
-- Protect `main`: require a pull request, disallow direct/force pushes and branch
-  deletion, and require `Validate production PR`, `Lint, type-check, and test`,
-  and `Browser tests`. Set required approvals to zero for unattended releases.
-  Apply these rules to administrators as appropriate.
-- Enable squash merging and disable merge commits and rebase merging. Keep `dev`
-  after merging (disable automatic head-branch deletion).
-- Give workflows read and write permission. The CI workflow grants write access
-  only to its merge job, while the release workflow grants it only to draft
-  management jobs. The built-in `GITHUB_TOKEN` is sufficient; no PAT is needed.
-- Protect release tags against updates/deletion to preserve release provenance.
+- protect `main` from direct and force pushes and branch deletion;
+- allow squash merging and disable merge commits and rebase merging;
+- require resolved review conversations plus **Lint, type-check, test, and build** and
+  **Browser tests**;
+- retain `dev` after a production merge;
+- give Actions read/write workflow permission; and
+- protect published `vX.Y.Z` tags from updates and deletion.
 
-These repository settings are not applied by committing workflow files. Land
-these files on `dev` before preparing the next release; `main` receives them in
-that release PR. No workflow creates a PR or changes repository settings for you.
+The workflow files do not configure repository rulesets. Required human reviews may remain enabled;
+GitHub's merge API honors repository merge requirements.
 
-## Daily development and CI
+## CI and merging
 
-Use the Node version in `.nvmrc` and `npm ci`. Push development work to `dev`.
-`ci.yml` runs version consistency checks, production dependency auditing, Biome,
-TypeScript, Vitest with coverage thresholds, and Playwright browser tests. PRs
-to `main` run the same checks on GitHub's proposed merge commit. `Validate
-production PR` accepts only this repository's `dev` branch and requires a
-matching tag and non-empty changelog for version changes.
+CI runs for non-draft pull requests targeting `dev` or `main`. It verifies version metadata, audits
+production dependencies, runs Biome and TypeScript, executes Vitest with coverage, builds the web
+app, and runs Playwright in a separate job. Feature PRs into `dev` are checked but never
+auto-merged.
 
-After all three PR jobs pass, a qualifying tagged PR is squash-merged
-automatically and explicitly dispatches the release workflow. The release
-workflow verifies that the tag and production commit contain identical files,
-then stages the release without repeating the checks that already passed on the
-proposed merge. Ordinary development pushes never create releases. A PR with an
-unchanged package version is tested but remains open and does not release. A
-version-changing PR without its matching tag fails validation.
+A ready, same-repository `dev` to `main` PR is squash-merged only after both jobs pass. The merge
+job re-reads the PR and `main` branch, rejects a changed head or base revision, and merges the exact
+SHA that passed CI. It also waits briefly for an optional Copilot review of that revision. Copilot
+is advisory: if no review starts within one minute, or an active review does not finish within ten
+minutes, the workflow continues. Unresolved conversations can still block merging through the
+repository ruleset.
 
-## 1. Prepare a release on dev
+The resulting squash commit is passed directly to the reusable release workflow. Ordinary PRs with
+an unchanged package version still merge, but the release workflow detects the unchanged version
+and exits without creating a tag or release.
 
-Run commands from the repository root, replacing `X.Y.Z` with a stable version
-such as `1.9.0`. Prereleases are deliberately unsupported by this production
-pipeline, which retains the application's `latest*.yml` updater channels.
+## Prepare a release on dev
+
+Replace `X.Y.Z` with a stable version such as `1.9.0`. Prereleases are intentionally unsupported
+because the desktop updater uses the stable `latest*.yml` channels.
 
 ```bash
 git switch dev
@@ -53,87 +49,60 @@ npm ci
 npm version X.Y.Z --no-git-tag-version
 ```
 
-Write `changelogs/vX.Y.Z.md` with non-empty user-facing release notes. The entire
-file becomes the draft body, exactly as committed. Keep `package.json` and both
-root version fields in `package-lock.json` synchronized.
+Create `changelogs/vX.Y.Z.md` with nonempty user-facing notes. Its complete contents become the
+draft release body. Keep `package.json` and both root version fields in `package-lock.json`
+synchronized.
 
-Run the release checks before committing:
+Run the local release gate:
 
 ```bash
-npm run version:check -- --tag=vX.Y.Z
+npm run version:check
 npm audit --omit=dev --audit-level=high
 npm run lint
 npx tsc -b
 npm run test:coverage
+npm run build:web
 npx playwright install chromium
 npm run test:e2e
 git diff --check
 ```
 
-Linux may need `npx playwright install --with-deps chromium`. Include all required
-packaging resources from `build/` in the commit.
+Linux may require `npx playwright install --with-deps chromium`. Commit and push the complete
+release source, metadata, changelog, and required `build/` packaging resources. Do not create the
+release tag yourself.
 
-## 2. Commit and push dev with the tag
-
-```bash
-git add package.json package-lock.json changelogs/vX.Y.Z.md
-# Stage any other intended release changes explicitly.
-git commit -m "chore: release vX.Y.Z"
-git tag -a vX.Y.Z -m "Release vX.Y.Z"
-git push --atomic origin dev vX.Y.Z
-```
-
-The atomic push sends the branch and tag together. The tag must point to the
-final PR head, not an earlier commit. Pushing a tag alone does not build a
-release. Never manually create the GitHub release or move a published tag.
-
-## 3. Open the release PR
+## Open the production PR
 
 ```bash
 gh pr create --base main --head dev --title "Release vX.Y.Z" --body-file changelogs/vX.Y.Z.md
 gh pr checks PR_NUMBER --watch
 ```
 
-Replace `PR_NUMBER` with the created PR number. No merge command is needed. After
-the tag policy, quality checks, and browser tests pass, the final CI job squash
-merges the PR and dispatches the release workflow with the exact merge commit.
-Do not delete `dev`.
+No merge command is needed. Once repository requirements and CI pass, the workflow squash-merges
+the exact checked revision. If the PR changes during or after checks, the merge is rejected until
+the latest revision passes.
 
-If you add commits after tagging, the PR gate fails until a new release tag
-matches the final head. Prefer a fresh patch version and changelog, then push
-that new tag with `dev`. Re-run PR checks if only a tag was pushed, since tag
-pushes do not trigger PR CI.
+## Automated release
 
-Squash merging changes the commit hash. The tag remains on the reviewed `dev`
-commit; it is never moved to `main`. The workflow requires identical Git trees
-between that tag and the squash commit, then tests and builds from the exact
-`main` commit. Thus the tagged source and packaged source contain the same files.
-See [GitHub's merge-method documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/about-merge-methods-on-github).
+For a version-changing squash commit, `release.yml`:
 
-## 4. Automated release
+1. Confirms the source is a single-parent squash commit associated with a merged,
+   same-repository `dev` to `main` PR.
+2. Requires an increased stable `X.Y.Z` version, synchronized package metadata, and a matching
+   nonempty `changelogs/vX.Y.Z.md`.
+3. Creates the lightweight `vX.Y.Z` tag on the reviewed `main` squash commit. Existing tags are
+   reused only when they already point to that exact commit.
+4. Creates or refreshes a draft GitHub release; published releases are never replaced.
+5. Builds Windows, macOS, and Linux packages on native runners, verifies their expected outputs,
+   and records GitHub artifact attestations.
+6. Stages platform packages as one-day Actions artifacts, uploads them in one controlled job, and
+   verifies the draft status, exact notes, required filenames, and nonempty assets.
+7. If a downstream job fails after draft creation, deletes only the unpublished draft and its
+   workflow-created tag when that tag still points to the failed release SHA. Published releases
+   and unrelated tags are preserved.
 
-The automated merge dispatches `release.yml`; a human merge still starts it from
-the normal `main` push event. It:
-
-1. Requires an associated merged same-repository `dev` to `main` PR and a
-   single-parent production commit (configure squash-only merges as above).
-2. Skips releases without a version change or corresponding tag. Otherwise,
-   validates the final PR head, matching source trees, stable package version,
-   lockfile versions, and non-empty changelog.
-3. Creates or refreshes the draft using the committed changelog. Published
-   releases are refused. `--verify-tag` prevents accidental tag creation.
-4. Builds Windows, macOS, and Linux packages on native runners using this
-   project's `npm run build:app` and `electron-builder --publish never`.
-5. Stages binaries, update manifests, and blockmaps as one-day Actions artifacts,
-   then uploads them in one controlled job, replacing same-named draft assets.
-6. Verifies draft status, exact notes, required filenames, and non-empty assets.
-7. Deletes an incomplete draft after a downstream failure or cancellation. It
-   never deletes a tag or an already published release.
-
-Runs are serialized with `release-main` concurrency. GitHub may replace pending
-runs, so complete one release before merging the next. Do not publish a draft
-while a release run is in progress. Release creation uses the existing tag as
-specified by the [GitHub CLI](https://cli.github.com/manual/gh_release_create).
+Runs are serialized with the `release-main` concurrency group. The workflow never publishes a
+release; inspect and test the verified draft before publishing it manually.
 
 | Platform | Required draft assets |
 |---|---|
@@ -141,30 +110,28 @@ specified by the [GitHub CLI](https://cli.github.com/manual/gh_release_create).
 | macOS | `Notation-Labs-X.Y.Z-Mac.dmg`, `Notation-Labs-X.Y.Z-Mac.dmg.blockmap`, `latest-mac.yml` |
 | Linux | `Notation-Labs-X.Y.Z-Linux.AppImage`, `Notation-Labs-X.Y.Z-Linux.deb`, `latest-linux.yml` |
 
-The staging globs retain additional generated blockmaps. Existing packaging and
-signing configuration is used without adding signing credentials.
+The staging globs retain any additional generated blockmaps. Existing packaging and signing
+configuration remains unchanged.
 
-## 5. Review and publish
+## Review and publish
 
 ```bash
-gh run list --workflow release.yml --branch main --limit 5
+gh run list --workflow release.yml --limit 5
 gh run watch RUN_ID --exit-status
 gh release view vX.Y.Z --json tagName,name,isDraft,isPrerelease,body,assets,url
+gh release edit vX.Y.Z --draft=false
 ```
 
-After the entire workflow succeeds, review notes and packages, then publish:
+Attestations can be verified with GitHub CLI, for example:
 
 ```bash
-gh release edit vX.Y.Z --draft=false
-gh release view vX.Y.Z --json tagName,isDraft,publishedAt,url,assets
+gh attestation verify Notation-Labs-X.Y.Z-Win.exe --repo kevinkickback/notation.LABS
 ```
 
-Publishing is intentionally manual; automated work ends with a verified draft.
+## Keep dev synchronized
 
-## Keep dev synchronized after squash merges
-
-Before the next release, merge the production history back into `dev`. This
-keeps the long-lived branches connected without resetting or force-pushing dev:
+After a squash merge, merge production history back into `dev` before the next release. This keeps
+the long-lived branches connected without rewriting `dev`:
 
 ```bash
 git switch dev
@@ -173,27 +140,18 @@ git merge origin/main
 git push origin dev
 ```
 
-Resolve any conflicts on `dev`, run checks, and commit before preparing the next
-tag. This history-only synchronization does not trigger a release.
+Resolve conflicts and rerun checks on `dev`. This history synchronization does not create a release.
 
 ## Recover a failed release
 
-For transient runner/network failures, rerun **all jobs**, since automatic
-cleanup removes incomplete drafts:
+For a transient runner or network failure, rerun all jobs. Cleanup removes an incomplete draft and
+its workflow-created tag, so the exact original release commit can be retried safely:
 
 ```bash
 gh run rerun RUN_ID
 gh run watch RUN_ID --exit-status
 ```
 
-The existing tag and immutable production commit are reused. Successful draft
-reruns refresh notes and assets; published releases are refused. Cleanup only
-runs when draft preparation succeeded, so a failed attempt to replace a
-published release cannot remove it. If cleanup itself failed, inspect the draft
-and delete only that unpublished draft before retrying.
-
-For source or configuration fixes, work on `dev` and prepare a new patch version
-and tag, then open another release PR. Do not rerun an old workflow expecting it
-to use newer code, and never reuse or move published tags. A missing tag on an
-already merged PR does not start a release when pushed later; prepare the next
-version through the documented sequence instead.
+The Release workflow can also be dispatched manually with the original squash commit as
+`source-sha`. For source or workflow fixes, prepare a new patch version on `dev` and use another
+`dev` to `main` PR. Never move or reuse a published version tag.

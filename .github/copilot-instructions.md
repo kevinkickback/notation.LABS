@@ -27,7 +27,7 @@ notation.LABS is a fighting game combo tracker that ships as both a **web app** 
 | `test:coverage` | Run Vitest tests and enforce coverage thresholds |
 | `test:e2e` | Run Playwright E2E tests |
 | `lint` | Run Biome linter/formatter |
-| `version:check` | Verify package and release-tag metadata, including the matching tagged changelog |
+| `version:check` | Verify synchronized package metadata and the matching versioned changelog |
 
 ## Architecture Notes
 - **Storage:** All persistent data uses **IndexedDB via Dexie**. Never use `localStorage` or `sessionStorage` — these are inconsistent with the IndexedDB-backed architecture and will not work correctly in Electron.
