@@ -43,7 +43,7 @@ beforeEach(() => {
     changelog: '# Changes\n\n- New release',
     writes: [],
   });
-  process.argv = ['node', 'scripts/release/check-release.mjs'];
+  process.argv = ['node', 'scripts/check-release.mjs'];
 });
 
 afterEach(() => {
@@ -52,7 +52,7 @@ afterEach(() => {
 
 async function run() {
   // @ts-expect-error The release validator is a standalone Node ESM script.
-  return import('../scripts/release/check-release.mjs');
+  return import('../scripts/check-release.mjs');
 }
 
 test('accepts synchronized stable metadata with a versioned changelog', async () => {

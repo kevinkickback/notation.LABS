@@ -28,7 +28,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "assets:optimize": "svgo --folder src/assets/motion-icons --output src/assets/motion-icons --multipass",
-    "version:check": "node scripts/release/check-release.mjs"
+    "version:check": "node scripts/check-release.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -37,6 +37,9 @@ describe('ComboDisplay', () => {
             expect(image.getAttribute('src')).toMatch(
                 /^(?:data:image\/svg\+xml|.*spd\.svg)/,
             );
+            expect(image.style.height).toBe('48px');
+            expect(image.style.width).toBe('auto');
+            expect(image.style.maxWidth).toBe('none');
         }
     });
 

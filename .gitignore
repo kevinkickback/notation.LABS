@@ -33,6 +33,8 @@ docs/ARC-TODO.md
 docs/architectural-friction.md
 docs/code-review.md
 docs/streamline.md
+.github/copilot-instructions.md
+.github/copilot-guides/
 
 # Misc
 *.local

@@ -370,7 +370,7 @@ export function MotionIcon({
       MOTION_LABELS[motion.toLowerCase()] ??
       DIRECTION_LABELS[motion] ??
       `Motion ${motion}`;
-    const renderHeight = Math.round(size * 0.8);
+    const renderHeight = size;
 
     return (
       <div
@@ -384,6 +384,12 @@ export function MotionIcon({
             key={index}
             src={getJoystickSource(step, hold)}
             height={renderHeight}
+            style={{
+              height: renderHeight,
+              width: 'auto',
+              maxWidth: 'none',
+              flexShrink: 0,
+            }}
             alt=""
             aria-hidden="true"
           />
