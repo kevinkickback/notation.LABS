@@ -1,18 +1,46 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const root = new URL('../', import.meta.url);
+let notesFile;
+let previousVersion;
+let sourceRoot;
+const arguments_ = process.argv.slice(2);
+for (let index = 0; index < arguments_.length; index += 1) {
+  const argument = arguments_[index];
+  const value = arguments_[index + 1];
+  if (
+    argument === '--notes-file' ||
+    argument === '--previous-version' ||
+    argument === '--source-root'
+  ) {
+    if (!value || value.startsWith('--')) {
+      throw new Error(`${argument} requires a value.`);
+    }
+    if (argument === '--notes-file') notesFile = value;
+    else if (argument === '--previous-version') previousVersion = value;
+    else sourceRoot = value;
+    index += 1;
+  } else {
+    throw new Error(`Unknown argument: ${argument}`);
+  }
+}
+
+const root = sourceRoot
+  ? pathToFileURL(`${resolve(sourceRoot)}${sep}`)
+  : new URL('../', import.meta.url);
 const readJson = async (path) =>
   JSON.parse(await readFile(new URL(path, root), 'utf8'));
 
 const packageJson = await readJson('package.json');
 const packageLock = await readJson('package-lock.json');
 const version = packageJson.version;
+const stableVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-if (
-  typeof version !== 'string' ||
-  !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)
-) {
-  throw new Error('Releases require a stable X.Y.Z package version.');
+if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
+  throw new Error(
+    'Releases require a stable X.Y.Z package version (no prerelease or build suffix).',
+  );
 }
 
 const metadataVersions = new Map([
@@ -31,6 +59,24 @@ if (mismatches.length > 0) {
   );
 }
 
+if (previousVersion !== undefined) {
+  if (!stableVersionPattern.test(previousVersion)) {
+    throw new Error(
+      `Previous package version is not stable X.Y.Z: ${previousVersion}`,
+    );
+  }
+  const current = version.split('.').map(Number);
+  const previous = previousVersion.split('.').map(Number);
+  const difference = current.findIndex(
+    (part, index) => part !== previous[index],
+  );
+  if (difference === -1 || current[difference] < previous[difference]) {
+    throw new Error(
+      `Release version must increase (${previousVersion} -> ${version}).`,
+    );
+  }
+}
+
 const changelogPath = `changelogs/v${version}.md`;
 let notes;
 try {
@@ -42,21 +88,6 @@ if (!notes) {
   throw new Error(`Release changelog is empty: ${changelogPath}`);
 }
 
-const arguments_ = process.argv.slice(2);
-const unknownArguments = arguments_.filter((argument, index) => {
-  return (
-    argument !== '--notes-file' && arguments_[index - 1] !== '--notes-file'
-  );
-});
-if (unknownArguments.length > 0) {
-  throw new Error(`Unknown argument: ${unknownArguments[0]}`);
-}
-
-const notesFlag = arguments_.indexOf('--notes-file');
-if (notesFlag !== -1) {
-  const outputPath = arguments_[notesFlag + 1];
-  if (!outputPath) throw new Error('--notes-file requires a path.');
-  await writeFile(outputPath, `${notes}\n`);
-}
+if (notesFile !== undefined) await writeFile(notesFile, `${notes}\n`);
 
 console.log(`Release metadata and notes validated for v${version}.`);

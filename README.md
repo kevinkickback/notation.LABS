@@ -98,7 +98,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ### Option 3: Build from Source
 
-**Prerequisites:** [Node.js](https://nodejs.org/) 24 LTS (22.12 or later is supported)
+**Prerequisites:** [Node.js](https://nodejs.org/) 24 LTS or newer.
 
 ```bash
 git clone https://github.com/kevinkickback/notation.LABS.git
