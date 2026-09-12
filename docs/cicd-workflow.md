@@ -39,9 +39,10 @@ engine requirement.
 
 After CI completes, `merge.yml` runs from protected `main`. For a ready, same-repository `dev` to
 `main` PR, it confirms that both required jobs passed exactly once for the current head revision and
-that `main` still matches the tested base revision. It then squash-merges that exact revision and
-dispatches the resulting commit to the protected release workflow. Copilot review is advisory and
-runs independently; it never delays or controls CI or merging.
+that `main` still matches the tested base revision. The strict, no-bypass branch rule rechecks that
+base requirement atomically when GitHub accepts the squash merge. The workflow then dispatches the
+resulting commit to the protected release workflow. Copilot review is advisory and runs
+independently; it never delays or controls CI or merging.
 
 Changes to these release-infrastructure paths are deliberately excluded from automatic merging:
 
@@ -122,8 +123,8 @@ For a version-changing squash commit, `release.yml`:
 3. Builds Windows, macOS, and Linux packages on native runners without repository write credentials.
 4. Downloads the completed packages into one trusted job and validates the exact ten-file bundle,
    including the filenames referenced by all three updater manifests.
-5. Records build provenance, re-checks every matching release and tag, and replaces matching
-   unpublished drafts with one clean draft. Published releases are never modified.
+5. Records build provenance, re-checks the matching release and tag, and updates a single
+   unpublished draft in place. It refuses duplicate drafts and never modifies a published release.
 6. Verifies the draft body, tag target, exact filenames, file count, and nonempty assets.
 
 Ordinary merges with an unchanged package version stop after version detection. Runs are serialized
@@ -156,9 +157,10 @@ gh attestation verify Notation-Labs-X.Y.Z-Win.exe --repo kevinkickback/notation.
 
 ## Rebuild an unpublished release
 
-Normal retries are idempotent. A published release always stops the workflow; matching drafts are
-removed only after a complete replacement bundle validates. A matching tag without a release is
-reused to finish interrupted draft creation.
+Normal retries are idempotent. A published release always stops the workflow; a single matching
+draft is updated in place only after a complete replacement bundle validates. Duplicate drafts are
+never deleted automatically and require manual cleanup. A matching tag without a release is reused
+to finish interrupted draft creation.
 
 After corrective code is merged without another version bump, leave the existing unpublished draft
 and tag in place and request an explicit rebuild of the corrected `main` commit:
@@ -169,10 +171,10 @@ gh api --method POST repos/kevinkickback/notation.LABS/dispatches \
   -f 'client_payload[source_sha]=<corrected-main-sha>'
 ```
 
-Rebuild mode is valid only when the package version is unchanged. It builds and validates the full
-replacement bundle first, enumerates every release using the tag, refuses to modify any published
-release, and then replaces matching drafts and the tag. Do not publish the draft while a rebuild is
-active.
+Rebuild mode is valid only when the package version is unchanged and the requested source is the
+current `main` commit. It builds and validates the full replacement bundle first, refuses to modify
+any published release, advances an older draft tag without forcing, and updates one matching draft
+in place. Do not publish the draft while a rebuild is active.
 
 ## Keep dev synchronized
 
@@ -200,8 +202,10 @@ gh run view RUN_ID
 
 - For a transient build or network failure, rerun the failed jobs. No tag or draft is created before
   every platform build and bundle check succeeds.
-- If draft creation is interrupted after cleanup, rerun the workflow; it safely resumes from the
-  remaining tag or recreates the draft.
+- If draft creation is interrupted, rerun the workflow; it safely resumes from the remaining tag or
+  updates the existing draft in place.
+- If duplicate drafts or unexpected old assets exist, clean them up manually while they remain
+  unpublished, then rerun the workflow.
 - For corrected source using the same unpublished version, use the explicit rebuild event above.
 - If the version is already published, make corrections in a new version. Never move or reuse a
   published version tag.

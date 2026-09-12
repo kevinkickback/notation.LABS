@@ -17,12 +17,40 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SOURCE_SHA: ${{ github.event.client_payload.source_sha || github.sha }}
+  SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || github.event.client_payload.source_sha }}
   REBUILD_EXISTING_DRAFT: ${{ github.event.action == 'rebuild-release' }}
 
 jobs:
+  validate-source:
+    name: Validate the current main source
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require the current main commit
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          SOURCE_SHA: ${{ env.SOURCE_SHA }}
+        with:
+          script: |
+            const sourceSha = process.env.SOURCE_SHA ?? '';
+            if (!/^[0-9a-f]{40}$/.test(sourceSha)) {
+              throw new Error('A full source_sha is required for repository dispatches.');
+            }
+
+            const { owner, repo } = context.repo;
+            const { data: main } = await github.rest.repos.getBranch({
+              owner, repo, branch: 'main',
+            });
+            if (main.commit.sha !== sourceSha) {
+              throw new Error(
+                `Release source ${sourceSha} is not the current main commit ${main.commit.sha}.`,
+              );
+            }
+
   detect-version-change:
     name: Detect package version change
+    needs: validate-source
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -328,8 +356,8 @@ jobs:
         shell: bash
         run: |
           require_file() {
-            if [[ ! -f "release-artifacts/$1" ]]; then
-              echo "::error::Missing completed build artifact: $1"
+            if [[ ! -s "release-artifacts/$1" ]]; then
+              echo "::error::Missing or empty completed build artifact: $1"
               exit 1
             fi
           }
@@ -396,19 +424,6 @@ jobs:
             return 1
           }
 
-          assert_draft() {
-            local release_id="$1"
-            local state
-            if ! state="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq '.draft')"; then
-              echo "Could not re-check release $RELEASE_TAG; refusing to modify it." >&2
-              exit 1
-            fi
-            if [[ "$state" != "true" ]]; then
-              echo "Release $RELEASE_TAG was published while this run was active; refusing to modify it." >&2
-              exit 1
-            fi
-          }
-
           lookup_tag_sha() {
             local output
             if output="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha' 2>&1)"; then
@@ -437,6 +452,11 @@ jobs:
             release_ids+=("$release_id")
           done <<<"$release_info"
 
+          if [[ "${#release_ids[@]}" -gt 1 ]]; then
+            echo "Multiple drafts exist for $RELEASE_TAG; clean them up manually before retrying." >&2
+            exit 1
+          fi
+
           tag_found=false
           if tag_sha="$(lookup_tag_sha)"; then
             tag_found=true
@@ -454,22 +474,19 @@ jobs:
             exit 1
           fi
 
-          # Every replacement starts from one clean draft. This also repairs an
-          # interrupted run that left duplicate unpublished drafts for the tag.
-          for release_id in "${release_ids[@]}"; do
-            assert_draft "$release_id"
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$release_id"
-          done
-
           if [[ "$REBUILD_EXISTING_DRAFT" == "true" ]]; then
             if [[ "$tag_found" == "true" ]]; then
-              if ! current_tag_sha="$(lookup_tag_sha)" || [[ "$current_tag_sha" != "$tag_sha" ]]; then
-                echo "Tag $RELEASE_TAG changed during the rebuild; refusing to delete it." >&2
-                exit 1
+              if [[ "$tag_sha" != "$SOURCE_SHA" ]]; then
+                # A corrected main commit is a descendant of the draft tag. A
+                # non-forced ref update is atomic and refuses non-fast-forwards.
+                gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG" \
+                  -f sha="$SOURCE_SHA" -F force=false
+                if ! current_tag_sha="$(lookup_tag_sha)" || [[ "$current_tag_sha" != "$SOURCE_SHA" ]]; then
+                  echo "Tag $RELEASE_TAG did not update to $SOURCE_SHA." >&2
+                  exit 1
+                fi
               fi
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG"
             fi
-            tag_found=false
           fi
 
           if [[ "$tag_found" != "true" ]]; then
@@ -479,9 +496,23 @@ jobs:
               -f ref="refs/tags/$RELEASE_TAG" -f sha="$SOURCE_SHA"
           fi
 
-          gh release create "$RELEASE_TAG" release-artifacts/* \
-            --draft --title "$RELEASE_TAG" \
-            --notes-file release-metadata/release-notes.md --verify-tag
+          if [[ "${#release_ids[@]}" -eq 1 ]]; then
+            release_id="${release_ids[0]}"
+            if [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq '.draft')" != "true" ]]; then
+              echo "Release $RELEASE_TAG was published while this run was active; refusing to modify it." >&2
+              exit 1
+            fi
+
+            # Update the existing draft in place. If it is published during
+            # this step, repository release immutability rejects mutations.
+            gh release edit "$RELEASE_TAG" --draft --title "$RELEASE_TAG" \
+              --notes-file release-metadata/release-notes.md
+            gh release upload "$RELEASE_TAG" release-artifacts/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release-artifacts/* \
+              --draft --title "$RELEASE_TAG" \
+              --notes-file release-metadata/release-notes.md --verify-tag
+          fi
 
   verify-release:
     name: Verify draft release artifacts

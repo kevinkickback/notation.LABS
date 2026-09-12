@@ -35,7 +35,9 @@ describe('trusted workflow policy', () => {
     expect(workflow).toContain("path.startsWith('.github/workflows/')");
     expect(workflow).toContain("path.startsWith('.github/scripts/')");
     expect(workflow).toContain("path === 'scripts/check-release.mjs'");
+    expect(workflow).toContain('file.previous_filename');
     expect(workflow).toContain('Release infrastructure changes require a manual merge');
+    expect(workflow).toContain('requires strict,');
     expect(workflow).toContain("event_type: 'release-merged'");
     expect(workflow).toContain('github.rest.repos.createDispatchEvent');
     expect(workflow).not.toContain('Copilot');
@@ -49,6 +51,9 @@ describe('trusted workflow policy', () => {
     expect(workflow).toContain('push:\n    branches: [main]');
     expect(workflow).toContain('repository_dispatch:');
     expect(workflow).toContain('types: [release-merged, rebuild-release]');
+    expect(workflow).toContain('Validate the current main source');
+    expect(workflow).toContain('A full source_sha is required for repository dispatches.');
+    expect(workflow).toContain('main.commit.sha !== sourceSha');
     expect(workflow).not.toContain('workflow_call:');
     expect(workflow).not.toContain('workflow_dispatch:');
     expect(workflow).toContain(`ref: \${{ github.workflow_sha || github.sha }}`);
@@ -83,10 +88,18 @@ describe('trusted workflow policy', () => {
     expect(validateIndex).toBeGreaterThan(-1);
     expect(validateIndex).toBeLessThan(attestIndex);
     expect(attestIndex).toBeLessThan(mutateIndex);
-    expect(publishJob).toContain('assert_draft "\$release_id"');
+    expect(publishJob).toContain('gh release edit "\$RELEASE_TAG"');
+    expect(publishJob).toContain('gh release upload "\$RELEASE_TAG"');
+    expect(publishJob).toContain('-F force=false');
+    expect(publishJob).not.toContain(
+      '--method DELETE "repos/\$GITHUB_REPOSITORY/releases/',
+    );
+    expect(publishJob).not.toContain(
+      '--method DELETE "repos/\$GITHUB_REPOSITORY/git/refs/tags/',
+    );
     expect(publishJob).toContain('Release \$RELEASE_TAG is published; refusing to modify it.');
     expect(publishJob).toContain('gh release create "\$RELEASE_TAG" release-artifacts/*');
-    expect(publishJob).not.toContain('gh release upload');
+    expect(publishJob).toContain('[[ ! -s "release-artifacts/\$1" ]]');
   });
 
   test('pins every official action to an immutable commit', async () => {

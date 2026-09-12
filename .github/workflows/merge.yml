@@ -81,13 +81,13 @@ jobs:
               pull_number: pr.number,
               per_page: 100,
             });
-            const protectedFiles = files
-              .map((file) => file.filename)
+            const protectedFiles = [...new Set(files
+              .flatMap((file) => [file.filename, file.previous_filename].filter(Boolean))
               .filter((path) =>
                 path.startsWith('.github/workflows/') ||
                 path.startsWith('.github/scripts/') ||
                 path === 'scripts/check-release.mjs',
-              );
+              ))];
             if (protectedFiles.length > 0) {
               core.warning(
                 `Release infrastructure changes require a manual merge: ${protectedFiles.join(', ')}`,
@@ -150,6 +150,9 @@ jobs:
                 throw new Error('main changed after CI; update the PR and rerun CI before merging.');
               }
 
+              // The repository ruleset has no bypass actors and requires strict,
+              // up-to-date checks. GitHub re-evaluates that rule atomically when
+              // this API call runs, while `sha` pins the tested head revision.
               const { data: result } = await github.rest.pulls.merge({
                 owner,
                 repo,
