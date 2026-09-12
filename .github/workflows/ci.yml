@@ -1,23 +1,23 @@
 name: CI
 
 on:
-  push:
-    branches: [dev]
   pull_request:
-    branches: [main]
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
   check:
-    name: Lint, type-check, and test
+    name: Lint, type-check, test, and build
+    if: '!github.event.pull_request.draft'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -32,15 +32,18 @@ jobs:
         run: npx tsc -b
       - name: Test with coverage
         run: npm run test:coverage
+      - name: Build web app
+        run: npm run build:web
 
   e2e:
     name: Browser tests
+    if: '!github.event.pull_request.draft'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .nvmrc
           cache: npm

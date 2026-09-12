@@ -1,7 +1,7 @@
 import type { ComboToken } from './types';
 
 // Bump when parser behavior changes and stored combo tokens need refreshing.
-export const COMBO_NOTATION_PARSER_VERSION = 12;
+export const COMBO_NOTATION_PARSER_VERSION = 13;
 
 import {
   COMMON_BUTTONS,
@@ -17,6 +17,7 @@ import {
   SEPARATORS,
   SORTED_ALL_ALIASES,
   SORTED_ALL_MODIFIERS,
+  SORTED_CIRCULAR_MOTIONS,
   SORTED_LETTER_DIR_STANCES,
   SORTED_MOTIONS,
   SORTED_NRS_MODIFIERS,
@@ -517,6 +518,25 @@ export function parseComboNotation(
           });
         }
         i += matchLength;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+
+    // Circular motions are universal fighting-game notation, including in
+    // profiles where the other digits are reserved for numbered buttons.
+    for (const motion of SORTED_CIRCULAR_MOTIONS) {
+      if (
+        input.substring(i, i + motion.length) === motion &&
+        !/\d/.test(input[i + motion.length] ?? '')
+      ) {
+        tokens.push({
+          type: 'motion',
+          value: motion,
+          rawValue: motion,
+        });
+        i += motion.length;
         matched = true;
         break;
       }

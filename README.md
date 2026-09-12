@@ -98,7 +98,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 
 ### Option 3: Build from Source
 
-**Prerequisites:** [Node.js](https://nodejs.org/) 24 LTS (22.12 or later is supported)
+**Prerequisites:** [Node.js](https://nodejs.org/) 24 LTS or newer.
 
 ```bash
 git clone https://github.com/kevinkickback/notation.LABS.git
@@ -117,6 +117,17 @@ workers. `/api/igdb` forwards to `http://localhost:3002` and `/api/image`
 forwards to `http://localhost:3001`; Vite strips the `/api/...` prefix before
 forwarding. Start the corresponding local provider service when testing game
 cover or character image search.
+
+### Project layout
+
+- `electron/` contains the desktop main process, preload bridge, and updater integration.
+- `src/` contains the renderer application; larger UI areas are grouped by feature under
+  `src/components/`.
+- `src/assets/` separates attack-button artwork, motion artwork, and general images.
+- `tests/` mirrors application concerns and keeps Electron and browser integration tests in
+  dedicated subfolders.
+- `scripts/` contains build and release automation; `build/` contains electron-builder resources.
+- `docs/` and `changelogs/` contain maintained project and release documentation.
 
 ## 🕹️ Notation Reference
 

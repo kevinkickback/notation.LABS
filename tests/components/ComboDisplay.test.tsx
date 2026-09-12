@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { MotionIcon } from '@/components/combo/icons/MotionIcon';
 import { parseComboNotation } from '@/lib/parser';
 import type { ComboToken, Game } from '@/lib/types';
 
@@ -23,6 +24,45 @@ vi.mock('@/context/SettingsContext', () => ({
 }));
 
 describe('ComboDisplay', () => {
+    it.each([
+        ['360', 1],
+        ['720', 2],
+        ['1080', 3],
+    ] as const)('renders %s with repeated SPD assets', (motion, repeatCount) => {
+        render(<MotionIcon motion={motion} />);
+
+        const icon = screen.getByRole('img', { name: motion });
+        expect(icon.querySelectorAll('img')).toHaveLength(repeatCount);
+        for (const image of icon.querySelectorAll('img')) {
+            expect(image.getAttribute('src')).toMatch(
+                /^(?:data:image\/svg\+xml|.*spd\.svg)/,
+            );
+            expect(image.style.height).toBe('48px');
+            expect(image.style.width).toBe('auto');
+            expect(image.style.maxWidth).toBe('none');
+        }
+    });
+
+    it('renders 360 as one complete revolution in arrow mode', () => {
+        render(<MotionIcon motion="360" iconStyle="arrows" />);
+
+        expect(screen.getAllByRole('img')).toHaveLength(8);
+    });
+
+    it('uses external SVG assets for both joystick and arrow motion styles', () => {
+        const { container, rerender } = render(
+            <MotionIcon motion="236" iconStyle="joystick" />,
+        );
+
+        expect(container.querySelectorAll('img')).toHaveLength(1);
+        expect(container.querySelector('svg')).toBeNull();
+
+        rerender(<MotionIcon motion="236" iconStyle="arrows" />);
+
+        expect(container.querySelectorAll('img')).toHaveLength(3);
+        expect(container.querySelector('svg')).toBeNull();
+    });
+
     it('inherits bracketed button color for preceding direction tokens', () => {
         const tokens: ComboToken[] = [
             { type: 'direction', value: '5', rawValue: '5' },
