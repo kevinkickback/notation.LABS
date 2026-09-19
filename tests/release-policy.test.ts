@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   lockVersion: '2.0.0',
   rootLockVersion: '2.0.0',
   changelog: '# Changes\n\n- New release',
+  publishedTags: 'v1.8.0\nv1.9.9\npreview-build',
   writes: [] as Array<{ path: string; contents: string }>,
 }));
 
@@ -24,6 +25,7 @@ vi.mock('node:fs/promises', () => {
     if (path.endsWith(`/changelogs/v${state.packageVersion}.md`)) {
       return state.changelog;
     }
+    if (path.endsWith('/published-tags.txt')) return state.publishedTags;
     throw new Error(`Missing mocked file: ${path}`);
     },
     writeFile: (path: string, contents: string) => {
@@ -41,6 +43,7 @@ beforeEach(() => {
     lockVersion: '2.0.0',
     rootLockVersion: '2.0.0',
     changelog: '# Changes\n\n- New release',
+    publishedTags: 'v1.8.0\nv1.9.9\npreview-build',
     writes: [],
   });
   process.argv = ['node', 'scripts/check-release.mjs'];
@@ -71,6 +74,19 @@ test('extracts the committed changelog for draft release notes', async () => {
       contents: '# Changes\n\n- New release\n',
     },
   ]);
+});
+
+test('accepts a version newer than every published stable release', async () => {
+  process.argv.push('--published-tags-file', 'published-tags.txt');
+
+  await expect(run()).resolves.toBeDefined();
+});
+
+test.each(['v2.0.0', 'v2.1.0'])('rejects a release after published tag %s', async (tag) => {
+  state.publishedTags = tag;
+  process.argv.push('--published-tags-file', 'published-tags.txt');
+
+  await expect(run()).rejects.toThrow('must be greater than the latest published version');
 });
 
 test('rejects unsupported command-line options', async () => {
