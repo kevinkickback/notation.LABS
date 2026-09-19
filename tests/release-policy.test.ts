@@ -73,25 +73,10 @@ test('extracts the committed changelog for draft release notes', async () => {
   ]);
 });
 
-test('accepts a stable version increase', async () => {
+test('rejects unsupported command-line options', async () => {
   process.argv.push('--previous-version', '1.9.9');
 
-  await expect(run()).resolves.toBeDefined();
-});
-
-test.each([
-  ['the same version', '2.0.0'],
-  ['a newer previous version', '2.0.1'],
-] as const)('rejects %s', async (_name, previousVersion) => {
-  process.argv.push('--previous-version', previousVersion);
-
-  await expect(run()).rejects.toThrow('Release version must increase');
-});
-
-test('rejects an invalid previous version', async () => {
-  process.argv.push('--previous-version', '1.9.0-beta.1');
-
-  await expect(run()).rejects.toThrow('Previous package version is not stable X.Y.Z');
+  await expect(run()).rejects.toThrow('Unknown argument: --previous-version');
 });
 
 test.each([

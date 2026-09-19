@@ -1,211 +1,153 @@
-# CI/CD and release workflow
+# CI/CD Workflow
 
-`dev` is the integration branch and `main` is the stable production branch. Short-lived branches
-merge into `dev`; `main` receives only squash merges from a same-repository `dev` to `main` pull
-request. Do not push commits or tags directly to `main`.
+## Branches and repository settings
 
-## Repository setup
+`main` is the only long-lived branch. Start each change from current `main` on a short-lived branch,
+open a pull request back to `main`, and delete the branch after its squash merge.
 
-Configure GitHub's **Main Protection** ruleset to:
+Protect `main` with the repository's **Main Protection** ruleset:
 
-- protect `main` from direct and force pushes and branch deletion;
-- require the branch to be up to date before merging;
-- allow squash merging only;
-- require resolved review conversations;
-- require these exact status checks:
+- Disable direct pushes and require the branch to be up to date before merging.
+- Allow squash merging only; disable merge commits and rebase merging.
+- Enable GitHub native auto-merge and automatic head-branch deletion.
+- Require these two CI checks:
   - **Lint, type-check, test, and build**
   - **Browser tests**
-- retain `dev` after a production merge; and
-- enable immutable releases so future published assets and their `vX.Y.Z` tags cannot be changed.
+- Enable automatic Copilot review, including review of new pushes.
+- Do not require review-conversation resolution. Copilot is advisory input before enabling
+  auto-merge and before publishing a release.
 
-Release immutability applies only to releases published after it is enabled. Protect the exact tags
-for older published releases separately; do not apply a wildcard tag rule that would prevent the
-workflow from replacing an unpublished draft tag during an explicit rebuild.
+Passing CI does not opt a pull request into merging. Once a change is intentionally ready, select
+**Enable auto-merge** with the squash method. GitHub then merges the exact eligible revision after
+all branch-protection requirements pass. There is no custom merge workflow or repository-dispatch
+handoff.
 
-The repository's default Actions token permission can remain read-only. The protected merge and
-release workflows request write access only for the jobs that must merge a PR, create a repository
-dispatch, attest artifacts, or create a draft release.
+Pull requests that change `.github/workflows/**`, `.github/scripts/**`, or
+`scripts/check-release.mjs` are the exception: do not enable auto-merge until the complete workflow
+diff and advisory review have been inspected. Once that review is complete, the pull request may use
+the same native squash auto-merge path. CI status names alone are not a trust boundary because a pull
+request can change the workflow that produces them. Add required CODEOWNERS approval for these paths
+when the project has a second maintainer; a solo maintainer cannot provide an independent approval.
 
-The workflow files do not configure repository rulesets. After installing these workflows, update
-the required status checks manually: the previous **Lint, type-check, and test** context is obsolete.
+---
 
-## CI and merging
+## Day-to-day development
 
-`ci.yml` runs for non-draft pull requests targeting `dev` or `main`. It validates release metadata,
-audits production dependencies, runs Biome and TypeScript, executes Vitest with coverage, builds the
-web app, and runs Playwright in a separate job. Feature PRs into `dev` are checked but never
-auto-merged. Repository-run Node commands use the Node 24 version in `.nvmrc`, matching the package
-engine requirement.
-
-After CI completes, `merge.yml` runs from protected `main`. For a ready, same-repository `dev` to
-`main` PR, it confirms that both required jobs passed exactly once for the current head revision and
-that `main` still matches the tested base revision. The strict, no-bypass branch rule rechecks that
-base requirement atomically when GitHub accepts the squash merge. The workflow then dispatches the
-resulting commit to the protected release workflow. Copilot review is advisory and runs
-independently; it never delays or controls CI or merging.
-
-Changes to these release-infrastructure paths are deliberately excluded from automatic merging:
-
-- `.github/workflows/**`
-- `.github/scripts/**`
-- `scripts/check-release.mjs`
-
-Those changes require an explicit maintainer merge after CI passes. This prevents a pull request
-from redefining the privileged workflow or validation code that would approve the same pull request.
-
-### One-time workflow bootstrap
-
-GitHub loads a `workflow_run` workflow from the default branch. The pull request that installs this
-architecture must therefore be squash-merged manually after both CI checks pass. Update the Main
-Protection ruleset to the two exact check names above before merging. Later release-infrastructure
-changes use the same manual exception.
-
-## Prepare a release on dev
-
-Replace `X.Y.Z` with a stable version such as `1.9.0`. Prereleases are intentionally unsupported
-because the desktop updater uses the stable `latest*.yml` channels.
+Create a branch from current `main`:
 
 ```bash
-git switch dev
+git switch main
 git pull --ff-only
-npm ci
-npm version X.Y.Z --no-git-tag-version
+git switch -c feat/short-description
 ```
 
-Create `changelogs/vX.Y.Z.md` with nonempty user-facing notes. Its complete contents become the
-draft release body. Keep `package.json` and both root version fields in `package-lock.json`
-synchronized.
-
-Run the local release gate:
+Commit and push the branch, then open a pull request:
 
 ```bash
-npm run version:check
-npm audit --omit=dev --audit-level=high
-npm run lint
-npx tsc -b
-npm run test:coverage
-npm run build:web
-npx playwright install chromium
-npm run test:e2e
-git diff --check
+git push -u origin feat/short-description
+gh pr create --base main --fill
+gh pr merge --auto --squash
 ```
 
-Linux may require `npx playwright install --with-deps chromium`. Commit and push the complete
-release source, metadata, changelog, and required `build/` packaging resources. Do not create the
-release tag yourself.
+The final command opts that pull request into GitHub native auto-merge. It does not bypass CI,
+branch protection, or an out-of-date base.
 
-## Open the production PR
+`ci.yml` runs on every non-draft pull request targeting `main`. It validates release metadata,
+audits production dependencies, runs Biome and TypeScript, executes Vitest with coverage, builds the
+web app, and runs the browser suite separately. Repository-run Node commands use Node 24, matching
+`.nvmrc` and the package engine requirement.
+Linux CI and release jobs use the explicit `ubuntu-26.04` runner instead of `ubuntu-latest`, so a
+future GitHub runner migration cannot change the build environment without a reviewed repository
+change.
+
+## Releasing a version
+
+### 1. Prepare the release on a feature branch
+
+Update `package.json` and `package-lock.json` together:
 
 ```bash
-gh pr create --base main --head dev --title "Release vX.Y.Z" --body-file changelogs/vX.Y.Z.md
-gh pr checks PR_NUMBER --watch
+npm version 1.0.0 --no-git-tag-version
 ```
 
-No merge command is needed for ordinary application or version changes. Once repository
-requirements and CI pass, the protected merge workflow squash-merges the exact checked revision. If
-the PR or `main` changes after CI, the latest revision must pass before merging.
+Add nonempty user-facing notes to `changelogs/v1.0.0.md`. The file becomes the draft release body.
+Validate it locally with `npm run version:check`, then open a normal pull request to `main` and
+enable squash auto-merge.
 
-Release-infrastructure changes are the exception: merge those manually only after both CI jobs pass.
-The resulting `main` push loads the updated release workflow from the protected branch.
+### 2. Manually create the draft
 
-## Automated release
+After the release pull request reaches `main`, open **Actions → Release → Run workflow**, select
+`main`, and run it.
 
-The complete flow is:
+The workflow:
 
-**PR → deterministic CI → protected squash merge → read-only package builds → exact bundle
-validation → attestation → draft release → manual review → manual publish**
+1. Requires the dispatched revision to be the current `main` head.
+2. Validates stable version metadata and the matching changelog section.
+3. Refuses to modify any existing release or move an existing tag.
+4. Builds Windows, macOS, and Linux packages in parallel without repository write credentials.
+5. Validates the exact ten-file package bundle and updater manifests.
+6. Re-checks that no release appeared and repeatedly verifies `main` and the tag immediately before
+   creating the draft.
+7. Records build provenance, creates one clean draft, and verifies its tag and assets.
 
-For a version-changing squash commit, `release.yml`:
+The workflow never publishes the release. Review the release notes, all ten assets, the Windows
+portable build, and any advisory review findings before publishing the draft manually.
 
-1. Confirms the source is associated with a merged, same-repository `dev` to `main` PR.
-2. Uses the protected `main` copy of `scripts/check-release.mjs` to require an increased stable
-   `X.Y.Z` version, synchronized package metadata, and a matching nonempty changelog.
-3. Builds Windows, macOS, and Linux packages on native runners without repository write credentials.
-4. Downloads the completed packages into one trusted job and validates the exact ten-file bundle,
-   including the filenames referenced by all three updater manifests.
-5. Records build provenance, re-checks the matching release and tag, and updates a single
-   unpublished draft in place. It refuses duplicate drafts and never modifies a published release.
-6. Verifies the draft body, tag target, exact filenames, file count, and nonempty assets.
+### Recovery and repeat runs
 
-Ordinary merges with an unchanged package version stop after version detection. Runs are serialized
-with the `release-main` concurrency group. The workflow never publishes a release.
+The manual workflow is state-aware and never deletes or moves pre-existing release state:
 
-| Platform | Required draft assets |
-|---|---|
-| Windows | `Notation-Labs-X.Y.Z-Win.exe`, `Notation-Labs-X.Y.Z-Win-Portable.exe`, `Notation-Labs-X.Y.Z-Win.exe.blockmap`, `latest.yml` |
-| macOS | `Notation-Labs-X.Y.Z-Mac.dmg`, `Notation-Labs-X.Y.Z-Mac.dmg.blockmap`, `latest-mac.yml` |
-| Linux | `Notation-Labs-X.Y.Z-Linux.AppImage`, `Notation-Labs-X.Y.Z-Linux.deb`, `latest-linux.yml` |
+| Existing state | Result |
+| --- | --- |
+| No tag and no release | Creates both after successful builds |
+| Correct tag and no release | Reuses the tag and creates the draft |
+| Any unpublished draft | Stops; inspect and delete the draft deliberately before rerunning |
+| Unpublished tag points elsewhere | Stops; inspect and delete the tag deliberately before rerunning |
+| Any published release for the version | Always stops; use a new version |
 
-Existing packaging and signing configuration remains unchanged.
+If a tag and release were both deleted, run the workflow normally. If a failed attempt left a draft
+or an unpublished tag at the wrong commit, inspect that state on GitHub, remove only the confirmed
+unpublished object, and rerun. The workflow uses atomic tag creation and immediate state
+revalidation to stop safely when a concurrent tag, draft, or `main` change is detected.
 
-## Review and publish
+### Release artifacts
+
+| File | Platform |
+| --- | --- |
+| `Notation-Labs-<version>-Win.exe` + `.exe.blockmap` | Windows installer |
+| `Notation-Labs-<version>-Win-Portable.exe` | Windows portable |
+| `Notation-Labs-<version>-Mac.dmg` + `.dmg.blockmap` | macOS |
+| `Notation-Labs-<version>-Linux.AppImage` | Linux portable |
+| `Notation-Labs-<version>-Linux.deb` | Debian/Ubuntu |
+| `latest.yml`, `latest-mac.yml`, `latest-linux.yml` | Auto-update manifests |
+
+Windows and macOS artifacts are currently unsigned. Windows may display a SmartScreen warning,
+and macOS users may need to approve the application under Privacy & Security.
+
+---
+
+## Operational rules
+
+- Do not create version tags or releases manually; run the release workflow.
+- Never replace or convert a published release. Corrections to a published version require a new
+  version.
+- Do not publish a draft while its workflow is active.
+- Publish only after reviewing release notes, all ten assets, the Windows portable binary, and any
+  advisory findings.
+- Stable releases use `X.Y.Z` package versions and `vX.Y.Z` tags. Prerelease/build suffixes are
+  rejected.
+
+`npm run build:app` performs the production Electron build and creates the platform packages.
+
+Publish an approved draft with:
 
 ```bash
-gh run list --workflow release.yml --limit 5
-gh run watch RUN_ID --exit-status
-gh release view vX.Y.Z --json tagName,name,isDraft,isPrerelease,body,assets,url
-gh release edit vX.Y.Z --draft=false
+gh release edit v1.0.0 --draft=false --repo kevinkickback/notation.LABS
 ```
 
-Check the release notes, all ten assets, the Windows portable binary, updater manifests, and any
-background Copilot findings before publishing. Once published, release immutability locks its assets
-and associated tag. Attestations can be verified with GitHub CLI:
+Inspect release runs with:
 
 ```bash
-gh attestation verify Notation-Labs-X.Y.Z-Win.exe --repo kevinkickback/notation.LABS
+gh run list --repo kevinkickback/notation.LABS --workflow release.yml --limit 5
+gh run view <RUN_ID> --repo kevinkickback/notation.LABS
 ```
-
-## Rebuild an unpublished release
-
-Normal retries are idempotent. A published release always stops the workflow; a single matching
-draft is updated in place only after a complete replacement bundle validates. Duplicate drafts are
-never deleted automatically and require manual cleanup. A matching tag without a release is reused
-to finish interrupted draft creation.
-
-After corrective code is merged without another version bump, leave the existing unpublished draft
-and tag in place and request an explicit rebuild of the corrected `main` commit:
-
-```bash
-gh api --method POST repos/kevinkickback/notation.LABS/dispatches \
-  -f event_type=rebuild-release \
-  -f 'client_payload[source_sha]=<corrected-main-sha>'
-```
-
-Rebuild mode is valid only when the package version is unchanged and the requested source is the
-current `main` commit. It builds and validates the full replacement bundle first, refuses to modify
-any published release, advances an older draft tag without forcing, and updates one matching draft
-in place. Do not publish the draft while a rebuild is active.
-
-## Keep dev synchronized
-
-After a squash merge, merge production history back into `dev` before the next release. This keeps
-the long-lived branches connected without rewriting `dev`:
-
-```bash
-git switch dev
-git fetch origin
-git merge origin/main
-git push origin dev
-```
-
-Resolve conflicts and rerun checks on `dev`. This history synchronization does not create a release.
-
-## Recover from failures
-
-Inspect the separate merge and release runs:
-
-```bash
-gh run list --workflow merge.yml --limit 5
-gh run list --workflow release.yml --limit 5
-gh run view RUN_ID
-```
-
-- For a transient build or network failure, rerun the failed jobs. No tag or draft is created before
-  every platform build and bundle check succeeds.
-- If draft creation is interrupted, rerun the workflow; it safely resumes from the remaining tag or
-  updates the existing draft in place.
-- If duplicate drafts or unexpected old assets exist, clean them up manually while they remain
-  unpublished, then rerun the workflow.
-- For corrected source using the same unpublished version, use the explicit rebuild event above.
-- If the version is already published, make corrections in a new version. Never move or reuse a
-  published version tag.
