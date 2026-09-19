@@ -70,6 +70,7 @@ describe('workflow policy', () => {
 
     expect(workflow).toContain('Expected exactly one draft for $RELEASE_TAG');
     expect(workflow).toContain('Expected exactly 10 release assets');
+    expect(workflow).toContain("select(.size <= 0)");
     for (const name of [
       'Notation-Labs-$RELEASE_VERSION-Win.exe',
       'Notation-Labs-$RELEASE_VERSION-Win-Portable.exe',
