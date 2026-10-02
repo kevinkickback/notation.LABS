@@ -20,7 +20,7 @@ export function useNotesOverride(
   entityId: string,
   defaultOpen: boolean,
 ): [boolean, () => void] {
-  const { setNotesOverride } = useSettingsActions();
+  const { setNotesPanelOpen } = useSettingsActions();
   const { notesOverrides = EMPTY_OVERRIDES } = useSettings();
   const [optimistic, setOptimistic] = useState<{
     entityId: string;
@@ -56,13 +56,13 @@ export function useNotesOverride(
     setOptimistic(next);
     void (async () => {
       try {
-        await setNotesOverride(entityId, next.isOpen !== defaultOpen);
+        await setNotesPanelOpen(entityId, next.isOpen);
       } catch (error) {
         setOptimistic((current) => (current === next ? null : current));
         reportError('useNotesOverride.handleToggle', error);
       }
     })();
-  }, [defaultOpen, entityId, notesOverrides, setNotesOverride, showNotes]);
+  }, [defaultOpen, entityId, notesOverrides, setNotesPanelOpen, showNotes]);
 
   return [showNotes, handleToggle];
 }

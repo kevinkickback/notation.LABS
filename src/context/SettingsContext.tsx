@@ -41,7 +41,7 @@ const SettingsActionsContext = createContext({
     _key: K,
     _value: UserSettings[K],
   ) => false,
-  setNotesOverride: async (_entityId: string, _isOverride: boolean) => {},
+  setNotesPanelOpen: async (_entityId: string, _isOpen: boolean) => {},
 });
 
 function ReparseProgressModal() {
@@ -83,6 +83,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [optimisticSettings, setOptimisticSettings] = useState<
     Partial<UserSettings>
   >({});
+  const settingsWriteQueue = useRef(Promise.resolve());
+  const queueSettingsWrite = useCallback(<T,>(write: () => Promise<T>) => {
+    const result = settingsWriteQueue.current.then(write);
+    // A failed write reports to its caller while later choices still save.
+    settingsWriteQueue.current = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }, []);
 
   // Run initialization and data migrations once at mount, outside
   // the useLiveQuery read-only transaction context.
@@ -165,7 +175,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setOptimisticSettings((current) => ({ ...current, ...updates }));
 
       try {
-        await indexedDbStorage.settings.update(updates);
+        await queueSettingsWrite(() =>
+          indexedDbStorage.settings.update(updates),
+        );
         return true;
       } catch (error) {
         setOptimisticSettings((current) => {
@@ -184,13 +196,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [],
+    [queueSettingsWrite],
   );
 
-  const setNotesOverride = useCallback(
-    (entityId: string, isOverride: boolean) =>
-      indexedDbStorage.settings.setNotesOverride(entityId, isOverride),
-    [],
+  const setNotesPanelOpen = useCallback(
+    (entityId: string, isOpen: boolean) =>
+      queueSettingsWrite(async () => {
+        const persisted = await indexedDbStorage.settings.get();
+        // Preserve the user's absolute choice even if an earlier default write failed.
+        await indexedDbStorage.settings.setNotesOverride(
+          entityId,
+          isOpen !== (persisted.notesDefaultOpen ?? false),
+        );
+      }),
+    [queueSettingsWrite],
   );
 
   useLayoutEffect(() => {
@@ -213,7 +232,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   ]);
 
   return (
-    <SettingsActionsContext.Provider value={{ setSetting, setNotesOverride }}>
+    <SettingsActionsContext.Provider value={{ setSetting, setNotesPanelOpen }}>
       <SettingsContext.Provider value={currentSettings}>
         <SettingsInitializationContext.Provider
           value={{

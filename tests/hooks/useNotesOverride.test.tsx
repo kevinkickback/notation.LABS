@@ -8,7 +8,7 @@ const { setNotesOverrideMock } = vi.hoisted(() => ({
 
 vi.mock('@/context/SettingsContext', () => ({
   useSettings: () => ({ notesOverrides: currentOverrides }),
-  useSettingsActions: () => ({ setNotesOverride: setNotesOverrideMock }),
+  useSettingsActions: () => ({ setNotesPanelOpen: setNotesOverrideMock }),
 }));
 
 import { useNotesOverride } from '@/hooks/useNotesOverride';

@@ -69,6 +69,10 @@ character notes and resources. Changing it resets saved manual panel choices in
 the same settings write. Subsequent manual choices are remembered per entity.
 Panels read those overrides from the live settings snapshot so navigation and
 preference changes do not wait on a separate read.
+Settings writes and manual panel choices save in invocation order. A panel choice
+records the desired open/closed state and resolves its relative override against
+the saved default when its queued write executes, including after a failed default
+change. Failed writes do not prevent later queued settings from saving.
 
 ## Status bar
 

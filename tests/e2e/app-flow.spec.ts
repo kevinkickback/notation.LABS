@@ -10,12 +10,14 @@ async function addGame(
     .first()
     .click();
 
-  await expect(page.getByText('Add New Game')).toBeVisible();
-  await page.getByLabel(/game name/i).fill(name);
+  const editor = page.getByRole('dialog', { name: 'Add New Game', exact: true });
+  await expect(editor).toBeVisible();
+  await editor.getByLabel(/game name/i).fill(name);
   if (notationProfile) {
-    await page.getByRole('button', { name: notationProfile }).click();
+    await editor.getByRole('button', { name: notationProfile }).click();
   }
-  await page.getByRole('button', { name: /^add game$/i }).click();
+  await editor.getByRole('button', { name: /^add game$/i }).click();
+  await expect(editor).toBeHidden();
 
   await expect(page.locator('h3', { hasText: name }).first()).toBeVisible();
 }
