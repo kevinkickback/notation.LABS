@@ -46,48 +46,59 @@ function App() {
     updateStatus.version,
   ]);
 
-  const { data: games, error: gamesError } = useRecoverableLiveQuery(
-    indexedDbStorage.games.getAll,
-    [],
+  const { data: requestedPage, error: pageError } = useRecoverableLiveQuery(
+    async () => {
+      const [games, characters, combos] = await Promise.all([
+        indexedDbStorage.games.getAll(),
+        selectedGameId
+          ? indexedDbStorage.characters.getByGame(selectedGameId)
+          : [],
+        selectedCharacterId
+          ? indexedDbStorage.combos.getByCharacter(selectedCharacterId)
+          : [],
+      ]);
+      return {
+        gameId: selectedGameId,
+        characterId: selectedCharacterId,
+        parsedNotationVersion: settings.parsedNotationVersion,
+        games,
+        characters,
+        combos,
+      };
+    },
+    [selectedGameId, selectedCharacterId, settings.parsedNotationVersion],
     queryAttempt,
   );
-  const { data: characters, error: charactersError } = useRecoverableLiveQuery(
-    () =>
-      selectedGameId
-        ? indexedDbStorage.characters.getByGame(selectedGameId)
-        : [],
-    [selectedGameId],
-    queryAttempt,
-  );
-  const { data: combos, error: combosError } = useRecoverableLiveQuery(
-    () =>
-      selectedCharacterId
-        ? indexedDbStorage.combos.getByCharacter(selectedCharacterId)
-        : [],
-    [selectedCharacterId, settings.parsedNotationVersion],
-    queryAttempt,
-  );
+  const pageIsCurrent =
+    requestedPage !== undefined &&
+    requestedPage.gameId === selectedGameId &&
+    requestedPage.characterId === selectedCharacterId &&
+    requestedPage.parsedNotationVersion === settings.parsedNotationVersion;
+  const [previousPage, setPreviousPage] = useState(requestedPage);
+  useEffect(() => {
+    if (pageIsCurrent) setPreviousPage(requestedPage);
+  }, [requestedPage, pageIsCurrent]);
+  // Keep the last complete screen while the destination's reads are pending.
+  const page = pageIsCurrent ? requestedPage : previousPage;
 
   const selectedGame = useMemo(
-    () => games?.find((g) => g.id === selectedGameId),
-    [games, selectedGameId],
+    () => page?.games.find((game) => game.id === page.gameId),
+    [page],
   );
   const selectedCharacter = useMemo(
-    () => characters?.find((c) => c.id === selectedCharacterId),
-    [characters, selectedCharacterId],
+    () =>
+      page?.characters.find((character) => character.id === page.characterId),
+    [page],
   );
 
   const startupStage = initialization.isReparsing
     ? 'parsing'
     : !initialization.initialized
       ? 'settings'
-      : games === undefined ||
-          (selectedGameId && characters === undefined) ||
-          (selectedCharacterId && combos === undefined)
+      : !pageIsCurrent
         ? 'library'
         : 'ready';
-  const startupError =
-    initialization.error ?? gamesError ?? charactersError ?? combosError;
+  const startupError = initialization.error ?? pageError;
   const workspaceBlocked = starting || Boolean(startupError);
   const retryStartup = () => {
     setStarting(true);
@@ -110,21 +121,25 @@ function App() {
               selectedCharacter={selectedCharacter}
             />
 
-            <main className="container mx-auto px-4 py-8">
-              {!selectedGameId && <GameLibrary games={games || []} />}
+            <main
+              className="container mx-auto px-4 py-8"
+              aria-busy={!pageIsCurrent}
+              inert={!pageIsCurrent}
+            >
+              {page && !page.gameId && <GameLibrary games={page.games} />}
 
-              {selectedGameId && !selectedCharacterId && selectedGame && (
+              {page?.gameId && !page.characterId && selectedGame && (
                 <CharacterView
                   game={selectedGame}
-                  characters={characters || []}
+                  characters={page.characters}
                 />
               )}
 
-              {selectedCharacterId && selectedGame && selectedCharacter && (
+              {page?.characterId && selectedGame && selectedCharacter && (
                 <ComboView
                   game={selectedGame}
                   character={selectedCharacter}
-                  combos={combos || []}
+                  combos={page.combos}
                 />
               )}
             </main>

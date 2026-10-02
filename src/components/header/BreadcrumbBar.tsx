@@ -20,12 +20,10 @@ export function BreadcrumbBar({
   selectedGame,
   selectedCharacter,
 }: BreadcrumbBarProps) {
-  const {
-    selectedGameId,
-    selectedCharacterId,
-    setSelectedGame,
-    setSelectedCharacter,
-  } = useAppStore();
+  const { setSelectedGame, setSelectedCharacter } = useAppStore();
+  // Navigation describes the displayed page, including while a new page loads.
+  const selectedGameId = selectedGame?.id;
+  const selectedCharacterId = selectedCharacter?.id;
 
   if (!selectedGameId) return null;
 
@@ -45,6 +43,7 @@ export function BreadcrumbBar({
           size="icon"
           className="size-8 flex-shrink-0"
           onClick={handleBack}
+          aria-label="Back"
         >
           <ArrowLeftIcon className="size-5" />
         </Button>
