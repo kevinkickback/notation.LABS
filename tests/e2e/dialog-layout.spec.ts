@@ -44,9 +44,13 @@ test('preserves artwork proportions and unsaved fields through nested cover sear
   await expect(image).toBeVisible();
   const frame = await image.locator('..').boundingBox();
   expect((frame?.width ?? 0) / (frame?.height ?? 1)).toBeCloseTo(3 / 4, 2);
-  // A single percentage preserves the image's intrinsic height (the omitted
-  // second axis is auto), unlike stretching both axes to the frame.
-  expect(await image.evaluate(element => getComputedStyle(element).backgroundSize)).toMatch(/^(\d+(\.\d+)?%|contain|cover)$/);
+  // Wait for intrinsic image dimensions to replace the temporary "cover"
+  // fallback. Chromium may omit the trailing auto axis when serializing CSS.
+  await expect.poll(() => image.evaluate(element => getComputedStyle(element).backgroundSize))
+    .toMatch(/^\d+(\.\d+)?%( auto)?$/);
+  const [width, height = 'auto'] = await image.evaluate(element => getComputedStyle(element).backgroundSize.split(' '));
+  expect(width).toMatch(/^\d+(\.\d+)?%$/);
+  expect(height).toBe('auto');
   const search = editor.getByRole('button', { name: /search online/i });
   await search.click();
   const picker = page.getByRole('dialog', { name: /search game covers/i });
