@@ -118,6 +118,17 @@ forwards to `http://localhost:3001`; Vite strips the `/api/...` prefix before
 forwarding. Start the corresponding local provider service when testing game
 cover or character image search.
 
+#### Development image search
+
+Development uses the same deployed image services as the installed app. Cover
+search goes through Vite's same-origin proxy because IGDB restricts browser
+origins; character search calls its worker directly. Both work without additional
+local services. To develop providers
+locally, set `VITE_USE_LOCAL_PROVIDERS=true` in `.env.local` and restart development.
+The opt-in Vite proxies send `/api/igdb` to `http://localhost:3002` and `/api/image`
+to `http://localhost:3001`, with those prefixes removed. Their targets can be
+overridden with `NOTATION_IGDB_PROXY_TARGET` and `NOTATION_IMAGE_PROXY_TARGET`.
+
 ### Project layout
 
 - `electron/` contains the desktop main process, preload bridge, and updater integration.

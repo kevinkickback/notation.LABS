@@ -6,10 +6,10 @@ import { getProviderBase } from './endpoints';
 const rawIgdbResultSchema = z.object({
   id: z.number(),
   name: z.string(),
-  coverImageId: z.string().optional(),
-  cover: z.object({ image_id: z.string().optional() }).optional(),
-  firstReleaseDate: z.number().optional(),
-  first_release_date: z.number().optional(),
+  coverImageId: z.string().nullish(),
+  cover: z.object({ image_id: z.string().nullish() }).nullish(),
+  firstReleaseDate: z.number().nullish(),
+  first_release_date: z.number().nullish(),
 });
 
 export async function searchIgdbGames(

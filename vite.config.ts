@@ -1,16 +1,23 @@
 import { resolve } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react-swc';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import electron from 'vite-plugin-electron/simple';
+import packageJson from './package.json';
+import { DEPLOYED_ENDPOINTS } from './src/lib/providers/endpoints';
 
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname;
 
 // https://vite.dev/config/
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, projectRoot, [
+    'NOTATION_',
+    'VITE_USE_LOCAL_PROVIDERS',
+  ]);
+  const localProviders = env.VITE_USE_LOCAL_PROVIDERS === 'true';
   return {
     define: {
-      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+      __APP_VERSION__: JSON.stringify(packageJson.version),
     },
     plugins: [
       react(),
@@ -36,11 +43,17 @@ export default defineConfig(() => {
     server: {
       proxy: {
         '/api/igdb': {
-          target: 'http://localhost:3002',
+          target:
+            env.NOTATION_IGDB_PROXY_TARGET ||
+            (localProviders
+              ? 'http://localhost:3002'
+              : DEPLOYED_ENDPOINTS.igdb),
+          changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/igdb/, ''),
         },
         '/api/image': {
-          target: 'http://localhost:3001',
+          target: env.NOTATION_IMAGE_PROXY_TARGET || 'http://localhost:3001',
+          changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/image/, ''),
         },
       },
