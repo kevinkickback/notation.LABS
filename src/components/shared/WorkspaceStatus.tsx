@@ -38,7 +38,7 @@ function subscribeToConnection(onChange: () => void) {
 const isConnected = () => navigator.onLine;
 
 export function WorkspaceStatus() {
-  const { status, showAvailableUpdate } = useUpdater();
+  const { status, knownUpdate, showAvailableUpdate } = useUpdater();
   const [version, setVersion] = useState(__APP_VERSION__);
   const online = useSyncExternalStore(subscribeToConnection, isConnected);
   useEffect(() => {
@@ -53,43 +53,48 @@ export function WorkspaceStatus() {
       active = false;
     };
   }, []);
-  const updateState =
-    status.status === 'not-available'
-      ? 'current'
-      : status.status === 'error'
-        ? 'error'
-        : 'active';
   const checkUnavailable =
     !online &&
     ['idle', 'checking', 'not-available', 'error'].includes(status.status);
-  const updateMessage = checkUnavailable
+  const displayedUpdate =
+    checkUnavailable && knownUpdate ? knownUpdate : status;
+  const updateState =
+    displayedUpdate.status === 'not-available'
+      ? 'current'
+      : displayedUpdate.status === 'error'
+        ? 'error'
+        : 'active';
+  const offlineMessage = checkUnavailable && !knownUpdate;
+  const updateMessage = offlineMessage
     ? 'Offline · updates unavailable'
-    : updateLabel(status);
+    : updateLabel(displayedUpdate);
+  const detail =
+    status.error ||
+    (checkUnavailable
+      ? 'Connect to the internet to check for updates'
+      : undefined);
 
   return (
     <output className="workspace-status" aria-live="polite">
       <span className="workspace-version" title="App version">
         v{version}
       </span>
-      {status.status === 'available' ? (
+      {displayedUpdate.status === 'available' ? (
         <button
           type="button"
-          onClick={() => showAvailableUpdate()}
+          onClick={() => showAvailableUpdate(displayedUpdate)}
           className="update-status"
           data-attention="true"
           data-state={updateState}
+          title={detail}
         >
-          {updateLabel(status)}
+          {updateMessage}
         </button>
       ) : updateMessage ? (
         <span
           className="update-status"
-          data-state={checkUnavailable ? 'offline' : updateState}
-          title={
-            checkUnavailable
-              ? 'Connect to the internet to check for updates'
-              : status.error
-          }
+          data-state={offlineMessage ? 'offline' : updateState}
+          title={detail}
         >
           {updateMessage}
         </span>

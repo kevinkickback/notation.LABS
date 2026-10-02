@@ -65,3 +65,8 @@ tooltip. Offline checks display “Offline · updates unavailable,” while know
 available and downloaded updates remain visible. Idle online state shows only the
 version, rather than claiming a check succeeded. The footer omits library counts
 and image-search status, and uses main's existing surfaces and colors.
+Confirmed update metadata is retained separately from transient checks and errors,
+so an offline recheck preserves the update and its details action. A successful
+check reporting no update clears that metadata. Error details take priority over
+generic connection advice in tooltips.
+The initial desktop status snapshot cannot replace newer update events.

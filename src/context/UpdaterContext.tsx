@@ -1,6 +1,7 @@
 import {
   createContext,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -18,6 +19,7 @@ import type {
 
 interface UpdaterController {
   status: UpdateStatus;
+  knownUpdate: UpdateStatus | null;
   availabilityEventId: number;
   checkForUpdate: () => Promise<UpdateStatus>;
   downloadUpdate: () => Promise<UpdateIPCResponse<null>>;
@@ -45,6 +47,7 @@ const UNAVAILABLE_RESPONSE: UpdateIPCResponse<null> = {
 
 const UpdaterContext = createContext<UpdaterController>({
   status: { status: 'idle' },
+  knownUpdate: null,
   availabilityEventId: 0,
   checkForUpdate: async () => ({
     status: 'error',
@@ -61,7 +64,26 @@ const UpdaterContext = createContext<UpdaterController>({
 
 export function UpdaterProvider({ children }: { children: ReactNode }) {
   const settings = useSettings();
-  const [status, setStatus] = useState<UpdateStatus>({ status: 'idle' });
+  const [{ status, knownUpdate }, setUpdateState] = useState<{
+    status: UpdateStatus;
+    knownUpdate: UpdateStatus | null;
+  }>({ status: { status: 'idle' }, knownUpdate: null });
+  // Keep confirmed metadata separately from transient checks/errors, atomically
+  // with each event so batched events cannot discard a known update.
+  const setStatus = useCallback((next: SetStateAction<UpdateStatus>) => {
+    setUpdateState((current) => {
+      const status = typeof next === 'function' ? next(current.status) : next;
+      const knownUpdate =
+        status.status === 'available'
+          ? status
+          : status.status === 'downloaded'
+            ? { ...current.knownUpdate, ...status }
+            : status.status === 'not-available'
+              ? null
+              : current.knownUpdate;
+      return { status, knownUpdate };
+    });
+  }, []);
   const [availabilityEventId, setAvailabilityEventId] = useState(0);
   const [changelogPresentation, setChangelogPresentation] =
     useState<ChangelogPresentation | null>(null);
@@ -70,16 +92,24 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) return;
+    let active = true;
+    let receivedEvent = false;
+    const receiveStatus = (next: SetStateAction<UpdateStatus>) => {
+      receivedEvent = true;
+      setStatus(next);
+    };
 
     void api
       .getUpdateStatus()
-      .then(setStatus)
+      .then((initialStatus) => {
+        if (active && !receivedEvent) setStatus(initialStatus);
+      })
       .catch((error) => reportError('UpdaterProvider.getStatus', error));
 
     const unsubscribers = [
-      api.onUpdateChecking(() => setStatus({ status: 'checking' })),
+      api.onUpdateChecking(() => receiveStatus({ status: 'checking' })),
       api.onUpdateAvailable((data) => {
-        setStatus({
+        receiveStatus({
           status: 'available',
           version: data.version,
           changelog: data.changelog ?? undefined,
@@ -87,12 +117,14 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
         });
         setAvailabilityEventId((current) => current + 1);
       }),
-      api.onUpdateNotAvailable(() => setStatus({ status: 'not-available' })),
+      api.onUpdateNotAvailable(() =>
+        receiveStatus({ status: 'not-available' }),
+      ),
       api.onUpdateError((data) =>
-        setStatus({ status: 'error', error: data.message }),
+        receiveStatus({ status: 'error', error: data.message }),
       ),
       api.onDownloadProgress((progress) =>
-        setStatus((current) => ({
+        receiveStatus((current) => ({
           ...current,
           status: 'downloading',
           progress,
@@ -100,7 +132,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
         })),
       ),
       api.onUpdateDownloaded((data) =>
-        setStatus((current) => ({
+        receiveStatus((current) => ({
           ...current,
           status: 'downloaded',
           version: data.version,
@@ -108,7 +140,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
         })),
       ),
       api.onUpdateCancelled(() =>
-        setStatus((current) => ({
+        receiveStatus((current) => ({
           ...current,
           status: 'cancelled',
           progress: undefined,
@@ -117,9 +149,10 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     ];
 
     return () => {
+      active = false;
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
-  }, []);
+  }, [setStatus]);
 
   useEffect(() => {
     const setAutoCheck = window.electronAPI?.setAutoCheck;
@@ -150,7 +183,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
           };
     setStatus(nextStatus);
     return nextStatus;
-  }, []);
+  }, [setStatus]);
 
   const downloadUpdate = useCallback(async () => {
     const download = window.electronAPI?.downloadUpdate;
@@ -164,7 +197,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       }));
     }
     return result;
-  }, []);
+  }, [setStatus]);
 
   const cancelUpdate = useCallback(() => {
     const cancel = window.electronAPI?.cancelUpdate;
@@ -213,17 +246,21 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     }
   }, [changelogPresentation?.isPortable, downloadUpdate, status.isPortable]);
 
-  const handleProgressOpenChange = useCallback((open: boolean) => {
-    setProgressOpen(open);
-    if (!open) setStatus({ status: 'idle' });
-  }, []);
+  const handleProgressOpenChange = useCallback(
+    (open: boolean) => {
+      setProgressOpen(open);
+      if (!open) setStatus({ status: 'idle' });
+    },
+    [setStatus],
+  );
 
-  const reset = useCallback(() => setStatus({ status: 'idle' }), []);
+  const reset = useCallback(() => setStatus({ status: 'idle' }), [setStatus]);
 
   return (
     <UpdaterContext.Provider
       value={{
         status,
+        knownUpdate,
         availabilityEventId,
         checkForUpdate,
         downloadUpdate,

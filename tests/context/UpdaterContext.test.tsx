@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import { UpdaterProvider, useUpdater } from '@/context/UpdaterContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
+import type { UpdateStatus } from '@/lib/updater/ipcContract';
 
 const { reportErrorMock } = vi.hoisted(() => ({
   reportErrorMock: vi.fn(),
@@ -60,7 +62,7 @@ describe('UpdaterProvider', () => {
       installUpdate: vi.fn(),
       getUpdateStatus: vi.fn().mockResolvedValue({ status: 'idle' }),
       setAutoCheck,
-      getAppVersion: vi.fn(),
+      getAppVersion: vi.fn().mockResolvedValue('1.8.0'),
       getCurrentChangelog: vi.fn(),
       onUpdateChecking: subscribe('checking'),
       onUpdateAvailable: subscribe('available'),
@@ -72,6 +74,59 @@ describe('UpdaterProvider', () => {
       saveFile: vi.fn(),
     beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     };
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps known update details through an offline checking/error transition', async () => {
+    const network = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => {
+      listeners.get('available')?.({ version: '2.0.0', changelog: 'Saved release notes', isPortable: false });
+    });
+    act(() => {
+      network.mockReturnValue(false);
+      window.dispatchEvent(new Event('offline'));
+      listeners.get('checking')?.();
+    });
+    expect(screen.getByRole('button', { name: 'Update v2.0.0 available' })).toBeTruthy();
+    act(() => listeners.get('error')?.({ message: 'Network unreachable' }));
+    const details = screen.getByRole('button', { name: 'Update v2.0.0 available' });
+    expect(details.title).toBe('Network unreachable');
+    fireEvent.click(details);
+    expect(screen.getByText('Update Available — v2.0.0')).toBeTruthy();
+    expect(screen.getByText('Saved release notes')).toBeTruthy();
+  });
+
+  it('preserves downloaded metadata through batched events and clears it after a successful check', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => {
+      listeners.get('available')?.({ version: '2.0.0', changelog: 'Saved notes', isPortable: false });
+      listeners.get('downloaded')?.({ version: '2.0.0' });
+      listeners.get('checking')?.();
+      listeners.get('error')?.({ message: 'Check failed' });
+    });
+    expect(screen.getByText('Update ready to install').title).toBe('Check failed');
+    act(() => listeners.get('not-available')?.());
+    expect(screen.queryByText('Update ready to install')).toBeNull();
+    expect(screen.getByText('Offline · updates unavailable')).toBeTruthy();
+  });
+
+  it('does not let an older initial snapshot discard a newer update event', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    let resolveInitial: (status: UpdateStatus) => void = () => {};
+    vi.mocked(window.electronAPI!.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
+    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => {
+      listeners.get('available')?.({ version: '2.0.0', changelog: 'New notes', isPortable: false });
+      listeners.get('checking')?.();
+    });
+    await act(async () => resolveInitial({ status: 'not-available' }));
+    expect(screen.getByRole('button', { name: 'Update v2.0.0 available' })).toBeTruthy();
   });
 
   it('owns subscriptions and maps update events into one state', async () => {

@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import type { UpdateStatus } from '@/lib/updater/ipcContract';
 
-const updater = vi.hoisted(() => ({ status: { status: 'idle' } as UpdateStatus, showAvailableUpdate: vi.fn() }));
+const updater = vi.hoisted(() => ({ status: { status: 'idle' } as UpdateStatus, knownUpdate: null as UpdateStatus | null, showAvailableUpdate: vi.fn() }));
 const originalElectronApi = window.electronAPI;
 vi.mock('@/context/UpdaterContext', () => ({ useUpdater: () => updater }));
 
 describe('Workspace status', () => {
   beforeEach(() => {
     updater.status = { status: 'idle' };
+    updater.knownUpdate = null;
     updater.showAvailableUpdate.mockClear();
     Reflect.deleteProperty(window, 'electronAPI');
   });
@@ -95,5 +96,12 @@ describe('Workspace status', () => {
     });
     expect(screen.queryByText('Up to date')).toBeNull();
     expect(screen.getByText('Offline · updates unavailable').getAttribute('data-state')).toBe('offline');
+  });
+
+  it('preserves error details when offline', () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    updater.status = { status: 'error', error: 'Download checksum mismatch' };
+    render(<WorkspaceStatus />);
+    expect(screen.getByText('Offline · updates unavailable').title).toBe('Download checksum mismatch');
   });
 });
