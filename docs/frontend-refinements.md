@@ -69,4 +69,7 @@ Confirmed update metadata is retained separately from transient checks and error
 so an offline recheck preserves the update and its details action. A successful
 check reporting no update clears that metadata. Error details take priority over
 generic connection advice in tooltips.
-The initial desktop status snapshot cannot replace newer update events.
+The initial desktop status snapshot cannot replace newer update events. It can
+seed otherwise missing confirmed metadata when no newer availability result has
+superseded it. Starting or retrying a download clears previous errors and progress;
+downloads from saved release details retain the selected version.

@@ -129,6 +129,82 @@ describe('UpdaterProvider', () => {
     expect(screen.getByRole('button', { name: 'Update v2.0.0 available' })).toBeTruthy();
   });
 
+  it.each(['available', 'downloaded'] as const)('seeds %s metadata from a delayed snapshot without replacing a newer error', async (status) => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    let resolveInitial: (status: UpdateStatus) => void = () => {};
+    vi.mocked(window.electronAPI!.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
+    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => {
+      listeners.get('checking')?.();
+      listeners.get('error')?.({ message: 'Newer network error' });
+    });
+    await act(async () => resolveInitial({ status, version: '2.0.0', changelog: 'Stored notes', isPortable: false }));
+    const message = status === 'available' ? 'Update v2.0.0 available' : 'Update ready to install';
+    expect(screen.getByText(message).title).toBe('Newer network error');
+    if (status === 'available') {
+      fireEvent.click(screen.getByRole('button', { name: message }));
+      expect(screen.getByText('Stored notes')).toBeTruthy();
+    }
+  });
+
+  it('does not resurrect old snapshot metadata after a newer not-available result', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    let resolveInitial: (status: UpdateStatus) => void = () => {};
+    vi.mocked(window.electronAPI!.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
+    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => {
+      listeners.get('not-available')?.();
+      listeners.get('error')?.({ message: 'Later error' });
+    });
+    await act(async () => resolveInitial({ status: 'available', version: '2.0.0' }));
+    expect(screen.queryByRole('button', { name: 'Update v2.0.0 available' })).toBeNull();
+    expect(screen.getByText('Offline · updates unavailable').title).toBe('Later error');
+  });
+
+  it('starts a saved update with a clean progress state and the selected version', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    let resolveDownload: (result: { success: boolean; data: null; error: null }) => void = () => {};
+    vi.mocked(window.electronAPI!.downloadUpdate).mockReturnValue(new Promise(resolve => { resolveDownload = resolve; }));
+    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => {
+      listeners.get('available')?.({ version: '2.0.0', changelog: 'Stored notes', isPortable: false });
+      listeners.get('checking')?.();
+      listeners.get('error')?.({ message: 'Old network error' });
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Update v2.0.0 available' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
+    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+    expect(screen.queryByText('Update Failed')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    act(() => listeners.get('progress')?.({ percentage: 20, bytesPerSecond: 10, transferred: 20, total: 100 }));
+    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+    await act(async () => resolveDownload({ success: true, data: null, error: null }));
+  });
+
+  it('clears a previous download error during retry and handles rejected requests', async () => {
+    const failure = new Error('IPC disconnected');
+    let rejectDownload: (error: Error) => void = () => {};
+    vi.mocked(window.electronAPI!.downloadUpdate)
+      .mockResolvedValueOnce({ success: true, data: null, error: null })
+      .mockReturnValueOnce(new Promise((_resolve, reject) => { rejectDownload = reject; }));
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listeners.size).toBe(7));
+    act(() => listeners.get('available')?.({ version: '2.0.0', changelog: 'Notes', isPortable: false }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
+    await waitFor(() => expect(window.electronAPI!.downloadUpdate).toHaveBeenCalledOnce());
+    act(() => listeners.get('error')?.({ message: 'Download error' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+    expect(screen.queryByText('Update Failed')).toBeNull();
+    await act(async () => rejectDownload(failure));
+    expect(screen.getByText('Update Failed')).toBeTruthy();
+    expect(reportErrorMock).toHaveBeenCalledWith('UpdaterProvider.downloadUpdate', failure);
+  });
+
   it('owns subscriptions and maps update events into one state', async () => {
     const { unmount } = render(
       <UpdaterProvider>
