@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExportDialog } from '@/components/header/ExportDialog';
+import { ExportDialog, ExportProgressModal } from '@/components/header/ExportDialog';
 import type { Game, Character, Combo } from '@/lib/types';
 
 const mockGames: Game[] = [
@@ -87,6 +87,16 @@ vi.mock('sonner', () => ({
 }));
 
 const reportErrorMock = vi.fn();
+
+it('disables cancellation only while committing the finished backup', () => {
+  const onCancel = vi.fn();
+  const props = { current: 3, total: 3, bytesWritten: 100, onCancel };
+  const { rerender } = render(<ExportProgressModal {...props} phase="finalizing" />);
+  expect((screen.getByRole('button', { name: 'Cancel export' }) as HTMLButtonElement).disabled).toBe(false);
+  rerender(<ExportProgressModal {...props} phase="committing" />);
+  expect((screen.getByRole('button', { name: 'Cancel export' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText('Saving completed backup…')).toBeTruthy();
+});
 
 vi.mock('@/lib/errors', () => ({
   reportError: (...args: unknown[]) => reportErrorMock(...args),

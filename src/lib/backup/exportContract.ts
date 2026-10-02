@@ -4,7 +4,7 @@ export interface BackupSink {
   abort: () => Promise<void>;
 }
 export interface BackupExportProgress {
-  phase: 'videos' | 'finalizing';
+  phase: 'videos' | 'finalizing' | 'committing';
   current: number;
   total: number;
   bytesWritten: number;

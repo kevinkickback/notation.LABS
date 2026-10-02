@@ -27,7 +27,7 @@ import type { Character, Combo, Game } from '@/lib/types';
 interface ExportProgressModalProps {
   current: number;
   total: number;
-  phase: 'videos' | 'finalizing';
+  phase: 'videos' | 'finalizing' | 'committing';
   bytesWritten: number;
   onCancel: () => void;
 }
@@ -50,11 +50,13 @@ export function ExportProgressModal({
         <DialogHeader>
           <DialogTitle>Exporting library</DialogTitle>
           <DialogDescription>
-            {phase === 'finalizing'
-              ? 'Finishing backup…'
-              : total === 0
-                ? 'Preparing export…'
-                : `Saving video ${Math.min(current + 1, total)} of ${total}…`}
+            {phase === 'committing'
+              ? 'Saving completed backup…'
+              : phase === 'finalizing'
+                ? 'Finishing backup…'
+                : total === 0
+                  ? 'Preparing export…'
+                  : `Saving video ${Math.min(current + 1, total)} of ${total}…`}
           </DialogDescription>
         </DialogHeader>
         <output className="block space-y-3 py-2">
@@ -77,7 +79,11 @@ export function ExportProgressModal({
           </div>
         </output>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={phase === 'committing'}
+          >
             Cancel export
           </Button>
         </DialogFooter>

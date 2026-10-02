@@ -100,11 +100,14 @@ export class BackupWriter {
     if (!this.session) return;
     const session = id === undefined ? this.session : this.getSession(id);
     session.accepting = false;
-    await session.pending.catch(() => {});
-    await session.file.close().catch(() => {});
-    await unlink(session.temporary).catch((error) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    });
-    if (this.session === session) this.session = undefined;
+    try {
+      await session.pending.catch(() => {});
+      await session.file.close().catch(() => {});
+      await unlink(session.temporary).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      });
+    } finally {
+      if (this.session === session) this.session = undefined;
+    }
   }
 }

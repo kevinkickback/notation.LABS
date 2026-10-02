@@ -59,7 +59,7 @@ describe('streamed video backups', () => {
     const restoredVideo = await zip.file(videoDescriptor.path)!.async('uint8array');
     expect(restoredVideo.byteLength).toBe(BACKUP_CHUNK_BYTES * 2 + 7);
     expect(restoredVideo.every(byte => byte === 3)).toBe(true);
-    expect(progress.mock.calls[progress.mock.calls.length - 1]?.[0]).toMatchObject({ phase: 'finalizing', current: 3, total: 3 });
+    expect(progress.mock.calls[progress.mock.calls.length - 1]?.[0]).toMatchObject({ phase: 'committing', current: 3, total: 3 });
   });
   it('aborts the destination promptly on cancellation or a write failure', async () => {
     await seed();
@@ -73,5 +73,21 @@ describe('streamed video backups', () => {
     await expect(indexedDbStorage.exportTo({ write: () => Promise.reject(new Error('disk full')), abort, close })).rejects.toThrow('disk full');
     expect(abort).toHaveBeenCalledOnce();
   });
-});
 
+  it('announces the non-cancellable commit before closing the destination', async () => {
+    await seed();
+    const phases: string[] = [];
+    const controller = new AbortController();
+    const abort = vi.fn(async () => undefined);
+    let finishCommit!: () => void;
+    const close = vi.fn(() => new Promise<void>(resolve => { finishCommit = resolve; }));
+    const exporting = indexedDbStorage.exportTo({ write: async () => undefined, close, abort }, undefined, progress => { phases.push(progress.phase); }, controller.signal);
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(phases[phases.length - 1]).toBe('committing');
+    // Close has already reached the point where a commit cannot be undone.
+    controller.abort();
+    finishCommit();
+    await exporting;
+    expect(abort).not.toHaveBeenCalled();
+  });
+});

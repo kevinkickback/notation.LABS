@@ -15,6 +15,12 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
   const ipcHandlers: Record<string, (...args: unknown[]) => unknown> = {};
   const rawIpcHandlers: Record<string, (...args: unknown[]) => unknown> = {};
   const browserWindows: BrowserWindowMock[] = [];
+  const backupWriterMock = {
+    begin: vi.fn(async () => 'backup-session'),
+    write: vi.fn(async () => undefined),
+    finish: vi.fn(async () => undefined),
+    abort: vi.fn(async () => undefined),
+  };
 
   class BrowserWindowMock {
     static getAllWindows = vi.fn(() => browserWindows);
@@ -24,6 +30,7 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
       setWindowOpenHandler: vi.fn(),
       send: vi.fn(),
       mainFrame: {},
+      isDestroyed: vi.fn(() => false),
     };
     loadFile = vi.fn(async () => {
       if (loadOptions.mainLoadError) {
@@ -129,6 +136,7 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
   vi.doMock('node:fs', () => ({ __esModule: true, default: { mkdirSync: mkdirSyncMock }, mkdirSync: mkdirSyncMock }));
 
   vi.doMock('../../electron/updateManager', () => updateManagerMock);
+  vi.doMock('../../electron/backupWriter', () => ({ BackupWriter: class { constructor() { return backupWriterMock; } } }));
 
   await import('../../electron/main');
 
@@ -142,6 +150,7 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
     sessionMock,
     shellMock,
     updateManagerMock,
+    backupWriterMock,
   };
 }
 
@@ -354,6 +363,31 @@ describe('electron main process wiring', () => {
       await expect(context.rawIpcHandlers[channel]({ sender: {}, senderFrame: {} }, 'session', new Uint8Array([1]))).rejects.toThrow('untrusted renderer');
     }
 
+  });
+
+  it.each(['render-process-gone', 'did-start-navigation', 'closed', 'replaced-frame'])('does not open a backup after %s while the save dialog is pending', async (eventName) => {
+    const context = await loadMainModule();
+    await context.appEvents.ready();
+    let finishDialog!: (result: { filePath: string; canceled: boolean }) => void;
+    context.dialogMock.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { finishDialog = resolve; }));
+    const pending = context.ipcHandlers['backup:begin']('backup.zip', 'application/zip');
+    const window = context.browserWindows[0];
+    if (eventName === 'replaced-frame') window.webContents.mainFrame = {};
+    else {
+      const emitter = eventName === 'closed' ? window : window.webContents;
+      const callback = emitter.on.mock.calls.find(([name]) => name === eventName)?.[1] as (...args: unknown[]) => void;
+      callback({}, 'file://app', false, true);
+    }
+    finishDialog({ filePath: 'C:/Exports/backup.zip', canceled: false });
+    await expect(pending).rejects.toThrow();
+    expect(context.backupWriterMock.begin).not.toHaveBeenCalled();
+  });
+
+  it('starts a backup only when the original renderer is still present', async () => {
+    const context = await loadMainModule();
+    await context.appEvents.ready();
+    await expect(context.ipcHandlers['backup:begin']('backup.zip', 'application/zip')).resolves.toBe('backup-session');
+    expect(context.backupWriterMock.begin).toHaveBeenCalledWith('C:/Exports/backup.json');
   });
 
   it('opens allowlisted links and prompts for unknown https domains', async () => {
