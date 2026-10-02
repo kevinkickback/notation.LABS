@@ -27,7 +27,7 @@ describe('AppLoadingOverlay', () => {
     const onRetry = vi.fn();
     const onComplete = vi.fn();
     render(<AppLoadingOverlay stage="settings" error="Storage is unavailable" onRetry={onRetry} onComplete={onComplete} />);
-    expect(screen.getByText('Storage is unavailable')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toBe('Storage is unavailable');
     act(() => vi.advanceTimersByTime(5000));
     expect(onComplete).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));

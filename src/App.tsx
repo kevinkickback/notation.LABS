@@ -1,4 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CharacterView } from '@/components/character/CharacterView';
@@ -13,6 +12,7 @@ import {
   useSettingsInitialization,
 } from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
+import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 
@@ -21,6 +21,7 @@ function App() {
   const settings = useSettings();
   const initialization = useSettingsInitialization();
   const [starting, setStarting] = useState(true);
+  const [queryAttempt, setQueryAttempt] = useState(0);
   const finishStartup = useCallback(() => setStarting(false), []);
   const {
     status: updateStatus,
@@ -45,20 +46,26 @@ function App() {
     updateStatus.version,
   ]);
 
-  const games = useLiveQuery(indexedDbStorage.games.getAll, []);
-  const characters = useLiveQuery(
+  const { data: games, error: gamesError } = useRecoverableLiveQuery(
+    indexedDbStorage.games.getAll,
+    [],
+    queryAttempt,
+  );
+  const { data: characters, error: charactersError } = useRecoverableLiveQuery(
     () =>
       selectedGameId
         ? indexedDbStorage.characters.getByGame(selectedGameId)
         : [],
     [selectedGameId],
+    queryAttempt,
   );
-  const combos = useLiveQuery(
+  const { data: combos, error: combosError } = useRecoverableLiveQuery(
     () =>
       selectedCharacterId
         ? indexedDbStorage.combos.getByCharacter(selectedCharacterId)
         : [],
     [selectedCharacterId, settings.parsedNotationVersion],
+    queryAttempt,
   );
 
   const selectedGame = useMemo(
@@ -74,46 +81,63 @@ function App() {
     ? 'parsing'
     : !initialization.initialized
       ? 'settings'
-      : games === undefined
+      : games === undefined ||
+          (selectedGameId && characters === undefined) ||
+          (selectedCharacterId && combos === undefined)
         ? 'library'
         : 'ready';
+  const startupError =
+    initialization.error ?? gamesError ?? charactersError ?? combosError;
+  const workspaceBlocked = starting || Boolean(startupError);
+  const retryStartup = () => {
+    setStarting(true);
+    initialization.retry();
+    setQueryAttempt((current) => current + 1);
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div
         className="app-workspace"
-        inert={starting}
-        aria-hidden={starting || undefined}
+        inert={workspaceBlocked}
+        aria-hidden={workspaceBlocked || undefined}
       >
-        <Header activeGame={selectedGame} />
-        <BreadcrumbBar
-          selectedGame={selectedGame}
-          selectedCharacter={selectedCharacter}
-        />
-
-        <main className="container mx-auto px-4 py-8">
-          {!selectedGameId && <GameLibrary games={games || []} />}
-
-          {selectedGameId && !selectedCharacterId && selectedGame && (
-            <CharacterView game={selectedGame} characters={characters || []} />
-          )}
-
-          {selectedCharacterId && selectedGame && selectedCharacter && (
-            <ComboView
-              game={selectedGame}
-              character={selectedCharacter}
-              combos={combos || []}
+        {!workspaceBlocked && (
+          <>
+            <Header activeGame={selectedGame} />
+            <BreadcrumbBar
+              selectedGame={selectedGame}
+              selectedCharacter={selectedCharacter}
             />
-          )}
-        </main>
 
-        <Toaster />
+            <main className="container mx-auto px-4 py-8">
+              {!selectedGameId && <GameLibrary games={games || []} />}
+
+              {selectedGameId && !selectedCharacterId && selectedGame && (
+                <CharacterView
+                  game={selectedGame}
+                  characters={characters || []}
+                />
+              )}
+
+              {selectedCharacterId && selectedGame && selectedCharacter && (
+                <ComboView
+                  game={selectedGame}
+                  character={selectedCharacter}
+                  combos={combos || []}
+                />
+              )}
+            </main>
+
+            <Toaster />
+          </>
+        )}
       </div>
-      {starting && (
+      {workspaceBlocked && (
         <AppLoadingOverlay
           stage={startupStage}
-          error={initialization.error}
-          onRetry={initialization.retry}
+          error={startupError}
+          onRetry={retryStartup}
           onComplete={finishStartup}
         />
       )}

@@ -74,7 +74,7 @@ export function AppLoadingOverlay({
       </div>
       {error && (
         <div className="startup-error">
-          <p>{error}</p>
+          <p role="alert">{error}</p>
           <Button variant="outline" onClick={onRetry}>
             Try again
           </Button>

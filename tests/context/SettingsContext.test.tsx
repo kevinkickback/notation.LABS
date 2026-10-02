@@ -26,8 +26,8 @@ async function renderSettings(ui: ReactNode): Promise<RenderResult> {
   return result;
 }
 
-vi.mock('dexie-react-hooks', () => ({
-  useLiveQuery: (...args: unknown[]) => useLiveQueryMock(...args),
+vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
+  useRecoverableLiveQuery: (...args: unknown[]) => useLiveQueryMock(...args),
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
@@ -57,7 +57,7 @@ describe('SettingsContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     settingsUpdateMock.mockResolvedValue(undefined);
-    useLiveQueryMock.mockReturnValue(DEFAULT_SETTINGS);
+    useLiveQueryMock.mockReturnValue({ data: DEFAULT_SETTINGS, error: null });
     getMock.mockResolvedValue(DEFAULT_SETTINGS);
     initMock.mockResolvedValue(undefined);
     document.documentElement.style.removeProperty('--app-font-family');
@@ -102,12 +102,12 @@ describe('SettingsContext', () => {
   });
 
   it('applies saved presentation settings to the document', async () => {
-    useLiveQueryMock.mockReturnValue({
+    useLiveQueryMock.mockReturnValue({ data: {
       ...DEFAULT_SETTINGS,
       fontFamily: 'verdana',
       accentColor: '#123456',
       colorTheme: 'dark',
-    });
+    }, error: null });
 
     await renderSettings(
       <SettingsProvider>
@@ -139,6 +139,23 @@ describe('SettingsContext', () => {
         }),
       );
     });
+  });
+
+  it('exposes a settings read failure and retries the subscription with initialization', async () => {
+    useLiveQueryMock.mockReturnValue({ data: undefined, error: 'Settings read failed' });
+    function Consumer() {
+      const { initialized, error, retry } = useSettingsInitialization();
+      return <><span>{initialized ? 'Ready' : 'Loading'}</span><span>{error}</span><button type="button" onClick={retry}>Retry read</button></>;
+    }
+    const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('Settings read failed')).toBeTruthy();
+    expect(screen.getByText('Loading')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry read' }));
+    expect(useLiveQueryMock).toHaveBeenCalledWith(expect.any(Function), [], 1);
+    useLiveQueryMock.mockReturnValue({ data: DEFAULT_SETTINGS, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    await waitFor(() => expect(screen.getByText('Ready')).toBeTruthy());
+    expect(initMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows and hides the reparse progress modal using init callbacks', async () => {

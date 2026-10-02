@@ -9,6 +9,11 @@ migrations, and the game library initialize. Stage descriptions and progress
 reflect those tasks. Startup errors keep the overlay visible with a retry action.
 The workspace stays inert until initialization completes, then the overlay fades.
 The overlay inherits the application theme and respects reduced motion.
+Rejected settings and library reads stay in startup state rather than escaping to
+the global error page. Retry restarts initialization and the reactive reads; cached
+results from an earlier retry cannot mark the new attempt ready. Detailed errors
+are announced as alerts. Workspace components mount after startup completes so
+their own queries cannot bypass the startup error and retry flow.
 
 Electron opens one application window rather than a separate splash window.
 It retains context isolation, sandboxing, and disabled renderer Node access.

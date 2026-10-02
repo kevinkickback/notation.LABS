@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from '@/App';
@@ -8,6 +8,7 @@ import { useAppStore } from '@/lib/store';
 const mocks = vi.hoisted(() => ({
   useLiveQuery: vi.fn(),
   useSettings: vi.fn(),
+  useSettingsInitialization: vi.fn(),
   useUpdater: vi.fn(),
   toastInfo: vi.fn(),
   reportError: vi.fn(),
@@ -16,13 +17,13 @@ const mocks = vi.hoisted(() => ({
   combosGetByCharacter: vi.fn(),
 }));
 
-vi.mock('dexie-react-hooks', () => ({
-  useLiveQuery: (...args: unknown[]) => mocks.useLiveQuery(...args),
+vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
+  useRecoverableLiveQuery: (...args: unknown[]) => mocks.useLiveQuery(...args),
 }));
 
 vi.mock('@/context/SettingsContext', () => ({
   useSettings: () => mocks.useSettings(),
-  useSettingsInitialization: () => ({ initialized: true, isReparsing: false, error: null, retry: vi.fn() }),
+  useSettingsInitialization: () => mocks.useSettingsInitialization(),
 }));
 
 vi.mock('@/context/UpdaterContext', () => ({
@@ -171,6 +172,7 @@ describe('App', () => {
       selectedCharacterId: null,
     });
     mocks.useSettings.mockReturnValue(DEFAULT_SETTINGS);
+    mocks.useSettingsInitialization.mockReturnValue({ initialized: true, isReparsing: false, error: null, retry: vi.fn() });
     mocks.useUpdater.mockReturnValue({
       status: { status: 'idle' },
       availabilityEventId: 0,
@@ -179,22 +181,24 @@ describe('App', () => {
     });
     mocks.useLiveQuery.mockImplementation(
       (_query: unknown, dependencies: unknown[]) => {
-        if (dependencies.length === 0) return queryData.games;
-        if (dependencies.length === 1) return queryData.characters;
-        return queryData.combos;
+        const data = dependencies.length === 0 ? queryData.games : dependencies.length === 1 ? queryData.characters : queryData.combos;
+        return { data, error: null };
       },
     );
     installElectronApi();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     document.documentElement.classList.remove('dark');
     document.documentElement.style.removeProperty('--app-font-family');
     document.documentElement.style.removeProperty('--accent-color');
   });
 
   it('routes from games to characters to combos using the selected entities', () => {
+    vi.useFakeTimers();
     render(<App />);
+    act(() => vi.advanceTimersByTime(650));
 
     expect(screen.getByText('Games: Fighter One')).toBeTruthy();
 
@@ -208,7 +212,59 @@ describe('App', () => {
     expect(mocks.useLiveQuery).toHaveBeenCalledWith(
       expect.any(Function),
       ['character-1', DEFAULT_SETTINGS.parsedNotationVersion],
+      0,
     );
+  });
+
+  it.each([
+    ['settings', false, false, false, 'Restoring your preferences', '20'],
+    ['parsing', false, true, false, 'Updating stored combo notation', '50'],
+    ['library', true, false, true, 'Opening your game library', '75'],
+  ])('keeps the workspace inert during the %s stage', (_stage, initialized, isReparsing, pendingLibrary, description, progress) => {
+    vi.useFakeTimers();
+    mocks.useSettingsInitialization.mockReturnValue({ initialized, isReparsing, error: null, retry: vi.fn() });
+    if (pendingLibrary) mocks.useLiveQuery.mockReturnValue({ data: undefined, error: null });
+    const { container } = render(<App />);
+    expect(screen.getByRole('status').textContent).toContain(description);
+    expect(screen.getByRole('progressbar').getAttribute('value')).toBe(progress);
+    const workspace = container.querySelector('.app-workspace');
+    expect(workspace?.hasAttribute('inert')).toBe(true);
+    expect(workspace?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.queryByText('Header')).toBeNull();
+    act(() => vi.advanceTimersByTime(5000));
+    expect(screen.getByTestId('app-loading-overlay')).toBeTruthy();
+  });
+
+  it('retries initialization and library queries after a startup failure', () => {
+    vi.useFakeTimers();
+    const retry = vi.fn();
+    mocks.useSettingsInitialization.mockReturnValue({ initialized: false, isReparsing: false, error: 'Settings database unavailable', retry });
+    const { container, rerender } = render(<App />);
+    expect(screen.getByRole('alert').textContent).toBe('Settings database unavailable');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(mocks.useLiveQuery).toHaveBeenCalledWith(expect.any(Function), [], 1);
+    mocks.useSettingsInitialization.mockReturnValue({ initialized: true, isReparsing: false, error: null, retry });
+    rerender(<App />);
+    act(() => vi.advanceTimersByTime(650));
+    expect(screen.queryByTestId('app-loading-overlay')).toBeNull();
+    expect(container.querySelector('.app-workspace')?.hasAttribute('inert')).toBe(false);
+    expect(screen.getByText('Games: Fighter One')).toBeTruthy();
+  });
+
+  it('keeps a failed library read in the overlay until retry succeeds', () => {
+    vi.useFakeTimers();
+    mocks.useLiveQuery.mockReturnValue({ data: undefined, error: 'Library is locked' });
+    const { rerender } = render(<App />);
+    expect(screen.getByRole('alert').textContent).toBe('Library is locked');
+    act(() => vi.advanceTimersByTime(5000));
+    expect(screen.queryByText('Header')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    mocks.useLiveQuery.mockReturnValue({ data: queryData.games, error: null });
+    rerender(<App />);
+    act(() => vi.advanceTimersByTime(650));
+    expect(screen.queryByTestId('app-loading-overlay')).toBeNull();
+    expect(screen.getByText('Games: Fighter One')).toBeTruthy();
   });
 
   it('delegates an available update to the updater controller', () => {

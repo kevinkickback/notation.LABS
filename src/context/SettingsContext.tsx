@@ -1,5 +1,4 @@
 import { SpinnerGapIcon } from '@phosphor-icons/react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import type { ReactNode } from 'react';
 import {
   createContext,
@@ -18,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
 import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
@@ -119,7 +119,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Pure read - safe inside useLiveQuery.
-  const settings = useLiveQuery(indexedDbStorage.settings.get, []);
+  const { data: settings, error: settingsReadError } = useRecoverableLiveQuery(
+    indexedDbStorage.settings.get,
+    [],
+    attempt,
+  );
   const currentSettings = {
     ...(settings ?? INITIAL_SETTINGS),
     ...optimisticSettings,
@@ -198,9 +202,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       <SettingsContext.Provider value={currentSettings}>
         <SettingsInitializationContext.Provider
           value={{
-            initialized: initialized && settings !== undefined,
+            initialized:
+              initialized && settings !== undefined && !settingsReadError,
             isReparsing,
-            error: initializationError,
+            error: initializationError ?? settingsReadError,
             retry: retryInitialization,
           }}
         >
