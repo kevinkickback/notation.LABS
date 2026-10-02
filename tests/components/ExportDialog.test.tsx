@@ -76,7 +76,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     games: { getAll: vi.fn() },
     characters: { getAll: vi.fn() },
     combos: { getAll: vi.fn() },
-    demoVideos: { getAll: vi.fn() },
+    demoVideos: { getIds: vi.fn() },
   },
 }));
 
@@ -119,7 +119,7 @@ describe('ExportDialog', () => {
       mockCharacters,
     );
     vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValue(mockCombos);
-    vi.mocked(indexedDbStorage.demoVideos.getAll).mockResolvedValue([]);
+    vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValue([]);
   });
 
   it('renders dialog title', async () => {
@@ -244,8 +244,8 @@ describe('ExportDialog', () => {
   });
 
   it('shows the include demo videos toggle when selected combos have local videos', async () => {
-    vi.mocked(indexedDbStorage.demoVideos.getAll).mockResolvedValueOnce([
-      { id: 'vid-1', fileName: 'test.mp4', mimeType: 'video/mp4', data: new ArrayBuffer(0) },
+    vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValueOnce([
+      'vid-1',
     ]);
     vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([
       { ...mockCombos[0], demoUrl: 'local:vid-1' },
@@ -260,8 +260,8 @@ describe('ExportDialog', () => {
 
   it('calls onExport with includeVideos true when the video toggle is enabled', async () => {
     const user = userEvent.setup();
-    vi.mocked(indexedDbStorage.demoVideos.getAll).mockResolvedValueOnce([
-      { id: 'vid-1', fileName: 'test.mp4', mimeType: 'video/mp4', data: new ArrayBuffer(0) },
+    vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValueOnce([
+      'vid-1',
     ]);
     vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([
       { ...mockCombos[0], demoUrl: 'local:vid-1' },

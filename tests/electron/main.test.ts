@@ -319,6 +319,10 @@ describe('electron main process wiring', () => {
         senderFrame: {},
       }),
     ).rejects.toThrow('untrusted renderer');
+    for (const channel of ['backup:begin', 'backup:write', 'backup:finish', 'backup:abort']) {
+      await expect(context.rawIpcHandlers[channel]({ sender: {}, senderFrame: {} }, 'session', new Uint8Array([1]))).rejects.toThrow('untrusted renderer');
+    }
+
   });
 
   it('opens allowlisted links and prompts for unknown https domains', async () => {

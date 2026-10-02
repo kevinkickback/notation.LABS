@@ -69,6 +69,7 @@ export const videoRepository = {
   },
   delete: async (id: string) => db.demoVideos.delete(id),
   getAll: () => db.demoVideos.toArray(),
+  getIds: () => db.demoVideos.toCollection().primaryKeys(),
   getBlobUrl: async (id: string) => {
     const video = await db.demoVideos.get(id);
     if (!video) return null;

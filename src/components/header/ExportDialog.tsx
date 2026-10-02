@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -25,63 +26,61 @@ import type { Character, Combo, Game } from '@/lib/types';
 
 interface ExportProgressModalProps {
   current: number;
-  /** null = still preparing (DB reads + filtering); number = archiving in progress */
-  total: number | null;
+  total: number;
+  phase: 'videos' | 'finalizing';
+  bytesWritten: number;
+  onCancel: () => void;
 }
-
-/** Blocking modal shown while backup archive is being built. Cannot be dismissed. */
 export function ExportProgressModal({
   current,
   total,
+  phase,
+  bytesWritten,
+  onCancel,
 }: ExportProgressModalProps) {
-  const isFinalizing = total !== null && total > 0 && current >= total;
-  const pct =
-    total !== null && total > 0 ? Math.round((current / total) * 100) : 0;
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
   return (
     <Dialog open>
       <DialogContent
-        className="max-w-xs sm:max-w-sm"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="max-w-md"
         hideCloseButton
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Exporting…</DialogTitle>
+          <DialogTitle>Exporting library</DialogTitle>
           <DialogDescription>
-            {total === null
-              ? 'Preparing export…'
-              : isFinalizing
-                ? 'Finalizing backup archive…'
-                : `Adding video ${current} of ${total} to backup…`}
+            {phase === 'finalizing'
+              ? 'Finishing backup…'
+              : total === 0
+                ? 'Preparing export…'
+                : `Saving video ${Math.min(current + 1, total)} of ${total}…`}
           </DialogDescription>
         </DialogHeader>
-        {total === null ? (
-          <div className="flex justify-center py-2">
-            <SpinnerGapIcon className="size-6 animate-spin text-muted-foreground" />
+        <output className="block space-y-3 py-2">
+          <div
+            role="progressbar"
+            aria-label="Export progress"
+            aria-valuemin={0}
+            aria-valuemax={total || 1}
+            aria-valuenow={current}
+            className="h-2 bg-muted overflow-hidden rounded-sm"
+          >
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${percent}%` }}
+            />
           </div>
-        ) : (
-          <div className="space-y-2 pt-1">
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-              {isFinalizing ? (
-                <div className="h-full w-full rounded-full bg-primary/70 animate-pulse" />
-              ) : (
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-200"
-                  style={{ width: `${pct}%` }}
-                />
-              )}
-            </div>
-            {isFinalizing && (
-              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <SpinnerGapIcon className="size-4 animate-spin text-muted-foreground" />
-                <span>This can take a bit for large backups.</span>
-              </div>
-            )}
-            {!isFinalizing && (
-              <p className="text-xs text-muted-foreground text-right">{pct}%</p>
-            )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <SpinnerGapIcon className="size-4 animate-spin" />
+            <span>{(bytesWritten / 1024 / 1024).toFixed(1)} MB written</span>
           </div>
-        )}
+        </output>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel export
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

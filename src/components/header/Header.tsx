@@ -27,10 +27,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   createBackup,
+  createBackupTo,
   importJsonBackup,
   importZipBackup,
 } from '@/lib/application/backupCommands';
-import { saveBackupBlob, triggerBlobDownload } from '@/lib/backup/platformSave';
+import type { BackupExportProgress } from '@/lib/backup/exportContract';
+import {
+  openBackupSink,
+  saveBackupBlob,
+  triggerBlobDownload,
+} from '@/lib/backup/platformSave';
 import { MAX_JSON_BACKUP_BYTES, MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import type { ZipImportProgress } from '@/lib/storage/indexedDbStorage';
@@ -45,10 +51,9 @@ export function Header({ activeGame }: { activeGame?: Game }) {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [notationGuideOpen, setNotationGuideOpen] = useState(false);
-  const [exportProgress, setExportProgress] = useState<{
-    current: number;
-    total: number | null;
-  } | null>(null);
+  const [exportProgress, setExportProgress] =
+    useState<BackupExportProgress | null>(null);
+  const exportController = useRef<AbortController | null>(null);
   const [importProgress, setImportProgress] =
     useState<ZipImportProgress | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
@@ -73,23 +78,34 @@ export function Header({ activeGame }: { activeGame?: Game }) {
     filter: { gameIds: string[]; characterIds: string[]; comboIds: string[] },
   ) => {
     setExportDialogOpen(false);
-    // Show the modal immediately with a spinner so there is no gap before archive building begins.
-    if (includeVideos) {
-      setExportProgress({ current: 0, total: null });
-    }
     try {
       const extension = includeVideos ? 'zip' : 'json';
       const suggestedName = `notation-labs-backup-${Date.now()}.${extension}`;
       const mimeType = includeVideos ? 'application/zip' : 'application/json';
       const successMessage = getExportSuccessMessage(includeVideos);
 
-      const data = await createBackup(
-        includeVideos,
-        filter,
-        includeVideos
-          ? (current, total) => setExportProgress({ current, total })
-          : undefined,
-      );
+      if (includeVideos) {
+        const sink = await openBackupSink(suggestedName);
+        if (!sink) return;
+        const controller = new AbortController();
+        exportController.current = controller;
+        setExportProgress({
+          phase: 'videos',
+          current: 0,
+          total: 0,
+          bytesWritten: 0,
+        });
+        await createBackupTo(
+          sink,
+          filter,
+          setExportProgress,
+          controller.signal,
+        );
+        toast.success(successMessage);
+        return;
+      }
+
+      const data = await createBackup(includeVideos, filter, undefined);
 
       const saveResult = await saveBackupBlob(
         data,
@@ -108,10 +124,12 @@ export function Header({ activeGame }: { activeGame?: Game }) {
       triggerBlobDownload(data, suggestedName);
       toast.success(successMessage);
     } catch (error) {
+      if (exportController.current?.signal.aborted) return;
       reportError('Header.handleExport', error);
-      toast.error('Failed to export data');
+      toast.error(toUserMessage(error));
     } finally {
       setExportProgress(null);
+      exportController.current = null;
     }
   };
 
@@ -304,8 +322,8 @@ export function Header({ activeGame }: { activeGame?: Game }) {
       />
       {exportProgress && (
         <ExportProgressModal
-          current={exportProgress.current}
-          total={exportProgress.total}
+          {...exportProgress}
+          onCancel={() => exportController.current?.abort()}
         />
       )}
       {importProgress && (

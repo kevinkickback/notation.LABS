@@ -157,6 +157,7 @@ function installElectronApi(overrides: Partial<Window['electronAPI']> = {}) {
     onUpdateDownloaded: vi.fn(() => () => {}),
     onUpdateCancelled: vi.fn(() => () => {}),
     saveFile: vi.fn(),
+    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     ...overrides,
   };
 }

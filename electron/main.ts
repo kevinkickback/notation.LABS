@@ -3,7 +3,9 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IpcMainInvokeEvent } from 'electron';
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
+import { BACKUP_CHANNELS } from '../src/lib/backup/exportContract';
 import { UPDATE_INVOKE_CHANNELS } from '../src/lib/updater/ipcContract';
+import { BackupWriter } from './backupWriter';
 import { isPromptableExternalUrl, isSafeExternalUrl } from './security';
 import {
   cancelDownload,
@@ -22,6 +24,7 @@ const __dirname = dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
+const backupWriter = new BackupWriter();
 
 const SPLASH_LOAD_TIMEOUT_MS = 5_000;
 const DEBUG_SPLASH_DELAY_MS = 5_000;
@@ -180,9 +183,14 @@ async function createWindow(): Promise<boolean> {
   });
 
   window.on('closed', () => {
+    void backupWriter.abort().catch(console.error);
     if (mainWindow === window) {
       mainWindow = null;
     }
+  });
+
+  window.webContents.on('render-process-gone', () => {
+    void backupWriter.abort().catch(console.error);
   });
 
   try {
@@ -417,6 +425,45 @@ app.on('ready', async () => {
       }
     },
   );
+
+  ipcMain.handle(
+    BACKUP_CHANNELS.begin,
+    async (event, filename: unknown, mimeType: unknown) => {
+      assertTrustedIpcSender(event);
+      if (!mainWindow) throw new Error('Main window not available');
+      if (typeof filename !== 'string' || !filename.trim())
+        throw new Error('Invalid filename');
+      if (mimeType !== 'application/zip' && mimeType !== 'application/json')
+        throw new Error('Unsupported file type');
+      const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: basename(filename.trim()).slice(0, 255),
+        filters: [
+          {
+            name: 'Notation Labs Backup',
+            extensions: [mimeType === 'application/zip' ? 'zip' : 'json'],
+          },
+        ],
+      });
+      if (canceled || !filePath) return null;
+      return backupWriter.begin(filePath);
+    },
+  );
+  ipcMain.handle(
+    BACKUP_CHANNELS.write,
+    async (event, id: unknown, chunk: unknown) => {
+      assertTrustedIpcSender(event);
+      await backupWriter.write(id, chunk);
+    },
+  );
+  ipcMain.handle(BACKUP_CHANNELS.finish, async (event, id: unknown) => {
+    assertTrustedIpcSender(event);
+    await backupWriter.finish(id);
+  });
+  ipcMain.handle(BACKUP_CHANNELS.abort, async (event, id: unknown) => {
+    assertTrustedIpcSender(event);
+    if (typeof id !== 'string') throw new Error('Invalid backup session');
+    await backupWriter.abort(id);
+  });
 
   await mainWindowReady;
 });

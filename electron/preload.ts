@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { BACKUP_CHANNELS } from '../src/lib/backup/exportContract';
 import {
   type CurrentChangelog,
   UPDATE_EVENT_CHANNELS,
@@ -11,6 +12,12 @@ import {
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
+  beginBackup: (filename: string, mimeType: string) =>
+    ipcRenderer.invoke(BACKUP_CHANNELS.begin, filename, mimeType),
+  writeBackupChunk: (id: string, chunk: Uint8Array) =>
+    ipcRenderer.invoke(BACKUP_CHANNELS.write, id, chunk),
+  finishBackup: (id: string) => ipcRenderer.invoke(BACKUP_CHANNELS.finish, id),
+  abortBackup: (id: string) => ipcRenderer.invoke(BACKUP_CHANNELS.abort, id),
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
