@@ -153,7 +153,7 @@ function installElectronApi(overrides: Partial<Window['electronAPI']> = {}) {
     installUpdate: vi.fn(),
     getUpdateStatus: vi.fn(),
     setAutoCheck: vi.fn().mockResolvedValue(undefined),
-    getAppVersion: vi.fn(),
+    getAppVersion: vi.fn().mockResolvedValue('1.8.0'),
     getCurrentChangelog: vi.fn(),
     onUpdateChecking: vi.fn(() => () => {}),
     onUpdateAvailable: vi.fn(() => () => {}),

@@ -6,7 +6,7 @@ import {
   UploadIcon,
 } from '@phosphor-icons/react';
 import type { ChangeEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   ExportDialog,
@@ -57,22 +57,12 @@ export function Header({ activeGame }: { activeGame?: Game }) {
   const exportCommitting = useRef(false);
   const [importProgress, setImportProgress] =
     useState<ZipImportProgress | null>(null);
-  const [appVersion, setAppVersion] = useState<string>('');
   const isDesktop = !!window.electronAPI;
   const [importOptions, setImportOptions] = useState({
     includeVideos: true,
     includeSettings: false,
   });
   const importInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    window.electronAPI
-      ?.getAppVersion()
-      .then(setAppVersion)
-      .catch((err) => {
-        reportError('Header.getAppVersion', err);
-      });
-  }, []);
 
   const handleExport = async (
     includeVideos: boolean,
@@ -216,9 +206,6 @@ export function Header({ activeGame }: { activeGame?: Game }) {
             notation
             <span style={{ color: 'var(--accent-color, #3b82f6)' }}>.LABS</span>
           </h1>
-          <span className="text-xs text-muted-foreground font-mono ml-1 self-end mb-0.5 truncate">
-            {appVersion ? `v${appVersion}` : ''}
-          </span>
         </div>
 
         {/* Desktop: show inline, Mobile: show hamburger */}

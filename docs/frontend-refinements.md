@@ -54,3 +54,14 @@ including returning from image search to its parent editor. Motion stays brief a
 respects reduced-motion preferences. Existing notes behavior and settings remain
 available because main's notes panels are retained. Export commit-phase protections
 are preserved.
+
+## Status bar
+
+The bottom bar displays the app version first, followed by update state when
+available. A successful update check displays “Up to date” with a green indicator;
+checks, available updates, and downloads use the application accent. Available
+updates can be selected to reopen their details. Errors retain their detail in a
+tooltip. Offline checks display “Offline · updates unavailable,” while known
+available and downloaded updates remain visible. Idle online state shows only the
+version, rather than claiming a check succeeded. The footer omits library counts
+and image-search status, and uses main's existing surfaces and colors.
