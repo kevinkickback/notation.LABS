@@ -139,6 +139,10 @@ const queryData = {
   ],
 };
 
+function pageSnapshot(gameId: string | null = null, characterId: string | null = null) {
+  return { gameId, characterId, parsedNotationVersion: DEFAULT_SETTINGS.parsedNotationVersion, ...queryData };
+}
+
 function installElectronApi(overrides: Partial<Window['electronAPI']> = {}) {
   window.electronAPI = {
     platform: 'win32',
@@ -179,9 +183,12 @@ describe('App', () => {
       downloadUpdate: vi.fn(),
       showAvailableUpdate: vi.fn(),
     });
+    const pages = new Map<string, ReturnType<typeof pageSnapshot>>();
     mocks.useLiveQuery.mockImplementation(
       (_query: unknown, dependencies: unknown[]) => {
-        const data = dependencies.length === 0 ? queryData.games : dependencies.length === 1 ? queryData.characters : queryData.combos;
+        const key = JSON.stringify(dependencies);
+        if (!pages.has(key)) pages.set(key, pageSnapshot(dependencies[0] as string | null, dependencies[1] as string | null));
+        const data = pages.get(key);
         return { data, error: null };
       },
     );
@@ -211,7 +218,7 @@ describe('App', () => {
     ).toBeTruthy();
     expect(mocks.useLiveQuery).toHaveBeenCalledWith(
       expect.any(Function),
-      ['character-1', DEFAULT_SETTINGS.parsedNotationVersion],
+      ['game-1', 'character-1', DEFAULT_SETTINGS.parsedNotationVersion],
       0,
     );
   });
@@ -243,7 +250,7 @@ describe('App', () => {
     expect(screen.getByRole('alert').textContent).toBe('Settings database unavailable');
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(retry).toHaveBeenCalledOnce();
-    expect(mocks.useLiveQuery).toHaveBeenCalledWith(expect.any(Function), [], 1);
+    expect(mocks.useLiveQuery).toHaveBeenCalledWith(expect.any(Function), [null, null, DEFAULT_SETTINGS.parsedNotationVersion], 1);
     mocks.useSettingsInitialization.mockReturnValue({ initialized: true, isReparsing: false, error: null, retry });
     rerender(<App />);
     act(() => vi.advanceTimersByTime(650));
@@ -260,11 +267,51 @@ describe('App', () => {
     act(() => vi.advanceTimersByTime(5000));
     expect(screen.queryByText('Header')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    mocks.useLiveQuery.mockReturnValue({ data: queryData.games, error: null });
+    mocks.useLiveQuery.mockReturnValue({ data: pageSnapshot(), error: null });
     rerender(<App />);
     act(() => vi.advanceTimersByTime(650));
     expect(screen.queryByTestId('app-loading-overlay')).toBeNull();
     expect(screen.getByText('Games: Fighter One')).toBeTruthy();
+  });
+
+  it('keeps the previous screen inert for pending reads and retained results', () => {
+    vi.useFakeTimers();
+    const home = pageSnapshot();
+    mocks.useLiveQuery.mockReturnValue({ data: home, error: null });
+    const { container, rerender } = render(<App />);
+    act(() => vi.advanceTimersByTime(650));
+    mocks.useLiveQuery.mockReturnValue({ data: undefined, error: null });
+    act(() => useAppStore.getState().setSelectedGame('game-1'));
+    expect(screen.getByText('Games: Fighter One')).toBeTruthy();
+    expect(container.querySelector('main')?.getAttribute('aria-busy')).toBe('true');
+    expect(container.querySelector('main')?.hasAttribute('inert')).toBe(true);
+    mocks.useLiveQuery.mockReturnValue({ data: home, error: null });
+    rerender(<App />);
+    expect(screen.queryByText('Characters for Fighter One: Hero')).toBeNull();
+    const characterPage = pageSnapshot('game-1');
+    mocks.useLiveQuery.mockReturnValue({ data: characterPage, error: null });
+    rerender(<App />);
+    expect(screen.getByText('Characters for Fighter One: Hero')).toBeTruthy();
+    expect(container.querySelector('main')?.hasAttribute('inert')).toBe(false);
+    act(() => useAppStore.getState().setSelectedCharacter('character-1'));
+    expect(screen.getByText('Characters for Fighter One: Hero')).toBeTruthy();
+    mocks.useLiveQuery.mockReturnValue({ data: { ...pageSnapshot('game-1', 'character-1'), combos: [] }, error: null });
+    rerender(<App />);
+    expect(screen.getByText('Combos for Fighter One/Hero:')).toBeTruthy();
+    expect(container.querySelector('main')?.getAttribute('aria-busy')).toBe('false');
+  });
+
+  it('ignores a result from a destination that was superseded while loading', () => {
+    vi.useFakeTimers();
+    mocks.useLiveQuery.mockReturnValue({ data: pageSnapshot(), error: null });
+    const { rerender } = render(<App />);
+    act(() => vi.advanceTimersByTime(650));
+    act(() => useAppStore.getState().setSelectedGame('game-1'));
+    act(() => useAppStore.getState().setSelectedGame('game-2'));
+    mocks.useLiveQuery.mockReturnValue({ data: pageSnapshot('game-1'), error: null });
+    rerender(<App />);
+    expect(screen.getByText('Games: Fighter One')).toBeTruthy();
+    expect(screen.queryByText('Characters for Fighter One: Hero')).toBeNull();
   });
 
   it('delegates an available update to the updater controller', () => {

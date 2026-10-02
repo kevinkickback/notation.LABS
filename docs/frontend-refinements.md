@@ -25,3 +25,12 @@ Run `npm run dev:web` for browser development or `npm run dev:app` for the isola
 desktop profile. Development image search uses deployed providers by default.
 Use `VITE_USE_LOCAL_PROVIDERS=true` in `.env.local` to opt into local providers;
 `NOTATION_IGDB_PROXY_TARGET` and `NOTATION_IMAGE_PROXY_TARGET` override their targets.
+
+## Page navigation
+
+Game, character, and combo reads resolve as one page snapshot labeled with its
+destination and notation version. Navigation keeps the last complete page visible
+until the next snapshot is ready, and temporarily disables its main content.
+Breadcrumbs describe the visible page. Pending or retained query results never
+stand in for an empty collection; real empty states appear only after a completed
+read. Read failures continue to use the loading overlay and retry flow.
