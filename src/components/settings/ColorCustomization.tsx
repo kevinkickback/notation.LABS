@@ -2,13 +2,7 @@ import { ArrowClockwiseIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -125,16 +119,13 @@ export function ColorCustomization() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Separator Color</CardTitle>
-          <CardDescription>
-            Customize the color of combo separators (e.g. &gt;, ~, etc.)
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <Label className="text-sm font-medium">Separators</Label>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Color for &gt;, ~, and other combo separators.
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <label className="relative w-20 h-10 rounded-md border border-border shadow-sm cursor-pointer overflow-hidden">
@@ -193,13 +184,6 @@ export function ColorCustomization() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Game-Specific Button Colors</CardTitle>
-          <CardDescription>
-            Customize button colors for each game — motions and modifiers
-            inherit from their paired button
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-6">
           <div>
             <Label className="text-sm font-medium mb-2 block">
@@ -220,6 +204,9 @@ export function ColorCustomization() {
           </div>
           {selectedGame && (
             <div className="grid gap-4 pt-2">
+              <p className="text-sm text-muted-foreground">
+                Button colors also apply to paired motions and modifiers.
+              </p>
               {tempButtonLayout.map((button) => {
                 const currentHex = tempButtonColors[button] || '#3b82f6';
                 const editHex = hexEdits[button] ?? currentHex;

@@ -121,8 +121,9 @@ export function CoverImage({
 
   return (
     <div
+      data-slot="cover-image"
       className={cn(
-        'bg-black bg-no-repeat',
+        'relative bg-black bg-no-repeat',
         interactive &&
           'cursor-grab touch-none select-none active:cursor-grabbing',
         className,

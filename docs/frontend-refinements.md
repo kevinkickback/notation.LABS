@@ -34,3 +34,23 @@ until the next snapshot is ready, and temporarily disables its main content.
 Breadcrumbs describe the visible page. Pending or retained query results never
 stand in for an empty collection; real empty states appear only after a completed
 read. Read failures continue to use the loading overlay and retry flow.
+
+## Dialogs
+
+Dialog layouts use main's colors, type, and rounded surfaces. Game, character, and
+combo editors use field labels rather than repeated section titles. Wide windows
+show related fields side by side; small windows stack them in a scrollable body
+with accessible actions. The game editor gives notation more space than artwork.
+Only one divider separates the final fields from the action footer.
+
+Settings uses a shared height across categories, with vertical category navigation
+on desktop and a horizontal row on smaller windows. The notation guide places its
+live preview beside the reference on wide windows and above it on narrow windows;
+community examples can be tried directly. Alternate motion examples are centered
+on a contrasting surface without changing the icons' colors.
+
+Controlled dialogs restore focus to the invoking control when it remains present,
+including returning from image search to its parent editor. Motion stays brief and
+respects reduced-motion preferences. Existing notes behavior and settings remain
+available because main's notes panels are retained. Export commit-phase protections
+are preserved.

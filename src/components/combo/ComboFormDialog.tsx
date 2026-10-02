@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { FormSection } from '@/components/shared/FormSection';
+import { RequiredBadge } from '@/components/shared/RequiredBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,8 +61,6 @@ interface ComboFormDialogProps {
   editingCombo: Combo | null;
   allTags: string[];
 }
-
-import { ComboFormSection } from './ComboFormSection';
 
 export function ComboFormDialog({
   open,
@@ -324,9 +324,9 @@ export function ComboFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-2xl flex flex-col overflow-hidden">
+      <DialogContent className="max-w-5xl dialog-form combo-form-dialog flex flex-col overflow-hidden">
         <form
-          className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
             void handleSubmit();
@@ -336,18 +336,17 @@ export function ComboFormDialog({
             <DialogTitle>
               {editingCombo ? 'Edit' : 'Add'} Combo for {character.name}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="sr-only">
               Enter the combo notation, details, and optional demo video.
             </DialogDescription>
           </DialogHeader>
-          <DialogBody className="-mr-2 space-y-4 pr-2">
-            <ComboFormSection
-              title="Combo Basics"
-              description="Name the combo, enter its notation, and confirm the parsed preview."
-              required
-            >
+          <DialogBody className="dialog-editor-grid">
+            <FormSection>
               <div>
-                <Label htmlFor={comboNameId}>Combo Name</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor={comboNameId}>Combo Name</Label>
+                  <RequiredBadge />
+                </div>
                 <Input
                   id={comboNameId}
                   required
@@ -358,7 +357,10 @@ export function ComboFormDialog({
               </div>
 
               <div>
-                <Label htmlFor={comboNotationId}>Notation</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor={comboNotationId}>Notation</Label>
+                  <RequiredBadge />
+                </div>
                 <Textarea
                   id={comboNotationId}
                   required
@@ -389,12 +391,9 @@ export function ComboFormDialog({
                   <ComboDisplay tokens={parsedNotationTokens} game={game} />
                 </div>
               )}
-            </ComboFormSection>
+            </FormSection>
 
-            <ComboFormSection
-              title="Combo Details"
-              description="Record difficulty, damage, meter cost, and tags."
-            >
+            <FormSection>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 <div className="min-w-0">
                   <Label htmlFor={comboDifficultyId}>Difficulty</Label>
@@ -481,15 +480,10 @@ export function ComboFormDialog({
                   </datalist>
                 </div>
               </div>
-            </ComboFormSection>
+            </FormSection>
 
-            <ComboFormSection
-              title="Demo Video"
-              description="Link a YouTube video or attach a local video file."
-            >
-              <Label htmlFor={comboDemoUrlId} className="sr-only">
-                YouTube demo URL
-              </Label>
+            <FormSection>
+              <Label htmlFor={comboDemoUrlId}>YouTube demo URL</Label>
               <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_auto] sm:gap-3">
                 <Input
                   id={comboDemoUrlId}
@@ -562,12 +556,9 @@ export function ComboFormDialog({
                   </Button>
                 </div>
               )}
-            </ComboFormSection>
+            </FormSection>
 
-            <ComboFormSection
-              title="Description & Status"
-              description="Add context and flag combos that may need review after a game update."
-            >
+            <FormSection>
               <div>
                 <Label htmlFor={comboDescriptionId}>Description</Label>
                 <Textarea
@@ -604,7 +595,7 @@ export function ComboFormDialog({
                   onCheckedChange={setOutdated}
                 />
               </div>
-            </ComboFormSection>
+            </FormSection>
           </DialogBody>
           <DialogFooter className="shrink-0 border-t border-border pt-4">
             <Button

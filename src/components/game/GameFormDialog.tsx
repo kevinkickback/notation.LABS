@@ -7,16 +7,10 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CoverImage } from '@/components/shared/CoverImage';
 import { CoverImageControls } from '@/components/shared/CoverImageControls';
+import { FormSection } from '@/components/shared/FormSection';
 import { RequiredBadge } from '@/components/shared/RequiredBadge';
 import { Button } from '@/components/ui/button';
 import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import {
   Dialog,
   DialogBody,
@@ -231,9 +225,9 @@ export function GameFormDialog({
           if (!isOpen) closeDialog();
         }}
       >
-        <DialogContent className="flex flex-col overflow-hidden sm:max-w-xl">
+        <DialogContent className="dialog-form game-form-dialog flex flex-col overflow-hidden max-w-5xl">
           <form
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
               void handleSubmit();
@@ -243,220 +237,184 @@ export function GameFormDialog({
               <DialogTitle>
                 {editingGame ? 'Edit Game' : 'Add New Game'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="sr-only">
                 Configure the game profile, notation, and optional notes.
               </DialogDescription>
             </DialogHeader>
-            <DialogBody className="-mr-2 space-y-4 pr-2">
-              <Card className="gap-3 py-4 shadow-none">
-                <CardHeader className="gap-1 px-4">
-                  <CardTitle className="text-sm">Game Profile</CardTitle>
-                  <CardDescription className="text-xs">
-                    Set the name and artwork shown throughout the app.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 px-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={nameInputId}>Game Name</Label>
-                      <RequiredBadge />
-                    </div>
-                    <Input
-                      id={nameInputId}
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Street Fighter 6"
-                    />
+            <DialogBody className="dialog-editor-grid">
+              <FormSection>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={nameInputId}>Game Name</Label>
+                    <RequiredBadge />
                   </div>
-                  <div>
-                    <Label>Cover Artwork (optional)</Label>
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      Upload or find artwork, then drag the preview to position
-                      it.
-                    </p>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <div className="relative flex aspect-[3/4] w-[clamp(6rem,20dvh,8rem)] shrink-0 self-center items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted sm:self-auto">
-                        {logoImage ? (
-                          <>
-                            <CoverImage
-                              src={logoImage}
-                              frameAspect={3 / 4}
-                              fit={coverFit}
-                              zoom={coverZoom}
-                              focalX={coverPanX}
-                              focalY={coverPanY}
-                              interactive
-                              className="absolute inset-0"
-                              onFocalPointChange={(x, y) => {
-                                setCoverPanX(Math.round(x));
-                                setCoverPanY(Math.round(y));
-                              }}
-                            />
-                            <div
-                              className="pointer-events-none absolute inset-x-0 bottom-0 h-3/5"
-                              style={{
-                                background:
-                                  'linear-gradient(to top, black 0%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.2) 80%, transparent 100%)',
-                              }}
-                            />
-                            <button
-                              type="button"
-                              aria-label="Remove image"
-                              onClick={() => setLogoImage('')}
-                              className="absolute top-1 right-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-red-600/80 text-white transition-colors hover:bg-red-600"
-                            >
-                              <XIcon className="h-3 w-3" />
-                            </button>
-                          </>
-                        ) : (
-                          <ImageSquareIcon className="h-8 w-8 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        {logoImage ? (
-                          <CoverImageControls
+                  <Input
+                    id={nameInputId}
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Street Fighter 6"
+                  />
+                </div>
+                <div>
+                  <Label>Cover Artwork (optional)</Label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Upload or find artwork, then drag the preview to position
+                    it.
+                  </p>
+                  <div className="game-artwork-editor flex flex-col gap-3 sm:flex-row">
+                    <div className="relative flex aspect-[3/4] w-[clamp(6rem,20dvh,8rem)] shrink-0 self-center items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted sm:self-start">
+                      {logoImage ? (
+                        <>
+                          <CoverImage
+                            src={logoImage}
+                            frameAspect={3 / 4}
                             fit={coverFit}
                             zoom={coverZoom}
                             focalX={coverPanX}
                             focalY={coverPanY}
-                            onFitChange={setCoverFit}
-                            onZoomChange={setCoverZoom}
-                            onFocalXChange={setCoverPanX}
-                            onFocalYChange={setCoverPanY}
-                            onReset={resetCoverTransform}
+                            interactive
+                            className="absolute inset-0"
+                            onFocalPointChange={(x, y) => {
+                              setCoverPanX(Math.round(x));
+                              setCoverPanY(Math.round(y));
+                            }}
                           />
-                        ) : (
-                          <div className="flex h-full flex-col justify-center gap-1.5">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleImageSelect}
-                            >
-                              <ImageSquareIcon className="mr-2 h-4 w-4 shrink-0" />
-                              Upload Image
-                            </Button>
-                            <div className="flex items-center gap-2">
-                              <div className="h-px flex-1 bg-border" />
-                              <span className="text-xs text-muted-foreground">
-                                or
-                              </span>
-                              <div className="h-px flex-1 bg-border" />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setCoverSearchOpen(true)}
-                            >
-                              <MagnifyingGlassIcon className="mr-2 h-4 w-4 shrink-0" />
-                              Search Online
-                            </Button>
-                          </div>
-                        )}
+                          <button
+                            type="button"
+                            aria-label="Remove image"
+                            onClick={() => setLogoImage('')}
+                            className="absolute top-1 right-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-red-600/80 text-white transition-colors hover:bg-red-600"
+                          >
+                            <XIcon className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <ImageSquareIcon className="h-8 w-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-3">
+                      {logoImage && (
+                        <CoverImageControls
+                          fit={coverFit}
+                          zoom={coverZoom}
+                          focalX={coverPanX}
+                          focalY={coverPanY}
+                          onFitChange={setCoverFit}
+                          onZoomChange={setCoverZoom}
+                          onFocalXChange={setCoverPanX}
+                          onFocalYChange={setCoverPanY}
+                          onReset={resetCoverTransform}
+                        />
+                      )}
+                      <div className="flex h-full flex-col justify-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleImageSelect}
+                        >
+                          <ImageSquareIcon className="mr-2 h-4 w-4 shrink-0" />
+                          {logoImage ? 'Replace Image' : 'Upload Image'}
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-xs text-muted-foreground">
+                            or
+                          </span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCoverSearchOpen(true)}
+                        >
+                          <MagnifyingGlassIcon className="mr-2 h-4 w-4 shrink-0" />
+                          Search Online
+                        </Button>
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </FormSection>
 
-              <Card className="gap-3 py-4 shadow-none">
-                <CardHeader className="gap-1 px-4">
-                  <CardTitle className="text-sm">Notation & Buttons</CardTitle>
-                  <CardDescription className="text-xs">
-                    Choose how inputs are interpreted and displayed.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 px-4">
-                  <fieldset>
-                    <legend className="text-sm leading-none font-medium">
-                      Notation Style
-                    </legend>
-                    <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
-                      {NOTATION_PROFILES.map((profile) => (
-                        <button
-                          key={profile.id}
-                          type="button"
-                          aria-label={profile.label}
-                          aria-pressed={notationProfile === profile.id}
-                          onClick={() => handleProfileChange(profile.id)}
-                          className={`rounded-md border px-3 py-2 text-left transition-colors ${
-                            notationProfile === profile.id
-                              ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                              : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                          }`}
-                        >
-                          <span className="block text-sm font-medium">
-                            {profile.label}
-                          </span>
-                        </button>
+              <FormSection>
+                <fieldset>
+                  <legend className="text-sm leading-none font-medium">
+                    Notation Style
+                  </legend>
+                  <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
+                    {NOTATION_PROFILES.map((profile) => (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        aria-label={profile.label}
+                        aria-pressed={notationProfile === profile.id}
+                        onClick={() => handleProfileChange(profile.id)}
+                        className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                          notationProfile === profile.id
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                            : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        }`}
+                      >
+                        <span className="block text-sm font-medium">
+                          {profile.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {getNotationProfileDefinition(notationProfile).description}
+                  </p>
+                </fieldset>
+
+                <div>
+                  <Label htmlFor={buttonsInputId}>
+                    Button Layout (comma-separated)
+                  </Label>
+                  <Input
+                    id={buttonsInputId}
+                    value={buttonLayout}
+                    onChange={(e) => setButtonLayout(e.target.value)}
+                    placeholder={getNotationProfileDefinition(
+                      notationProfile,
+                    ).defaultButtons.join(', ')}
+                  />
+                </div>
+
+                {parsedButtons.length > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <Label className="mb-2 block text-sm font-medium">
+                      Button Colors
+                    </Label>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      {parsedButtons.map((btn, i) => (
+                        <ColorPickerRow
+                          key={btn}
+                          label={btn}
+                          value={
+                            dialogButtonColors[btn] ||
+                            DEFAULT_BUTTON_PALETTE[
+                              i % DEFAULT_BUTTON_PALETTE.length
+                            ]
+                          }
+                          onChange={(hex) =>
+                            setDialogButtonColors((prev) => ({
+                              ...prev,
+                              [btn]: hex,
+                            }))
+                          }
+                        />
                       ))}
                     </div>
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      {
-                        getNotationProfileDefinition(notationProfile)
-                          .description
-                      }
-                    </p>
-                  </fieldset>
-
-                  <div>
-                    <Label htmlFor={buttonsInputId}>
-                      Button Layout (comma-separated)
-                    </Label>
-                    <Input
-                      id={buttonsInputId}
-                      value={buttonLayout}
-                      onChange={(e) => setButtonLayout(e.target.value)}
-                      placeholder={getNotationProfileDefinition(
-                        notationProfile,
-                      ).defaultButtons.join(', ')}
-                    />
                   </div>
+                )}
+              </FormSection>
 
-                  {parsedButtons.length > 0 && (
-                    <div className="border-t border-border pt-3">
-                      <Label className="mb-2 block text-sm font-medium">
-                        Button Colors
-                      </Label>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                        {parsedButtons.map((btn, i) => (
-                          <ColorPickerRow
-                            key={btn}
-                            label={btn}
-                            value={
-                              dialogButtonColors[btn] ||
-                              DEFAULT_BUTTON_PALETTE[
-                                i % DEFAULT_BUTTON_PALETTE.length
-                              ]
-                            }
-                            onChange={(hex) =>
-                              setDialogButtonColors((prev) => ({
-                                ...prev,
-                                [btn]: hex,
-                              }))
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="gap-3 py-4 shadow-none">
-                <CardHeader className="gap-1 px-4">
-                  <CardTitle className="text-sm">Notes</CardTitle>
-                  <CardDescription id={notesHelpId} className="text-xs">
-                    Add optional context or reminders about this game. Multiple
-                    lines and Markdown are supported.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="px-4">
-                  <Label htmlFor={notesInputId} className="sr-only">
-                    Game notes
-                  </Label>
+              <FormSection>
+                <div>
+                  <Label htmlFor={notesInputId}>Game notes (optional)</Label>
                   <Textarea
                     id={notesInputId}
                     aria-describedby={notesHelpId}
@@ -465,8 +423,14 @@ export function GameFormDialog({
                     rows={3}
                     placeholder="Optional notes about the game..."
                   />
-                </CardContent>
-              </Card>
+                  <p
+                    id={notesHelpId}
+                    className="mt-1.5 text-xs text-muted-foreground"
+                  >
+                    Markdown is supported.
+                  </p>
+                </div>
+              </FormSection>
             </DialogBody>
             <DialogFooter className="shrink-0 border-t border-border pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>

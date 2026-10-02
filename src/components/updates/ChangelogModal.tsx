@@ -33,7 +33,7 @@ export function ChangelogModal({
 }: ChangelogModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-xs sm:max-w-md p-3 sm:p-6">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>
             {onInstall

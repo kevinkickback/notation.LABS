@@ -34,7 +34,7 @@ export function EntityNoteDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Note</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Update notes for {entityName}. Markdown is supported.
           </DialogDescription>
         </DialogHeader>

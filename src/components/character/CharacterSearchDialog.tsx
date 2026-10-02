@@ -4,8 +4,10 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -17,8 +19,10 @@ import {
 } from '@/lib/providers/imageSearchProvider';
 import type { ImageSearchResult } from '@/lib/types';
 
-const getSearchErrorMessage = () =>
-  'Image search failed. Check your internet connection.';
+const getSearchErrorMessage = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : 'Image search is unavailable. Try again.';
 
 interface CharacterSearchDialogProps {
   open: boolean;
@@ -69,15 +73,15 @@ export function CharacterSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] max-h-[80vh] flex flex-col">
+      <DialogContent className="search-dialog max-w-4xl flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Search Character Images</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Search and select an image to use as the character portrait.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-2">
+        <div className="dialog-search-toolbar">
           <Input
             placeholder="Search for a character..."
             value={inputValue}
@@ -88,14 +92,16 @@ export function CharacterSearchDialog({
             aria-label="Character image search query"
           />
           <Button
+            aria-label="Search character images"
             onClick={() => handleSearch()}
             disabled={loading || !inputValue.trim()}
           >
             <MagnifyingGlassIcon className="w-4 h-4" />
+            Search
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <DialogBody>
           {loading && (
             <div className="flex items-center justify-center py-12">
               <SpinnerGapIcon className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -125,7 +131,7 @@ export function CharacterSearchDialog({
           )}
 
           {!loading && results.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 pt-1">
+            <div className="dialog-image-results">
               {results.map((result) => {
                 const isDownloading = downloading === result.imageUrl;
                 return (
@@ -159,7 +165,17 @@ export function CharacterSearchDialog({
               })}
             </div>
           )}
-        </div>
+        </DialogBody>
+        <DialogFooter>
+          <span className="dialog-footer-detail">
+            {hasSearched
+              ? `${results.length} results`
+              : 'Choose an image to apply it'}
+          </span>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

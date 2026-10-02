@@ -5,13 +5,7 @@ import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { ButtonIcon } from '@/components/combo/icons/ButtonIcon';
 import { MotionIcon } from '@/components/combo/icons/MotionIcon';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
@@ -58,14 +52,13 @@ export function NotationSettings() {
     <div className="space-y-6 min-w-0">
       {/* Display Mode */}
       <Card>
-        <CardHeader>
-          <CardTitle>Display Mode</CardTitle>
-          <CardDescription>
-            Choose how combo notation is rendered
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <Label>Display Mode</Label>
+          <p className="text-sm text-muted-foreground">
+            Choose how combo notation appears.
+          </p>
           <RadioGroup
+            aria-label="Display Mode"
             value={settings.displayMode}
             onValueChange={(v) =>
               updateSetting('displayMode', v as DisplayMode)
@@ -102,14 +95,13 @@ export function NotationSettings() {
 
       {/* Button Style */}
       <Card>
-        <CardHeader>
-          <CardTitle>Button Style</CardTitle>
-          <CardDescription>
-            Shape used for button icons in visual mode
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <Label>Button Style</Label>
+          <p className="text-sm text-muted-foreground">
+            Shape of attack-button icons.
+          </p>
           <RadioGroup
+            aria-label="Button Style"
             value={settings.iconStyle ?? 'hexagon'}
             onValueChange={(v) => updateSetting('iconStyle', v as IconStyle)}
             className="flex gap-4"
@@ -201,14 +193,13 @@ export function NotationSettings() {
 
       {/* Motion Style */}
       <Card>
-        <CardHeader>
-          <CardTitle>Motion Style</CardTitle>
-          <CardDescription>
-            Visual style for direction and motion icons
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <Label>Motion Style</Label>
+          <p className="text-sm text-muted-foreground">
+            Style of direction and motion icons.
+          </p>
           <RadioGroup
+            aria-label="Motion Style"
             value={settings.motionIconStyle ?? 'joystick'}
             onValueChange={(v) =>
               updateSetting('motionIconStyle', v as MotionIconStyle)
@@ -248,37 +239,30 @@ export function NotationSettings() {
 
       {/* Combo Scale */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Combo Card Size</CardTitle>
-              <CardDescription>
-                Adjust the size of text and icons on combo cards
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                updateSetting('comboScale', 1);
-                toast.success('Combo size reset to default');
-              }}
-              className="gap-1.5"
-            >
-              <ArrowClockwiseIcon className="w-4 h-4" />
-              Reset
-            </Button>
-          </div>
-        </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Scale</Label>
-              <span className="text-sm text-muted-foreground">
-                {scaleLabel}
-              </span>
+              <Label>Combo display size</Label>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {scaleLabel}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    updateSetting('comboScale', 1);
+                    toast.success('Combo size reset to default');
+                  }}
+                  className="gap-1.5"
+                >
+                  <ArrowClockwiseIcon className="w-4 h-4" />
+                  Reset
+                </Button>
+              </div>
             </div>
             <Slider
+              aria-label="Combo display scale"
               value={[scale]}
               onValueChange={(value) => updateSetting('comboScale', value[0])}
               min={0.75}
@@ -286,6 +270,9 @@ export function NotationSettings() {
               step={0.25}
               className="w-full"
             />
+            <p className="text-sm text-muted-foreground">
+              Resize combo text and icons.
+            </p>
             <div className="flex justify-between text-xs text-muted-foreground px-1">
               <span>Small</span>
               <span>Default</span>
