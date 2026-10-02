@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSettingsActions } from '@/context/SettingsContext';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { reportError } from '@/lib/errors';
-import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+
+const EMPTY_OVERRIDES: string[] = [];
 
 function resolveShowNotes(
   entityId: string,
@@ -20,49 +21,48 @@ export function useNotesOverride(
   defaultOpen: boolean,
 ): [boolean, () => void] {
   const { setNotesOverride } = useSettingsActions();
-  const [showNotes, setShowNotes] = useState(defaultOpen);
+  const { notesOverrides = EMPTY_OVERRIDES } = useSettings();
+  const [optimistic, setOptimistic] = useState<{
+    entityId: string;
+    defaultOpen: boolean;
+    overrides: string[];
+    isOpen: boolean;
+  } | null>(null);
+  const showNotes =
+    optimistic?.entityId === entityId &&
+    optimistic.defaultOpen === defaultOpen &&
+    optimistic.overrides === notesOverrides
+      ? optimistic.isOpen
+      : resolveShowNotes(entityId, defaultOpen, notesOverrides);
 
   useEffect(() => {
-    let isActive = true;
-
-    const loadOverrides = async () => {
-      try {
-        const overrides = await indexedDbStorage.settings.getNotesOverrides();
-        if (!isActive) {
-          return;
-        }
-        setShowNotes(resolveShowNotes(entityId, defaultOpen, overrides));
-      } catch (error) {
-        reportError('useNotesOverride.loadOverrides', error);
-        if (isActive) {
-          setShowNotes(defaultOpen);
-        }
-      }
-    };
-
-    void loadOverrides();
-
-    return () => {
-      isActive = false;
-    };
-  }, [entityId, defaultOpen]);
+    setOptimistic((current) =>
+      current &&
+      (current.entityId !== entityId ||
+        current.defaultOpen !== defaultOpen ||
+        current.overrides !== notesOverrides)
+        ? null
+        : current,
+    );
+  }, [entityId, defaultOpen, notesOverrides]);
 
   const handleToggle = useCallback(() => {
-    setShowNotes((current) => {
-      const next = !current;
-
-      void (async () => {
-        try {
-          await setNotesOverride(entityId, next !== defaultOpen);
-        } catch (error) {
-          setShowNotes((latest) => (latest === next ? !next : latest));
-          reportError('useNotesOverride.handleToggle', error);
-        }
-      })();
-
-      return next;
-    });
-  }, [defaultOpen, entityId, setNotesOverride]);
+    const next = {
+      entityId,
+      defaultOpen,
+      overrides: notesOverrides,
+      isOpen: !showNotes,
+    };
+    setOptimistic(next);
+    void (async () => {
+      try {
+        await setNotesOverride(entityId, next.isOpen !== defaultOpen);
+      } catch (error) {
+        setOptimistic((current) => (current === next ? null : current));
+        reportError('useNotesOverride.handleToggle', error);
+      }
+    })();
+  }, [defaultOpen, entityId, notesOverrides, setNotesOverride, showNotes]);
 
   return [showNotes, handleToggle];
 }

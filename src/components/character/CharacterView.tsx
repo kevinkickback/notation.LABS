@@ -214,12 +214,14 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 
       <div
         className={
-          viewMode.viewMode === 'list' ? 'flex flex-col gap-3' : 'grid gap-4'
+          viewMode.viewMode === 'list'
+            ? 'flex flex-col gap-3'
+            : 'grid items-start gap-4'
         }
         style={
           viewMode.viewMode === 'grid'
             ? {
-                gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round((viewMode.cardSize * 4) / 3)}px, 1fr))`,
+                gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
               }
             : undefined
         }

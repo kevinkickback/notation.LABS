@@ -278,4 +278,39 @@ describe('SettingsContext', () => {
       'Failed to save setting: write failed',
     );
   });
+
+  it('resets notes overrides with the global default and rolls both back on failure', async () => {
+    const saved = { ...DEFAULT_SETTINGS, notesDefaultOpen: false, notesOverrides: ['char-1'] };
+    useLiveQueryMock.mockReturnValue({ data: saved, error: null });
+    let rejectWrite: (error: Error) => void = () => {};
+    settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
+    function Consumer() {
+      const settings = useSettings();
+      const { setSetting } = useSettingsActions();
+      return <><span>{JSON.stringify([settings.notesDefaultOpen, settings.notesOverrides])}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Open notes</button></>;
+    }
+    await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Open notes' }));
+    expect(screen.getByText('[true,[]]')).toBeTruthy();
+    expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] });
+    await act(async () => rejectWrite(new Error('write failed')));
+    expect(screen.getByText('[false,["char-1"]]')).toBeTruthy();
+  });
+
+  it('releases the optimistic override reset once saved, allowing new panel choices', async () => {
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesOverrides: ['char-1'] }, error: null });
+    function Consumer() {
+      const settings = useSettings();
+      const { setSetting } = useSettingsActions();
+      return <><span>{JSON.stringify(settings.notesOverrides)}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Open notes</button></>;
+    }
+    const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Open notes' })));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: [] }, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('[]')).toBeTruthy();
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-2'] }, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('["char-2"]')).toBeTruthy();
+  });
 });

@@ -79,6 +79,13 @@
 [data-slot="alert-dialog-footer"] button {
   min-height: 36px;
 }
+.confirmation-dialog [data-slot="alert-dialog-header"],
+.confirmation-dialog [data-slot="alert-dialog-footer"] {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
 [data-slot="dialog-content"] [data-slot="input"],
 [data-slot="dialog-content"] [data-slot="textarea"],
 [data-slot="dialog-content"] [data-slot="select-trigger"] {
@@ -147,6 +154,7 @@
 }
 .game-form-dialog .dialog-section:nth-child(2),
 .character-form-dialog .dialog-section:nth-child(2) {
+  align-self: stretch;
   border-left: 1px solid var(--border);
   padding-left: 28px;
 }
@@ -247,6 +255,7 @@
   width: 100%;
   background: var(--card);
   border: 0;
+  border-radius: 0;
   border-right: 1px solid var(--border);
 }
 .settings-navigation [data-slot="tabs-trigger"] {

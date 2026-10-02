@@ -228,12 +228,14 @@ export function GameLibrary({ games }: GameLibraryProps) {
       {/* Games Grid/List */}
       <div
         className={
-          viewMode.viewMode === 'list' ? 'flex flex-col gap-3' : 'grid gap-4'
+          viewMode.viewMode === 'list'
+            ? 'flex flex-col gap-3'
+            : 'grid items-start gap-4'
         }
         style={
           viewMode.viewMode === 'grid'
             ? {
-                gridTemplateColumns: `repeat(auto-fill, minmax(${viewMode.cardSize}px, 1fr))`,
+                gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
               }
             : undefined
         }

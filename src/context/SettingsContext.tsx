@@ -137,7 +137,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       let changed = false;
 
       for (const key of Object.keys(current) as Array<keyof UserSettings>) {
-        if (current[key] === settings[key]) {
+        if (
+          current[key] === settings[key] ||
+          (key === 'notesOverrides' &&
+            current.notesOverrides?.length === 0 &&
+            settings.notesOverrides?.length === 0)
+        ) {
           delete next[key];
           changed = true;
         }
@@ -152,16 +157,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       key: K,
       value: UserSettings[K],
     ): Promise<boolean> => {
-      setOptimisticSettings((current) => ({ ...current, [key]: value }));
+      // Choosing a new global notes default resets earlier manual choices.
+      const updates: Partial<UserSettings> = {
+        [key]: value,
+        ...(key === 'notesDefaultOpen' ? { notesOverrides: [] } : {}),
+      };
+      setOptimisticSettings((current) => ({ ...current, ...updates }));
 
       try {
-        await indexedDbStorage.settings.update({ [key]: value });
+        await indexedDbStorage.settings.update(updates);
         return true;
       } catch (error) {
         setOptimisticSettings((current) => {
           if (current[key] !== value) return current;
           const next = { ...current };
-          delete next[key];
+          for (const updatedKey of Object.keys(updates) as Array<
+            keyof UserSettings
+          >) {
+            if (current[updatedKey] === updates[updatedKey])
+              delete next[updatedKey];
+          }
           return next;
         });
         reportError('SettingsProvider.setSetting', error);
