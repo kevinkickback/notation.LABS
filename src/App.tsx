@@ -5,6 +5,7 @@ import { ComboView } from '@/components/combo/ComboView';
 import { GameLibrary } from '@/components/game/GameLibrary';
 import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
 import { Header } from '@/components/header/Header';
+import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoadingOverlay } from '@/components/workbench/AppLoadingOverlay';
 import {
@@ -109,7 +110,7 @@ function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div
-        className="app-workspace"
+        className="app-workspace min-h-screen flex flex-col"
         inert={workspaceBlocked}
         aria-hidden={workspaceBlocked || undefined}
       >
@@ -122,7 +123,7 @@ function App() {
             />
 
             <main
-              className="container mx-auto px-4 py-8"
+              className="container mx-auto px-4 py-8 flex-1"
               aria-busy={!pageIsCurrent}
               inert={!pageIsCurrent}
             >
@@ -144,6 +145,9 @@ function App() {
               )}
             </main>
 
+            <footer className="workspace-footer">
+              <WorkspaceStatus />
+            </footer>
             <Toaster />
           </>
         )}

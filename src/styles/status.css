@@ -1,0 +1,66 @@
+/* The footer keeps update state visible without changing the main workspace. */
+.workspace-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 5px 16px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+.workspace-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.workspace-version {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.update-status {
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.update-status::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--accent-color, #3b82f6);
+  vertical-align: middle;
+}
+.update-status[data-attention="true"] {
+  color: var(--foreground);
+  cursor: pointer;
+}
+.update-status[data-attention="true"]:hover {
+  text-decoration: underline;
+}
+.update-status[data-state="current"]::before {
+  background: #22c55e;
+}
+.update-status[data-state="error"]::before {
+  background: var(--destructive);
+}
+.update-status[data-state="offline"]::before {
+  background: var(--muted-foreground);
+}
+:root:not(.dark) .update-status[data-state="current"]::before {
+  background: #15803d;
+}
+.update-status:focus-visible {
+  outline: 2px solid var(--accent-color, #3b82f6);
+  outline-offset: 2px;
+}

@@ -1,9 +1,11 @@
 import {
   createContext,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { toast } from 'sonner';
@@ -18,6 +20,7 @@ import type {
 
 interface UpdaterController {
   status: UpdateStatus;
+  knownUpdate: UpdateStatus | null;
   availabilityEventId: number;
   checkForUpdate: () => Promise<UpdateStatus>;
   downloadUpdate: () => Promise<UpdateIPCResponse<null>>;
@@ -45,6 +48,7 @@ const UNAVAILABLE_RESPONSE: UpdateIPCResponse<null> = {
 
 const UpdaterContext = createContext<UpdaterController>({
   status: { status: 'idle' },
+  knownUpdate: null,
   availabilityEventId: 0,
   checkForUpdate: async () => ({
     status: 'error',
@@ -61,7 +65,37 @@ const UpdaterContext = createContext<UpdaterController>({
 
 export function UpdaterProvider({ children }: { children: ReactNode }) {
   const settings = useSettings();
-  const [status, setStatus] = useState<UpdateStatus>({ status: 'idle' });
+  const [{ status, knownUpdate }, setUpdateState] = useState<{
+    status: UpdateStatus;
+    knownUpdate: UpdateStatus | null;
+  }>({ status: { status: 'idle' }, knownUpdate: null });
+  const statusRevision = useRef(0);
+  const metadataRevision = useRef(0);
+  // Keep confirmed metadata separately from transient checks/errors, atomically
+  // with each event so batched events cannot discard a known update.
+  const setStatus = useCallback(
+    (
+      next: SetStateAction<UpdateStatus>,
+      confirmsMetadata = typeof next !== 'function' &&
+        ['available', 'downloaded', 'not-available'].includes(next.status),
+    ) => {
+      statusRevision.current += 1;
+      if (confirmsMetadata) metadataRevision.current += 1;
+      setUpdateState((current) => {
+        const status = typeof next === 'function' ? next(current.status) : next;
+        const knownUpdate =
+          status.status === 'available'
+            ? status
+            : status.status === 'downloaded'
+              ? { ...current.knownUpdate, ...status }
+              : status.status === 'not-available'
+                ? null
+                : current.knownUpdate;
+        return { status, knownUpdate };
+      });
+    },
+    [],
+  );
   const [availabilityEventId, setAvailabilityEventId] = useState(0);
   const [changelogPresentation, setChangelogPresentation] =
     useState<ChangelogPresentation | null>(null);
@@ -70,10 +104,33 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) return;
+    let active = true;
+    const initialStatusRevision = statusRevision.current;
+    const initialMetadataRevision = metadataRevision.current;
 
     void api
       .getUpdateStatus()
-      .then(setStatus)
+      .then((initialStatus) => {
+        if (!active) return;
+        if (statusRevision.current === initialStatusRevision) {
+          setStatus(initialStatus);
+        } else if (
+          metadataRevision.current === initialMetadataRevision &&
+          ['available', 'downloaded'].includes(initialStatus.status)
+        ) {
+          // An older snapshot may still carry the only confirmed metadata.
+          // Preserve newer live status, but never override a newer result.
+          metadataRevision.current += 1;
+          setUpdateState((current) =>
+            current.knownUpdate
+              ? current
+              : {
+                  ...current,
+                  knownUpdate: initialStatus,
+                },
+          );
+        }
+      })
       .catch((error) => reportError('UpdaterProvider.getStatus', error));
 
     const unsubscribers = [
@@ -100,12 +157,15 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
         })),
       ),
       api.onUpdateDownloaded((data) =>
-        setStatus((current) => ({
-          ...current,
-          status: 'downloaded',
-          version: data.version,
-          progress: undefined,
-        })),
+        setStatus(
+          (current) => ({
+            ...current,
+            status: 'downloaded',
+            version: data.version,
+            progress: undefined,
+          }),
+          true,
+        ),
       ),
       api.onUpdateCancelled(() =>
         setStatus((current) => ({
@@ -117,9 +177,10 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     ];
 
     return () => {
+      active = false;
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
-  }, []);
+  }, [setStatus]);
 
   useEffect(() => {
     const setAutoCheck = window.electronAPI?.setAutoCheck;
@@ -150,12 +211,34 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
           };
     setStatus(nextStatus);
     return nextStatus;
-  }, []);
+  }, [setStatus]);
 
   const downloadUpdate = useCallback(async () => {
     const download = window.electronAPI?.downloadUpdate;
     if (!download) return UNAVAILABLE_RESPONSE;
-    const result = await download();
+    setStatus((current) => ({
+      ...knownUpdate,
+      ...current,
+      version: current.version ?? knownUpdate?.version,
+      isPortable: current.isPortable ?? knownUpdate?.isPortable,
+      status:
+        (current.isPortable ?? knownUpdate?.isPortable)
+          ? 'available'
+          : 'downloading',
+      error: undefined,
+      progress: undefined,
+    }));
+    let result: UpdateIPCResponse<null>;
+    try {
+      result = await download();
+    } catch (error) {
+      reportError('UpdaterProvider.downloadUpdate', error);
+      result = {
+        success: false,
+        data: null,
+        error: 'Could not start the update.',
+      };
+    }
     if (!result.success) {
       setStatus((current) => ({
         ...current,
@@ -164,7 +247,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       }));
     }
     return result;
-  }, []);
+  }, [knownUpdate, setStatus]);
 
   const cancelUpdate = useCallback(() => {
     const cancel = window.electronAPI?.cancelUpdate;
@@ -197,7 +280,14 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startPresentedDownload = useCallback(async () => {
+    if (!changelogPresentation?.installable) return;
     const isPortable = changelogPresentation?.isPortable ?? status.isPortable;
+    setStatus({
+      status: isPortable ? 'available' : 'downloading',
+      version: changelogPresentation.version,
+      changelog: changelogPresentation.changelog ?? undefined,
+      isPortable,
+    });
     setChangelogPresentation(null);
     if (!isPortable) setProgressOpen(true);
     try {
@@ -211,19 +301,23 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       reportError('UpdaterProvider.downloadUpdate', error);
       toast.error('Could not start the update.');
     }
-  }, [changelogPresentation?.isPortable, downloadUpdate, status.isPortable]);
+  }, [changelogPresentation, downloadUpdate, status.isPortable, setStatus]);
 
-  const handleProgressOpenChange = useCallback((open: boolean) => {
-    setProgressOpen(open);
-    if (!open) setStatus({ status: 'idle' });
-  }, []);
+  const handleProgressOpenChange = useCallback(
+    (open: boolean) => {
+      setProgressOpen(open);
+      if (!open) setStatus({ status: 'idle' });
+    },
+    [setStatus],
+  );
 
-  const reset = useCallback(() => setStatus({ status: 'idle' }), []);
+  const reset = useCallback(() => setStatus({ status: 'idle' }), [setStatus]);
 
   return (
     <UpdaterContext.Provider
       value={{
         status,
+        knownUpdate,
         availabilityEventId,
         checkForUpdate,
         downloadUpdate,
