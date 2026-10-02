@@ -8,6 +8,7 @@ import {
   PlusIcon,
   SquaresFourIcon,
 } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ const SORT_LABELS: Record<CharacterSort, string> = {
 };
 
 interface CharacterViewToolbarProps {
+  leadingAction?: ReactNode;
   filterSearch: string;
   onFilterSearchChange: (value: string) => void;
   sortBy: CharacterSort;
@@ -41,6 +43,7 @@ interface CharacterViewToolbarProps {
 }
 
 export function CharacterViewToolbar({
+  leadingAction,
   filterSearch,
   onFilterSearchChange,
   sortBy,
@@ -57,6 +60,7 @@ export function CharacterViewToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 min-w-0">
+      {leadingAction}
       {/* Search */}
       <div className="relative flex items-center">
         <MagnifyingGlassIcon className="absolute left-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />

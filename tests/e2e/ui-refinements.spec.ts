@@ -60,31 +60,113 @@ test('gives both collections equal widths and a visible change at every slider s
   expect(await card(page, 'Landscape fixture').evaluate(element => element.clientWidth)).toBeLessThanOrEqual(await grid.evaluate(element => element.clientWidth));
 });
 
-test('applies Notes Open by Default to Character Info and remembers new manual choices', async ({ page }) => {
+async function waitForNotebookChoice(page: Page, kind: 'game' | 'character', name: string, isOpen: boolean) {
+  await expect.poll(() => page.evaluate(async ({ kind, name }) => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const entities = kind === 'game' ? await indexedDbStorage.games.getAll() : await indexedDbStorage.characters.getAll();
+    const entity = entities.find(item => item.name === name);
+    const settings = await indexedDbStorage.settings.get();
+    return entity ? settings.notebookOpenPages?.includes(entity.id) : undefined;
+  }, { kind, name })).toBe(isOpen);
+}
+
+test('remembers each game and character independently and removes the default-open setting', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await expect(settings.getByRole('switch', { name: 'Notes Open by Default', exact: true })).toHaveCount(0);
+  await expect(settings.getByText('Notes Open by Default', { exact: true })).toHaveCount(0);
+  await settings.getByRole('button', { name: 'Done', exact: true }).click();
   await page.locator('h3', { hasText: 'Size fixture' }).click();
+  const gameToggle = page.getByRole('button', { name: 'Notes', exact: true });
+  await expect(gameToggle).toHaveAttribute('aria-expanded', 'false');
+  await gameToggle.click();
+  await waitForNotebookChoice(page, 'game', 'Size fixture', true);
   await page.locator('h3', { hasText: 'Landscape fixture' }).click();
-  const info = page.getByRole('button', { name: /Character Info/ });
-  await expect(info).toHaveAttribute('aria-expanded', 'false');
-  await info.click();
-  await expect(info).toHaveAttribute('aria-expanded', 'true');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('switch', { name: 'Notes Open by Default', exact: true }).click();
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(info).toHaveAttribute('aria-expanded', 'true');
+  const characterToggle = page.getByRole('button', { name: 'Notes & Resources', exact: true });
+  await expect(characterToggle).toHaveAttribute('aria-expanded', 'false');
+  await characterToggle.click();
   await expect(page.getByText('Character strategy', { exact: true })).toBeVisible();
-  await info.click();
-  await expect(info).toHaveAttribute('aria-expanded', 'false');
+  await waitForNotebookChoice(page, 'character', 'Landscape fixture', true);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Notes', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(gameToggle).toHaveAttribute('aria-expanded', 'true');
   await page.locator('h3', { hasText: 'Landscape fixture' }).click();
-  await expect(info).toHaveAttribute('aria-expanded', 'false');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('switch', { name: 'Notes Open by Default', exact: true }).click();
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(info).toHaveAttribute('aria-expanded', 'false');
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Notes', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  await expect(characterToggle).toHaveAttribute('aria-expanded', 'true');
+  await characterToggle.click();
+  await waitForNotebookChoice(page, 'character', 'Landscape fixture', false);
+  await page.reload();
+  await page.locator('h3', { hasText: 'Size fixture' }).click();
+  await expect(gameToggle).toHaveAttribute('aria-expanded', 'true');
+  await page.locator('h3', { hasText: 'Landscape fixture' }).click();
+  await expect(characterToggle).toHaveAttribute('aria-expanded', 'false');
 });
+
+for (const width of [1440, 800]) {
+  test(`remembers resource-only and empty page choices at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(async () => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      const game = (await indexedDbStorage.games.getAll()).find(item => item.name === 'Size fixture');
+      if (!game) throw new Error('The game fixture is missing');
+      const characterId = await indexedDbStorage.characters.add({ gameId: game.id, name: 'A reference fixture', links: [{ id: 'guide', url: 'https://example.com/guide', label: 'Practice guide' }] });
+      await indexedDbStorage.combos.add({ characterId, name: 'Reference combo', notation: 'A', parsedNotation: [], tags: [] });
+      await indexedDbStorage.games.add({ name: 'Empty game fixture', buttonLayout: ['A'] });
+    });
+    await page.locator('h3', { hasText: 'Size fixture' }).click();
+    await expect(page.getByRole('button', { name: 'Notes', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await page.locator('h3', { hasText: 'A reference fixture' }).click();
+    const toggle = page.getByRole('button', { name: 'Notes & Resources', exact: true });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await page.getByRole('tab', { name: /^Resources/ }).click();
+    if (width >= 1100) await page.getByRole('button', { name: 'Dock', exact: true }).click();
+    const surfaceFor = (name: string) => width >= 1100
+      ? page.getByRole('complementary', { name })
+      : page.getByRole('dialog', { name });
+    const surface = surfaceFor('A reference fixture Notebook');
+    await expect(surface.getByRole('link', { name: 'Open Practice guide in a new tab', exact: true })).toBeVisible();
+    await waitForNotebookChoice(page, 'character', 'A reference fixture', true);
+    await page.reload();
+    await page.locator('h3', { hasText: 'Size fixture' }).click();
+    await expect(page.getByRole('button', { name: 'Notes', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await page.locator('h3', { hasText: 'A reference fixture' }).click();
+    await expect(surface).toBeVisible();
+    await surface.getByRole('tab', { name: /^Resources/ }).click();
+    await expect(surface.getByRole('link', { name: 'Open Practice guide in a new tab', exact: true })).toBeVisible();
+    await surface.getByRole('button', { name: width >= 1100 ? 'Close notebook' : 'Close', exact: true }).click();
+    await waitForNotebookChoice(page, 'character', 'A reference fixture', false);
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.locator('h3', { hasText: 'A reference fixture' }).click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.locator('h3', { hasText: 'Portrait fixture' }).click();
+    const emptyCharacter = surfaceFor('Portrait fixture Notebook');
+    await expect(emptyCharacter).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Notes & Resources', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Edit Note', exact: true }).click();
+    await expect(emptyCharacter.getByRole('textbox', { name: 'Note', exact: true })).toHaveValue('');
+    await waitForNotebookChoice(page, 'character', 'Portrait fixture', true);
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.locator('h3', { hasText: 'Portrait fixture' }).click();
+    await expect(emptyCharacter).toBeVisible();
+    await emptyCharacter.getByRole('button', { name: width >= 1100 ? 'Close notebook' : 'Close', exact: true }).click();
+    await waitForNotebookChoice(page, 'character', 'Portrait fixture', false);
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.locator('h3', { hasText: 'Empty game fixture' }).click();
+    const emptyGame = surfaceFor('Empty game fixture Notebook');
+    const gameToggle = page.getByRole('button', { name: 'Notes', exact: true });
+    await expect(gameToggle).toHaveCount(1);
+    await expect(gameToggle).toHaveAttribute('aria-expanded', 'false');
+    await gameToggle.click();
+    await expect(emptyGame).toBeVisible();
+    await waitForNotebookChoice(page, 'game', 'Empty game fixture', true);
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.locator('h3', { hasText: 'Empty game fixture' }).click();
+    await expect(emptyGame).toBeVisible();
+  });
+}
 
 async function checkDivider(editor: Locator) {
   const left = editor.locator('.entity-artwork');

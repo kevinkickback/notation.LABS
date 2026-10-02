@@ -8,6 +8,48 @@ import type { Game, NotationColors, UserSettings } from '@/lib/types';
 import { db } from './database';
 import { toUniqueIds } from './repositoryUtils';
 
+export async function normalizeNotebookSettings(
+  settings: UserSettings,
+): Promise<UserSettings> {
+  const { notesDefaultOpen, notesOverrides = [], ...current } = settings;
+  let openPages = current.notebookOpenPages;
+  if (openPages === undefined) {
+    if (notesDefaultOpen) {
+      const [games, characters] = await Promise.all([
+        db.games.toCollection().primaryKeys(),
+        db.characters.toCollection().primaryKeys(),
+      ]);
+      const closedPages = new Set(notesOverrides);
+      openPages = [...games, ...characters].filter(
+        (id) => !closedPages.has(id),
+      );
+    } else {
+      openPages = notesOverrides;
+    }
+  }
+  return { ...current, notebookOpenPages: toUniqueIds(openPages) };
+}
+
+async function updateNotebookOpenPages(
+  update: (openPages: string[]) => string[],
+): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.settings, db.games, db.characters],
+    async () => {
+      const saved = await db.settings.get(1);
+      const current = saved
+        ? await normalizeNotebookSettings(saved)
+        : DEFAULT_SETTINGS;
+      await db.settings.put({
+        ...current,
+        id: 1,
+        notebookOpenPages: toUniqueIds(update(current.notebookOpenPages ?? [])),
+      });
+    },
+  );
+}
+
 const OKLCH_TO_HEX: Record<string, string> = {
   'oklch(0.85 0.05 265)': '#bdceef',
   'oklch(0.55 0.02 265)': '#6c727e',
@@ -114,7 +156,7 @@ export const settingsRepository = {
     const { id: _id, ...rest } = settings;
     // Merge new defaults so existing settings rows gain newly introduced
     // preferences without requiring a schema-version migration.
-    return { ...DEFAULT_SETTINGS, ...rest };
+    return { ...DEFAULT_SETTINGS, ...(await normalizeNotebookSettings(rest)) };
   },
   init: async (options?: {
     onReparseStart?: () => void;
@@ -124,6 +166,15 @@ export const settingsRepository = {
     if (!settings) {
       await db.settings.add({ id: 1, ...DEFAULT_SETTINGS });
       settings = { id: 1, ...DEFAULT_SETTINGS };
+    }
+
+    if (
+      settings.notebookOpenPages === undefined ||
+      settings.notesDefaultOpen !== undefined ||
+      settings.notesOverrides !== undefined
+    ) {
+      settings = { ...(await normalizeNotebookSettings(settings)), id: 1 };
+      await db.settings.put(settings);
     }
 
     const pendingSettingsUpdates: Partial<UserSettings> = {};
@@ -155,47 +206,18 @@ export const settingsRepository = {
       await db.settings.update(1, updates);
     }
   },
-  getNotesOverrides: async (): Promise<string[]> => {
-    const settings = await db.settings.get(1);
-    return settings?.notesOverrides ?? [];
+  setNotebookOpen: async (entityId: string, isOpen: boolean): Promise<void> => {
+    await updateNotebookOpenPages((pages) =>
+      isOpen ? [...pages, entityId] : pages.filter((id) => id !== entityId),
+    );
   },
-  setNotesOverrides: async (entityIds: string[]): Promise<void> => {
-    await settingsRepository.update({ notesOverrides: toUniqueIds(entityIds) });
-  },
-  setNotesOverride: async (
-    entityId: string,
-    isOverride: boolean,
-  ): Promise<void> => {
-    await db.transaction('rw', db.settings, async () => {
-      const settings = await db.settings.get(1);
-      const currentOverrides = settings?.notesOverrides ?? [];
-      const nextOverrides = isOverride
-        ? toUniqueIds([...currentOverrides, entityId])
-        : currentOverrides.filter((id) => id !== entityId);
-
-      if (!settings) {
-        await db.settings.add({
-          id: 1,
-          ...DEFAULT_SETTINGS,
-          notesOverrides: nextOverrides,
-        });
-      } else if (nextOverrides.length !== currentOverrides.length) {
-        await db.settings.update(1, { notesOverrides: nextOverrides });
-      }
-    });
-  },
-  removeNotesOverride: async (entityId: string): Promise<void> => {
-    await settingsRepository.removeNotesOverrides([entityId]);
-  },
-  removeNotesOverrides: async (entityIds: string[]): Promise<void> => {
+  removeNotebookOpenPages: async (entityIds: string[]): Promise<void> => {
     const uniqueIds = toUniqueIds(entityIds);
     if (uniqueIds.length === 0) return;
 
-    const currentOverrides = await settingsRepository.getNotesOverrides();
     const idsToRemove = new Set(uniqueIds);
-    const nextOverrides = currentOverrides.filter((id) => !idsToRemove.has(id));
-    if (nextOverrides.length !== currentOverrides.length) {
-      await settingsRepository.setNotesOverrides(nextOverrides);
-    }
+    await updateNotebookOpenPages((pages) =>
+      pages.filter((id) => !idsToRemove.has(id)),
+    );
   },
 };

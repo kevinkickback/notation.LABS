@@ -2,6 +2,7 @@ import type { BackupImportPlan } from '@/lib/backup/importPipeline';
 import { db } from './database';
 import {
   markImportedCombosForReparse,
+  normalizeNotebookSettings,
   settingsRepository,
 } from './settingsRepository';
 
@@ -15,7 +16,11 @@ export async function applyBackupImportPlan(
       await db.games.bulkPut(plan.games);
       await db.characters.bulkPut(plan.characters);
       await db.combos.bulkPut(plan.combos);
-      if (plan.settings) await db.settings.put({ id: 1, ...plan.settings });
+      if (plan.settings)
+        await db.settings.put({
+          ...(await normalizeNotebookSettings(plan.settings)),
+          id: 1,
+        });
       await db.demoVideos.bulkPut(plan.videos);
       if (plan.combos.length > 0) await markImportedCombosForReparse();
     },

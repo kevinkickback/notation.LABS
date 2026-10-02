@@ -95,7 +95,7 @@ export const gameRepository = {
         await db.games.delete(id);
       },
     );
-    await settingsRepository.removeNotesOverrides([...characterIds, id]);
+    await settingsRepository.removeNotebookOpenPages([...characterIds, id]);
   },
   bulkDelete: async (ids: string[]) => {
     const uniqueIds = toUniqueIds(ids);
@@ -126,7 +126,7 @@ export const gameRepository = {
         await db.games.bulkDelete(uniqueIds);
       },
     );
-    await settingsRepository.removeNotesOverrides([
+    await settingsRepository.removeNotebookOpenPages([
       ...characterIds,
       ...uniqueIds,
     ]);

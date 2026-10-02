@@ -10,9 +10,9 @@ import {
 } from '@/context/SettingsContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
-const { settingsUpdateMock, notesOverrideMock, useLiveQueryMock } = vi.hoisted(() => ({
+const { settingsUpdateMock, notebookOpenMock, useLiveQueryMock } = vi.hoisted(() => ({
   settingsUpdateMock: vi.fn(),
-  notesOverrideMock: vi.fn(),
+  notebookOpenMock: vi.fn(),
   useLiveQueryMock: vi.fn(),
 }));
 const initMock = vi.fn();
@@ -40,7 +40,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
       init: (...args: unknown[]) => initMock(...args),
       get: (...args: unknown[]) => getMock(...args),
       update: (...args: unknown[]) => settingsUpdateMock(...args),
-      setNotesOverride: (...args: unknown[]) => notesOverrideMock(...args),
+      setNotebookOpen: (...args: unknown[]) => notebookOpenMock(...args),
     },
   },
 }));
@@ -61,7 +61,7 @@ describe('SettingsContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     settingsUpdateMock.mockResolvedValue(undefined);
-    notesOverrideMock.mockResolvedValue(undefined);
+    notebookOpenMock.mockResolvedValue(undefined);
     useLiveQueryMock.mockReturnValue({ data: DEFAULT_SETTINGS, error: null });
     getMock.mockResolvedValue(DEFAULT_SETTINGS);
     initMock.mockResolvedValue(undefined);
@@ -91,8 +91,8 @@ describe('SettingsContext', () => {
     const settings = useSettings();
     const { setSetting, setNotesPanelOpen } = useSettingsActions();
     return <>
-      <span>{String(settings.notesDefaultOpen)}</span>
-      <button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Default open</button>
+      <span>{String(settings.notebookDocked)}</span>
+      <button type="button" onClick={() => void setSetting('notebookDocked', true)}>Dock notebook</button>
       <button type="button" onClick={() => void setNotesPanelOpen('char-1', false)}>Close panel</button>
       <button type="button" onClick={() => void setNotesPanelOpen('char-1', true).catch(() => {})}>Open panel</button>
     </>;
@@ -297,85 +297,85 @@ describe('SettingsContext', () => {
     );
   });
 
-  it('resets notes overrides with the global default and rolls both back on failure', async () => {
-    const saved = { ...DEFAULT_SETTINGS, notesDefaultOpen: false, notesOverrides: ['char-1'] };
+  it('preserves page choices when a global docking change fails', async () => {
+    const saved = { ...DEFAULT_SETTINGS, notebookDocked: false, notebookOpenPages: ['char-1'] };
     useLiveQueryMock.mockReturnValue({ data: saved, error: null });
     let rejectWrite: (error: Error) => void = () => {};
     settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
     function Consumer() {
       const settings = useSettings();
       const { setSetting } = useSettingsActions();
-      return <><span>{JSON.stringify([settings.notesDefaultOpen, settings.notesOverrides])}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Open notes</button></>;
+      return <><span>{JSON.stringify([settings.notebookDocked, settings.notebookOpenPages])}</span><button type="button" onClick={() => void setSetting('notebookDocked', true)}>Dock notebook</button></>;
     }
     await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
-    fireEvent.click(screen.getByRole('button', { name: 'Open notes' }));
-    expect(screen.getByText('[true,[]]')).toBeTruthy();
-    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' }));
+    expect(screen.getByText('[true,["char-1"]]')).toBeTruthy();
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notebookDocked: true }));
     await act(async () => rejectWrite(new Error('write failed')));
     expect(screen.getByText('[false,["char-1"]]')).toBeTruthy();
   });
 
-  it('releases the optimistic override reset once saved, allowing new panel choices', async () => {
-    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesOverrides: ['char-1'] }, error: null });
+  it('allows live page choices to update after a saved docking preference', async () => {
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notebookOpenPages: ['char-1'] }, error: null });
     function Consumer() {
       const settings = useSettings();
       const { setSetting } = useSettingsActions();
-      return <><span>{JSON.stringify(settings.notesOverrides)}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Open notes</button></>;
+      return <><span>{JSON.stringify(settings.notebookOpenPages)}</span><button type="button" onClick={() => void setSetting('notebookDocked', true)}>Dock notebook</button></>;
     }
     const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Open notes' })));
-    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: [] }, appliedThrough: 1, error: null });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' })));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notebookDocked: true, notebookOpenPages: ['char-1'] }, appliedThrough: 1, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
-    expect(screen.getByText('[]')).toBeTruthy();
-    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-2'] }, appliedThrough: 1, error: null });
+    expect(screen.getByText('["char-1"]')).toBeTruthy();
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notebookDocked: true, notebookOpenPages: ['char-2'] }, appliedThrough: 1, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
     expect(screen.getByText('["char-2"]')).toBeTruthy();
   });
 
-  it('saves a later manual choice after a pending default reset', async () => {
+  it('saves a later page choice after a pending docking change', async () => {
     let finishDefault: () => void = () => {};
     settingsUpdateMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishDefault = resolve; }));
-    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: true });
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notebookDocked: true });
     await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
-    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' }));
     await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
-    expect(notesOverrideMock).not.toHaveBeenCalled();
+    expect(notebookOpenMock).not.toHaveBeenCalled();
     await act(async () => finishDefault());
-    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', true));
+    await waitFor(() => expect(notebookOpenMock).toHaveBeenCalledWith('char-1', false));
   });
 
-  it('saves a later default reset after a pending manual choice', async () => {
+  it('saves a later docking change after a pending page choice', async () => {
     let finishPanel: () => void = () => {};
-    notesOverrideMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishPanel = resolve; }));
+    notebookOpenMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishPanel = resolve; }));
     await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
-    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    await waitFor(() => expect(notebookOpenMock).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' }));
     expect(settingsUpdateMock).not.toHaveBeenCalled();
     await act(async () => finishPanel());
-    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notebookDocked: true }));
   });
 
-  it('resolves the manual open/closed intent against the saved default after a failed reset', async () => {
+  it('preserves a page choice after an earlier docking change fails', async () => {
     let failDefault: (error: Error) => void = () => {};
     settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { failDefault = reject; }));
-    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: false });
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notebookDocked: false });
     await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
-    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' }));
     await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
     await act(async () => failDefault(new Error('write failed')));
-    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', false));
+    await waitFor(() => expect(notebookOpenMock).toHaveBeenCalledWith('char-1', false));
     expect(screen.getByText('false')).toBeTruthy();
   });
 
   it('continues the settings queue after a failed manual panel write', async () => {
-    notesOverrideMock.mockRejectedValueOnce(new Error('panel write failed'));
+    notebookOpenMock.mockRejectedValueOnce(new Error('panel write failed'));
     await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
-    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' }));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notebookDocked: true }));
   });
 
   function CardSizeConsumer() {
@@ -411,18 +411,18 @@ describe('SettingsContext', () => {
     expect(screen.getByTestId('card-size').textContent).toBe('240');
   });
 
-  it('acknowledges a notes reset even when a later manual save supersedes its empty list', async () => {
-    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: true });
+  it('acknowledges docking while a later save updates remembered pages', async () => {
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notebookDocked: true });
     function Consumer() {
       const settings = useSettings();
       const { setSetting, setNotesPanelOpen } = useSettingsActions();
-      return <><span>{JSON.stringify([settings.notesDefaultOpen, settings.notesOverrides])}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Default open</button><button type="button" onClick={() => void setNotesPanelOpen('char-1', false)}>Close panel</button></>;
+      return <><span>{JSON.stringify([settings.notebookDocked, settings.notebookOpenPages])}</span><button type="button" onClick={() => void setSetting('notebookDocked', true)}>Dock notebook</button><button type="button" onClick={() => void setNotesPanelOpen('char-1', true)}>Open panel</button></>;
     }
     const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
-    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
-    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', true));
-    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-1'] }, appliedThrough: 2, error: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Dock notebook' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
+    await waitFor(() => expect(notebookOpenMock).toHaveBeenCalledWith('char-1', true));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notebookDocked: true, notebookOpenPages: ['char-1'] }, appliedThrough: 2, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
     expect(screen.getByText('[true,["char-1"]]')).toBeTruthy();
   });

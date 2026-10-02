@@ -13,10 +13,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import type { CharacterInfoCardRef } from '@/components/combo/CharacterInfoCard';
-import { CharacterInfoCard } from '@/components/combo/CharacterInfoCard';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ComboFilters } from '@/components/combo/ComboFilters';
 import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
 import { ComboSelectionToolbar } from '@/components/combo/ComboSelectionToolbar';
@@ -27,17 +24,20 @@ import { SortableComboCard } from '@/components/combo/SortableComboCard';
 import { VideoPlayerDialog } from '@/components/combo/VideoPlayerDialog';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
 import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
-import { EntityNoteDialog } from '@/components/shared/EntityNoteDialog';
+import {
+  EntityNotebook,
+  type EntityNotebookRef,
+  NotebookTriggerSlot,
+  NotebookWorkspace,
+} from '@/components/shared/EntityNotebook';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { useComboDelete } from '@/hooks/useComboDelete';
 import { useComboFilters } from '@/hooks/useComboFilters';
 import { useComboOperations } from '@/hooks/useComboOperations';
-import { useNotesOverride } from '@/hooks/useNotesOverride';
+import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import { useSelection } from '@/hooks/useSelection';
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
-import { updateCharacter } from '@/lib/application/characterCommands';
 import { reorderCombos } from '@/lib/application/comboCommands';
-import { reportError } from '@/lib/errors';
 import type { Character, Combo, DisplayMode, Game } from '@/lib/types';
 
 interface ComboViewProps {
@@ -49,11 +49,8 @@ interface ComboViewProps {
 export function ComboView({ game, character, combos }: ComboViewProps) {
   const settings = useSettings();
   const { setSetting } = useSettingsActions();
-  const characterNoteEditorId = useId();
   const displayMode = settings.displayMode;
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [noteDraft, setNoteDraft] = useState(character.notes || '');
 
   const filters = useComboFilters(combos);
   const selection = useSelection();
@@ -63,16 +60,10 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
   });
   const operations = useComboOperations();
 
-  const [showInfo, handleToggleInfo] = useNotesOverride(
-    character.id,
-    settings.notesDefaultOpen ?? false,
-  );
-  const infoCardRef = useRef<CharacterInfoCardRef>(null);
+  const [showInfo, handleToggleInfo] = useNotebookOpen(character.id);
+  const notebookRef = useRef<EntityNotebookRef>(null);
 
-  const handleAddResourceLink = useCallback(() => {
-    if (!showInfo) handleToggleInfo();
-    infoCardRef.current?.openAddLinkForm();
-  }, [showInfo, handleToggleInfo]);
+  const handleEditNote = useCallback(() => notebookRef.current?.editNote(), []);
 
   // Sync video size from settings
   useEffect(() => {
@@ -139,36 +130,14 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
     selection.clearSelection();
   }, [operations, selection]);
 
-  useEffect(() => {
-    setNoteDraft(character.notes || '');
-  }, [character.notes]);
-
-  const openNoteDialog = useCallback(() => {
-    setNoteDraft(character.notes || '');
-    setNoteDialogOpen(true);
-  }, [character.notes]);
-
-  const handleSaveNote = useCallback(async () => {
-    try {
-      await updateCharacter(character.id, {
-        notes: noteDraft.trim(),
-      });
-      toast.success('Note updated');
-      setNoteDialogOpen(false);
-    } catch (error) {
-      reportError('ComboView.handleSaveNote', error);
-      toast.error('Failed to update note');
-    }
-  }, [character.id, noteDraft]);
-
   return (
-    <div>
+    <NotebookWorkspace>
       {combos.length === 0 ? (
         <ComboViewEmptyState
           game={game}
           character={character}
           onAddCombo={() => operations.setDialogOpen(true)}
-          onEditNote={openNoteDialog}
+          onEditNote={handleEditNote}
         />
       ) : (
         <>
@@ -181,6 +150,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
             />
             {selection.isSelecting ? (
               <ComboSelectionToolbar
+                leadingAction={<NotebookTriggerSlot />}
                 selectedCount={selection.selectedIds.size}
                 onSelectAll={() =>
                   selection.selectAll(filters.filteredCombos.map((c) => c.id))
@@ -192,6 +162,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
               />
             ) : (
               <ComboViewToolbar
+                leadingAction={<NotebookTriggerSlot />}
                 displayMode={displayMode}
                 onDisplayModeChange={handleDisplayModeChange}
                 showFilters={filters.showFilters}
@@ -206,27 +177,27 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
                 }}
                 onAddCombo={() => operations.setDialogOpen(true)}
                 onOpenColorDialog={() => setColorDialogOpen(true)}
-                onAddResourceLink={handleAddResourceLink}
-                onEditNote={openNoteDialog}
-                showInfoCard={
-                  Boolean(character.notes?.trim()) ||
-                  (character.links?.length ?? 0) > 0
-                }
               />
             )}
           </div>
+        </>
+      )}
 
-          {/* Character info: notes + resource links */}
-          <CharacterInfoCard
-            ref={infoCardRef}
-            characterId={character.id}
-            notes={character.notes || ''}
-            links={character.links ?? []}
-            isOpen={showInfo}
-            onToggle={handleToggleInfo}
-            onEditNote={openNoteDialog}
-          />
+      <EntityNotebook
+        key={character.id}
+        ref={notebookRef}
+        kind="character"
+        entityId={character.id}
+        entityName={character.name}
+        notes={character.notes || ''}
+        links={character.links ?? []}
+        isOpen={showInfo}
+        onToggle={handleToggleInfo}
+        hideTrigger={combos.length === 0}
+      />
 
+      {combos.length > 0 && (
+        <>
           {/* Filter panel */}
           {filters.showFilters && (
             <ComboFilters
@@ -304,16 +275,6 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
         allTags={filters.allTags}
       />
 
-      <EntityNoteDialog
-        open={noteDialogOpen}
-        onOpenChange={setNoteDialogOpen}
-        editorId={characterNoteEditorId}
-        entityName={character.name}
-        value={noteDraft}
-        onValueChange={setNoteDraft}
-        onSave={() => void handleSaveNote()}
-      />
-
       <ButtonColorDialog
         open={colorDialogOpen}
         onOpenChange={setColorDialogOpen}
@@ -363,6 +324,6 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
           }
         }}
       />
-    </div>
+    </NotebookWorkspace>
   );
 }

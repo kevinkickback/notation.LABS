@@ -42,7 +42,7 @@ vi.mock('@/context/SettingsContext', () => ({
     videoPlayerSize: 'lg',
     gameCardSize: 180,
     characterCardSize: 180,
-    notesDefaultOpen: false,
+    notebookOpenPages: [],
   }),
   useSettingsActions: vi.fn().mockReturnValue({
     setSetting: setSettingMock,
@@ -53,8 +53,8 @@ vi.mock('@/hooks/useIsMobile', () => ({
   useIsMobile: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock('@/hooks/useNotesOverride', () => ({
-  useNotesOverride: vi.fn().mockReturnValue([false, vi.fn()]),
+vi.mock('@/hooks/useNotebookOpen', () => ({
+  useNotebookOpen: vi.fn().mockReturnValue([false, vi.fn()]),
 }));
 
 vi.mock('@/components/character/CharacterFormDialog', () => ({

@@ -2,53 +2,36 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { reportError } from '@/lib/errors';
 
-const EMPTY_OVERRIDES: string[] = [];
-
-function resolveShowNotes(
-  entityId: string,
-  defaultOpen: boolean,
-  overrides: string[],
-): boolean {
-  return overrides.includes(entityId) ? !defaultOpen : defaultOpen;
-}
+const EMPTY_PAGES: string[] = [];
 
 /**
- * Manages per-entity notes panel open/close state, persisted in IndexedDB
- * as an override list relative to the global `notesDefaultOpen` setting.
+ * Remembers each game or character's open/closed notebook state.
  */
-export function useNotesOverride(
-  entityId: string,
-  defaultOpen: boolean,
-): [boolean, () => void] {
+export function useNotebookOpen(entityId: string): [boolean, () => void] {
   const { setNotesPanelOpen } = useSettingsActions();
-  const { notesOverrides = EMPTY_OVERRIDES } = useSettings();
+  const { notebookOpenPages = EMPTY_PAGES } = useSettings();
   const [optimistic, setOptimistic] = useState<{
     entityId: string;
-    defaultOpen: boolean;
     isOpen: boolean;
     pending: boolean;
   } | null>(null);
-  const persistedOpen = resolveShowNotes(entityId, defaultOpen, notesOverrides);
+  const persistedOpen = notebookOpenPages.includes(entityId);
   const showNotes =
-    optimistic?.entityId === entityId && optimistic.defaultOpen === defaultOpen
-      ? optimistic.isOpen
-      : persistedOpen;
+    optimistic?.entityId === entityId ? optimistic.isOpen : persistedOpen;
 
   useEffect(() => {
     if (
       optimistic &&
       (optimistic.entityId !== entityId ||
-        optimistic.defaultOpen !== defaultOpen ||
         (!optimistic.pending && persistedOpen === optimistic.isOpen))
     ) {
       setOptimistic(null);
     }
-  }, [entityId, defaultOpen, persistedOpen, optimistic]);
+  }, [entityId, persistedOpen, optimistic]);
 
   const handleToggle = useCallback(() => {
     const next = {
       entityId,
-      defaultOpen,
       isOpen: !showNotes,
       pending: true,
     };
@@ -62,10 +45,10 @@ export function useNotesOverride(
         );
       } catch (error) {
         setOptimistic((current) => (current === next ? null : current));
-        reportError('useNotesOverride.handleToggle', error);
+        reportError('useNotebookOpen.handleToggle', error);
       }
     })();
-  }, [defaultOpen, entityId, setNotesPanelOpen, showNotes]);
+  }, [entityId, setNotesPanelOpen, showNotes]);
 
   return [showNotes, handleToggle];
 }

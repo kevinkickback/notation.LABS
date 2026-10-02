@@ -1,8 +1,12 @@
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
 import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
-import { EntityNoteDialog } from '@/components/shared/EntityNoteDialog';
+import {
+  EntityNotebook,
+  NotebookTriggerSlot,
+  NotebookWorkspace,
+} from '@/components/shared/EntityNotebook';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import { useSettings } from '@/context/SettingsContext';
 import { useCharacterComboStatistics } from '@/hooks/useCharacterComboStatistics';
@@ -11,10 +15,9 @@ import { useCharacterFilters } from '@/hooks/useCharacterFilters';
 import { useCharacterOperations } from '@/hooks/useCharacterOperations';
 import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useNotesOverride } from '@/hooks/useNotesOverride';
+import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import { useSelection } from '@/hooks/useSelection';
 import { setCharacterFavorite } from '@/lib/application/characterCommands';
-import { updateGame } from '@/lib/application/gameCommands';
 import { reportError } from '@/lib/errors';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
@@ -23,7 +26,6 @@ import { CharacterGridCard } from './CharacterGridCard';
 import { CharacterListCard } from './CharacterListCard';
 import { CharacterViewEmptyState } from './CharacterViewEmptyState';
 import { CharacterViewHeader } from './CharacterViewHeader';
-import { CharacterViewNotes } from './CharacterViewNotes';
 import { CharacterViewToolbar } from './CharacterViewToolbar';
 
 interface CharacterViewProps {
@@ -36,21 +38,15 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
   const { setSelectedCharacter } = useAppStore();
   const settings = useSettings();
 
-  const gameNoteEditorId = useId();
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [noteDraft, setNoteDraft] = useState(game.notes || '');
 
   const selection = useSelection();
   const viewMode = useCharacterViewMode(settings.characterCardSize);
   const deleteState = useCharacterDelete();
   const operations = useCharacterOperations();
 
-  const [showNotes, handleToggleNotes] = useNotesOverride(
-    game.id,
-    settings.notesDefaultOpen ?? false,
-  );
+  const [showNotes, handleToggleNotes] = useNotebookOpen(game.id);
 
   const combos = useCharacterComboStatistics(
     characters.map((character) => character.id),
@@ -137,27 +133,18 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     }
   };
 
-  const openNoteDialog = useCallback(() => {
-    setNoteDraft(game.notes || '');
-    setNoteDialogOpen(true);
-  }, [game.notes]);
-
-  const handleSaveNote = useCallback(async () => {
-    try {
-      await updateGame(game.id, {
-        notes: noteDraft.trim(),
-      });
-      toast.success('Note updated');
-      setNoteDialogOpen(false);
-    } catch (error) {
-      reportError('CharacterView.handleSaveNote', error);
-      toast.error('Failed to update note');
-    }
-  }, [game.id, noteDraft]);
-
   if (characters.length === 0) {
     return (
-      <>
+      <NotebookWorkspace>
+        <EntityNotebook
+          key={game.id}
+          kind="game"
+          entityId={game.id}
+          entityName={game.name}
+          notes={game.notes || ''}
+          isOpen={showNotes}
+          onToggle={handleToggleNotes}
+        />
         <CharacterViewEmptyState
           game={game}
           onAddCharacter={operations.openAddDialog}
@@ -168,16 +155,17 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
           editingCharacter={operations.editingCharacter}
           game={game}
         />
-      </>
+      </NotebookWorkspace>
     );
   }
 
   return (
-    <div>
+    <NotebookWorkspace>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
         <CharacterViewHeader game={game} />
         {selection.isSelecting ? (
           <SelectionToolbar
+            leadingAction={<NotebookTriggerSlot />}
             selectedCount={selection.selectedIds.size}
             onSelectAll={() =>
               selection.selectAll(filters.filteredAndSorted.map((c) => c.id))
@@ -190,6 +178,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
           />
         ) : (
           <CharacterViewToolbar
+            leadingAction={<NotebookTriggerSlot />}
             filterSearch={filters.filterSearch}
             onFilterSearchChange={filters.setFilterSearch}
             sortBy={filters.sortBy}
@@ -205,11 +194,14 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         )}
       </div>
 
-      <CharacterViewNotes
+      <EntityNotebook
+        key={game.id}
+        kind="game"
+        entityId={game.id}
+        entityName={game.name}
         notes={game.notes || ''}
         isOpen={showNotes}
         onToggle={handleToggleNotes}
-        onEditNote={openNoteDialog}
       />
 
       <div
@@ -332,16 +324,6 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         onOpenChange={setColorDialogOpen}
         game={game}
       />
-
-      <EntityNoteDialog
-        open={noteDialogOpen}
-        onOpenChange={setNoteDialogOpen}
-        editorId={gameNoteEditorId}
-        entityName={game.name}
-        value={noteDraft}
-        onValueChange={setNoteDraft}
-        onSave={() => void handleSaveNote()}
-      />
-    </div>
+    </NotebookWorkspace>
   );
 }

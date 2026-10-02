@@ -44,7 +44,7 @@ export const characterRepository = {
         await db.characters.delete(id);
       },
     );
-    await settingsRepository.removeNotesOverride(id);
+    await settingsRepository.removeNotebookOpenPages([id]);
   },
   bulkDelete: async (ids: string[]) => {
     const uniqueIds = toUniqueIds(ids);
@@ -64,6 +64,6 @@ export const characterRepository = {
         await db.characters.bulkDelete(uniqueIds);
       },
     );
-    await settingsRepository.removeNotesOverrides(uniqueIds);
+    await settingsRepository.removeNotebookOpenPages(uniqueIds);
   },
 };
