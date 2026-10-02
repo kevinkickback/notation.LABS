@@ -27,8 +27,12 @@ for (const target of ['settings', 'library'] as const) {
     await expect(page.locator('.app-workspace')).toHaveAttribute('inert', '');
     await expect(page.getByRole('button', { name: 'Export data', exact: true })).toHaveCount(0);
     await expect(page.getByText('Application Error', { exact: true })).toHaveCount(0);
-    await page.evaluate(() => { (window as unknown as { startupProbe: { fail: boolean } }).startupProbe.fail = false; });
-    await page.getByRole('button', { name: 'Try again', exact: true }).click();
+    // Release the injected failure and retry in one turn: settings hydration can
+    // otherwise re-run a library read between releasing it and clicking Retry.
+    await page.getByRole('button', { name: 'Try again', exact: true }).evaluate(button => {
+      (window as unknown as { startupProbe: { fail: boolean } }).startupProbe.fail = false;
+      (button as HTMLButtonElement).click();
+    });
     await expect(page.getByTestId('app-loading-overlay')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Export data', exact: true })).toBeVisible();
     await expect(page.locator('.app-workspace')).not.toHaveAttribute('inert');
