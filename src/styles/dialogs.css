@@ -133,35 +133,10 @@
 .dialog-section {
   min-width: 0;
 }
-.game-form-dialog .dialog-editor-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
-}
-.game-form-dialog .dialog-section:first-child {
-  container: game-profile / inline-size;
-}
-@container game-profile (max-width: 335px) {
-  .game-artwork-editor {
-    flex-direction: column;
-  }
-  .game-artwork-editor > div:first-child {
-    align-self: center;
-  }
-}
 .dialog-section-fields {
   display: grid;
   gap: 18px;
   min-width: 0;
-}
-.game-form-dialog .dialog-section:nth-child(2),
-.character-form-dialog .dialog-section:nth-child(2) {
-  align-self: stretch;
-  border-left: 1px solid var(--border);
-  padding-left: 28px;
-}
-.game-form-dialog .dialog-section:last-child {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
 }
 .combo-form-dialog .dialog-section:first-child {
   grid-column: 1;
@@ -192,9 +167,6 @@
       top: 0;
     }
   }
-}
-.character-form-dialog textarea {
-  min-height: 220px;
 }
 .dialog-search-toolbar {
   display: flex;

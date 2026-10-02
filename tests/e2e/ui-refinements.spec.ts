@@ -87,13 +87,14 @@ test('applies Notes Open by Default to Character Info and remembers new manual c
 });
 
 async function checkDivider(editor: Locator) {
-  const left = editor.locator('.dialog-section').nth(0);
-  const right = editor.locator('.dialog-section').nth(1);
+  const left = editor.locator('.entity-artwork');
+  const right = editor.locator('.entity-identity');
   const leftBox = await left.boundingBox();
   const rightBox = await right.boundingBox();
+  const notesBox = await editor.locator('.entity-notes').boundingBox();
   expect(rightBox?.y).toBeCloseTo(leftBox?.y ?? -1, 1);
-  expect(rightBox?.height).toBeGreaterThanOrEqual((leftBox?.height ?? 0) - 1);
-  await expect(right).toHaveCSS('border-left-width', '1px');
+  expect((leftBox?.y ?? 0) + (leftBox?.height ?? 0)).toBeGreaterThanOrEqual((notesBox?.y ?? 0) + (notesBox?.height ?? 0) - 1);
+  await expect(left).toHaveCSS('border-right-width', '1px');
 }
 
 test('extends game and character dividers for either taller column in add and edit forms', async ({ page }) => {

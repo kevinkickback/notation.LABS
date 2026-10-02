@@ -1,8 +1,15 @@
 import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
-export function FormSection({ children }: { children: ReactNode }) {
+export function FormSection({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="dialog-section">
+    <section className={cn('dialog-section', className)}>
       <div className="dialog-section-fields">{children}</div>
     </section>
   );

@@ -1,0 +1,245 @@
+/* Studio editors share a dedicated artwork rail and responsive detail column. */
+.entity-form-dialog[data-slot="dialog-content"] {
+  max-width: 960px;
+}
+.entity-game-context {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.entity-artwork-empty:focus-visible,
+.entity-artwork-remove:focus-visible {
+  outline: 2px solid var(--accent-color, #3b82f6);
+  outline-offset: 3px;
+}
+.entity-form-dialog .entity-editor {
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr;
+  align-items: start;
+  gap: 24px 32px;
+}
+.entity-editor > * {
+  min-width: 0;
+}
+.entity-identity {
+  grid-column: 2;
+  grid-row: 1;
+}
+.entity-artwork {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  padding-right: 24px;
+  border-right: 1px solid var(--border);
+  align-self: stretch;
+}
+.entity-editor .entity-notation,
+.entity-editor .entity-notes {
+  grid-column: 2;
+  padding: 0;
+  border: 0;
+}
+.entity-notation {
+  grid-row: 2;
+}
+.entity-notes {
+  grid-row: 3;
+}
+.character-form-dialog .entity-notes {
+  grid-row: 2 / span 2;
+}
+.entity-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+.entity-optional {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.entity-artwork-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.entity-artwork-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.entity-artwork-frame {
+  position: relative;
+  width: min(100%, 192px);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+.entity-artwork-frame[data-orientation="landscape"] {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+.entity-artwork-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--card) 60%, var(--background));
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+.entity-artwork-empty:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+.entity-artwork-empty:focus-visible {
+  outline-offset: -4px;
+}
+.entity-artwork-remove {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: rgb(0 0 0 / 70%);
+  color: white;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+.entity-artwork-remove:hover {
+  background: var(--destructive);
+}
+.entity-artwork-hint {
+  margin-top: 10px;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.entity-artwork-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.entity-artwork-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.entity-artwork-actions [data-slot="button"] {
+  width: 100%;
+  gap: 8px;
+}
+.entity-artwork .artwork-adjustments {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  animation: artwork-controls-enter 160ms ease-out;
+}
+.entity-form-dialog .entity-notes textarea {
+  min-height: 108px;
+}
+.character-form-dialog .entity-notes textarea {
+  min-height: 200px;
+}
+.entity-notation-options button {
+  min-height: 40px;
+}
+.entity-notation-options button span {
+  font-size: 0.8125rem;
+}
+@container dialog (max-width: 700px) {
+  .entity-form-dialog .entity-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .entity-editor > * {
+    width: 100%;
+  }
+  .entity-form-dialog .entity-artwork {
+    padding: 0 0 22px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+  }
+  .entity-form-dialog .entity-artwork-workspace {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
+  }
+  .entity-form-dialog .entity-artwork-frame {
+    width: 100%;
+  }
+  .entity-form-dialog .entity-artwork-actions {
+    flex-direction: column;
+  }
+  .entity-form-dialog .entity-artwork-actions [data-slot="button"] {
+    width: 100%;
+    flex: auto;
+  }
+  .entity-form-dialog .entity-notes textarea {
+    min-height: 108px;
+  }
+}
+@container dialog (max-width: 420px) {
+  .entity-form-dialog .entity-artwork-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .entity-form-dialog .entity-artwork-frame {
+    width: min(100%, 156px);
+  }
+  .entity-form-dialog .entity-artwork-frame[data-orientation="landscape"] {
+    width: min(100%, 240px);
+  }
+  .entity-artwork-tools {
+    width: 100%;
+  }
+  .entity-notation-options {
+    grid-template-columns: 1fr;
+  }
+  .entity-button-colors {
+    grid-template-columns: 1fr;
+  }
+}
+@keyframes artwork-controls-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entity-artwork .artwork-adjustments {
+    animation: none;
+  }
+  .entity-artwork-empty,
+  .entity-artwork-remove {
+    transition: none;
+  }
+}

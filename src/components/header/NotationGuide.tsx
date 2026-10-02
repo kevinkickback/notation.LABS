@@ -37,6 +37,7 @@ interface NotationGuideProps {
   showTrigger?: boolean;
   activeGame?: Game;
 }
+
 export function NotationGuide({
   open,
   onOpenChange,
@@ -120,7 +121,7 @@ export function NotationGuide({
               tabIndex={0}
               aria-label={`${definition.shortLabel} notation reference`}
             >
-              <p className="text-sm text-muted-foreground">
+              <p className="guide-profile-description text-sm text-muted-foreground">
                 {definition.description}
               </p>
               <DirectionsCard
@@ -204,7 +205,7 @@ function DirectionsCard({
         </p>
       </header>
       <div className="guide-directions-layout">
-        <div className="space-y-2">
+        <div className="guide-direction-board space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground">
             Directional Reference
           </h4>
@@ -236,7 +237,7 @@ function DirectionsCard({
             ))}
           </ul>
         </div>
-        <div className="space-y-2">
+        <div className="guide-direction-rules space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground">
             Parsing Rules
           </h4>
@@ -290,7 +291,9 @@ function GuideGrid({
                 onClick={() => onTry(entry.notation)}
               >
                 <code>{entry.notation}</code>
-                <span aria-hidden="true">↗</span>
+                <span className="guide-example-action" aria-hidden="true">
+                  Try ↗
+                </span>
               </button>
             ) : (
               <code>{entry.notation}</code>

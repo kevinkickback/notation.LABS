@@ -31,7 +31,7 @@ export function CoverImageControls({
   const fillId = useId();
 
   return (
-    <div className="flex flex-1 flex-col rounded-lg border border-border bg-card p-3">
+    <div className="artwork-adjustments flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Switch
@@ -52,13 +52,13 @@ export function CoverImageControls({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-6 shrink-0 border border-border bg-accent px-2 text-xs text-accent-foreground shadow-xs transition-colors hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
+          className="h-7 shrink-0 px-2 text-xs text-muted-foreground"
           onClick={onReset}
         >
           Reset
         </Button>
       </div>
-      <div className="mt-2 flex flex-1 flex-col justify-between gap-2">
+      <div className="flex flex-col gap-3">
         <AdjustmentSlider
           label="Zoom"
           min={100}
