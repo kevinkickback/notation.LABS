@@ -51,6 +51,10 @@ describe('Electron preload bridge', () => {
     await api.getAppVersion();
     await api.getCurrentChangelog();
     await api.saveFile(buffer, 'backup.zip', 'application/zip');
+    await api.beginBackup('backup.zip', 'application/zip');
+    await api.writeBackupChunk('session', buffer);
+    await api.finishBackup('session');
+    await api.abortBackup('session');
 
     expect(mocks.invoke.mock.calls).toEqual([
       ['update:check'],
@@ -62,6 +66,10 @@ describe('Electron preload bridge', () => {
       ['update:get-version'],
       ['update:get-current-changelog'],
       ['file:save', buffer, 'backup.zip', 'application/zip'],
+      ['backup:begin', 'backup.zip', 'application/zip'],
+      ['backup:write', 'session', buffer],
+      ['backup:finish', 'session'],
+      ['backup:abort', 'session'],
     ]);
   });
 

@@ -70,6 +70,7 @@ describe('UpdaterProvider', () => {
       onUpdateDownloaded: subscribe('downloaded'),
       onUpdateCancelled: subscribe('cancelled'),
       saveFile: vi.fn(),
+    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     };
   });
 

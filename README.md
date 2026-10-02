@@ -110,36 +110,6 @@ npm run dev:web
 The repository includes an `.nvmrc`; run `nvm use` before installing
 dependencies when using a compatible Node version manager.
 
-#### Local provider proxies
-
-During development, provider adapters use Vite proxies instead of deployed
-workers. `/api/igdb` forwards to `http://localhost:3002` and `/api/image`
-forwards to `http://localhost:3001`; Vite strips the `/api/...` prefix before
-forwarding. Start the corresponding local provider service when testing game
-cover or character image search.
-
-#### Development image search
-
-Development uses the same deployed image services as the installed app. Cover
-search goes through Vite's same-origin proxy because IGDB restricts browser
-origins; character search calls its worker directly. Both work without additional
-local services. To develop providers
-locally, set `VITE_USE_LOCAL_PROVIDERS=true` in `.env.local` and restart development.
-The opt-in Vite proxies send `/api/igdb` to `http://localhost:3002` and `/api/image`
-to `http://localhost:3001`, with those prefixes removed. Their targets can be
-overridden with `NOTATION_IGDB_PROXY_TARGET` and `NOTATION_IMAGE_PROXY_TARGET`.
-
-### Project layout
-
-- `electron/` contains the desktop main process, preload bridge, and updater integration.
-- `src/` contains the renderer application; larger UI areas are grouped by feature under
-  `src/components/`.
-- `src/assets/` separates attack-button artwork, motion artwork, and general images.
-- `tests/` mirrors application concerns and keeps Electron and browser integration tests in
-  dedicated subfolders.
-- `scripts/` contains build and release automation; `build/` contains electron-builder resources.
-- `docs/` and `changelogs/` contain maintained project and release documentation.
-
 ## 🕹️ Notation Reference
 
 | Notation | Meaning |
@@ -194,3 +164,17 @@ overridden with `NOTATION_IGDB_PROXY_TARGET` and `NOTATION_IMAGE_PROXY_TARGET`.
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0 or later — see the [LICENSE](LICENSE) file for details.
+
+### Large video backups
+
+Video exports keep the existing version 3 ZIP format. Export selection reads video
+IDs only. The archive reads one selected video at a time and writes in 256 KiB
+chunks, yielding between chunks so progress and cancellation remain responsive.
+Desktop exports choose a destination first, then stream through a narrow preload
+API to a temporary file beside the destination. Only successful completion replaces
+the destination; cancellation, write errors, or renderer termination clean up the
+partial file. IPC chunks own their buffers to avoid cloning a whole video.
+Browsers use the File System Access picker when available, or native Blob pieces
+for the download fallback. ZIP imports retain their existing 512 MiB safety limit;
+use export selections when a backup needs to fit that limit. The ZIP writer
+rejects archives at the classic ZIP format's 4 GiB limit with a readable error.

@@ -1,3 +1,7 @@
+import type {
+  BackupExportProgress,
+  BackupSink,
+} from '@/lib/backup/exportContract';
 import type { BackupFilter } from '@/lib/backup/selectionClosure';
 import {
   indexedDbStorage,
@@ -9,8 +13,17 @@ export function loadBackupSelectionData() {
     indexedDbStorage.games.getAll(),
     indexedDbStorage.characters.getAll(),
     indexedDbStorage.combos.getAll(),
-    indexedDbStorage.demoVideos.getAll(),
+    indexedDbStorage.demoVideos.getIds(),
   ]);
+}
+
+export function createBackupTo(
+  sink: BackupSink,
+  filter: BackupFilter,
+  onProgress?: (progress: BackupExportProgress) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return indexedDbStorage.exportTo(sink, filter, onProgress, signal);
 }
 
 export function createBackup(
