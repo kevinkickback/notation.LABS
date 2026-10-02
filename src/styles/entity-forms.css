@@ -217,14 +217,6 @@
   .entity-artwork-tools {
     width: 100%;
   }
-  .entity-form-dialog .entity-artwork-actions {
-    flex-direction: row;
-  }
-  .entity-form-dialog .entity-artwork-actions [data-slot="button"] {
-    width: auto;
-    flex: 1;
-    padding-inline: 8px;
-  }
   .entity-notation-options {
     grid-template-columns: 1fr;
   }
