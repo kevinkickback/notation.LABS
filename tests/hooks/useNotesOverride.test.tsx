@@ -128,4 +128,63 @@ describe('useNotesOverride', () => {
     await act(async () => rejectWrite(new Error('write failed')));
     expect(result.current[0]).toBe(false);
   });
+
+  it('keeps a pending toggle through cloned and unrelated settings refreshes until acknowledged', async () => {
+    let finishWrite: () => void = () => {};
+    setNotesOverrideMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishWrite = resolve; }));
+    const { result, rerender } = renderHook(() => useNotesOverride('char-1', false));
+    act(() => result.current[1]());
+    currentOverrides = [...currentOverrides];
+    rerender();
+    expect(result.current[0]).toBe(true);
+    currentOverrides = ['other-char'];
+    rerender();
+    expect(result.current[0]).toBe(true);
+    await act(async () => finishWrite());
+    expect(result.current[0]).toBe(true);
+    currentOverrides = ['other-char', 'char-1'];
+    rerender();
+    expect(result.current[0]).toBe(true);
+    currentOverrides = ['other-char'];
+    rerender();
+    expect(result.current[0]).toBe(false);
+  });
+
+  it('keeps the latest of opposite toggles while earlier saves refresh the snapshot', async () => {
+    let finishFirst: () => void = () => {};
+    let finishSecond: () => void = () => {};
+    setNotesOverrideMock
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishSecond = resolve; }));
+    const { result, rerender } = renderHook(() => useNotesOverride('char-1', false));
+    act(() => result.current[1]());
+    act(() => result.current[1]());
+    expect(result.current[0]).toBe(false);
+    currentOverrides = ['char-1'];
+    rerender();
+    await act(async () => finishFirst());
+    expect(result.current[0]).toBe(false);
+    await act(async () => finishSecond());
+    expect(result.current[0]).toBe(false);
+    currentOverrides = [];
+    rerender();
+    expect(result.current[0]).toBe(false);
+  });
+
+  it('discards a pending choice on a new global default and ignores its late completion', async () => {
+    let finishWrite: () => void = () => {};
+    setNotesOverrideMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishWrite = resolve; }));
+    const { result, rerender } = renderHook(
+      ({ defaultOpen }) => useNotesOverride('char-1', defaultOpen),
+      { initialProps: { defaultOpen: true } },
+    );
+    act(() => result.current[1]());
+    expect(result.current[0]).toBe(false);
+    rerender({ defaultOpen: false });
+    expect(result.current[0]).toBe(false);
+    await act(async () => finishWrite());
+    currentOverrides = ['char-1'];
+    rerender({ defaultOpen: false });
+    expect(result.current[0]).toBe(true);
+  });
 });

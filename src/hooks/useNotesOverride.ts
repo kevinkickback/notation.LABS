@@ -25,44 +25,47 @@ export function useNotesOverride(
   const [optimistic, setOptimistic] = useState<{
     entityId: string;
     defaultOpen: boolean;
-    overrides: string[];
     isOpen: boolean;
+    pending: boolean;
   } | null>(null);
+  const persistedOpen = resolveShowNotes(entityId, defaultOpen, notesOverrides);
   const showNotes =
-    optimistic?.entityId === entityId &&
-    optimistic.defaultOpen === defaultOpen &&
-    optimistic.overrides === notesOverrides
+    optimistic?.entityId === entityId && optimistic.defaultOpen === defaultOpen
       ? optimistic.isOpen
-      : resolveShowNotes(entityId, defaultOpen, notesOverrides);
+      : persistedOpen;
 
   useEffect(() => {
-    setOptimistic((current) =>
-      current &&
-      (current.entityId !== entityId ||
-        current.defaultOpen !== defaultOpen ||
-        current.overrides !== notesOverrides)
-        ? null
-        : current,
-    );
-  }, [entityId, defaultOpen, notesOverrides]);
+    if (
+      optimistic &&
+      (optimistic.entityId !== entityId ||
+        optimistic.defaultOpen !== defaultOpen ||
+        (!optimistic.pending && persistedOpen === optimistic.isOpen))
+    ) {
+      setOptimistic(null);
+    }
+  }, [entityId, defaultOpen, persistedOpen, optimistic]);
 
   const handleToggle = useCallback(() => {
     const next = {
       entityId,
       defaultOpen,
-      overrides: notesOverrides,
       isOpen: !showNotes,
+      pending: true,
     };
     setOptimistic(next);
     void (async () => {
       try {
         await setNotesPanelOpen(entityId, next.isOpen);
+        // Keep the latest choice until the live snapshot acknowledges its save.
+        setOptimistic((current) =>
+          current === next ? { ...current, pending: false } : current,
+        );
       } catch (error) {
         setOptimistic((current) => (current === next ? null : current));
         reportError('useNotesOverride.handleToggle', error);
       }
     })();
-  }, [defaultOpen, entityId, notesOverrides, setNotesPanelOpen, showNotes]);
+  }, [defaultOpen, entityId, setNotesPanelOpen, showNotes]);
 
   return [showNotes, handleToggle];
 }

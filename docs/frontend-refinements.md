@@ -73,6 +73,9 @@ Settings writes and manual panel choices save in invocation order. A panel choic
 records the desired open/closed state and resolves its relative override against
 the saved default when its queued write executes, including after a failed default
 change. Failed writes do not prevent later queued settings from saving.
+The latest panel toggle stays visible through unrelated settings refreshes and
+earlier queued writes until its own save is acknowledged. Changing the selected
+entity or global default discards the previous optimistic choice.
 
 ## Status bar
 
