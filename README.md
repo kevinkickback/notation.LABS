@@ -164,19 +164,3 @@ dependencies when using a compatible Node version manager.
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0 or later — see the [LICENSE](LICENSE) file for details.
-
-### Large video backups
-
-Video exports keep the existing version 3 ZIP format. Export selection reads video
-IDs only. The archive reads one selected video at a time and writes in 256 KiB
-chunks, yielding between chunks so progress and cancellation remain responsive.
-Desktop exports choose a destination first, then stream through a narrow preload
-API to a temporary file beside the destination. Only successful completion replaces
-the destination; cancellation, write errors, or renderer termination clean up the
-partial file. IPC chunks own their buffers to avoid cloning a whole video.
-Browsers use the File System Access picker when available, or native Blob pieces
-for the download fallback. ZIP imports retain their existing 512 MiB safety limit;
-use export selections when a backup needs to fit that limit. The ZIP writer also
-enforces the importer's 100-video, 50 MiB per-video, 500 MiB video-total, and
-10 MiB metadata limits, and never commits an archive larger than 512 MiB.
-Cancellation remains available until the completed backup starts committing.

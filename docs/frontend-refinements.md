@@ -42,6 +42,8 @@ combo editors use field labels rather than repeated section titles. Wide windows
 show related fields side by side; small windows stack them in a scrollable body
 with accessible actions. The game editor gives notation more space than artwork.
 Only one divider separates the final fields from the action footer.
+Game and character editor column dividers span the taller column. Settings
+navigation has square corners; delete confirmations have no internal dividers.
 
 Settings uses a shared height across categories, with vertical category navigation
 on desktop and a horizontal row on smaller windows. The notation guide places its
@@ -54,6 +56,30 @@ including returning from image search to its parent editor. Motion stays brief a
 respects reduced-motion preferences. Existing notes behavior and settings remain
 available because main's notes panels are retained. Export commit-phase protections
 are preserved.
+
+## Collection cards and notes
+
+The card-size slider controls the same card width in both the game and character
+grids. Every 10-pixel step changes that width, with cards wrapping rather than
+stretching to fill a row. Portrait and landscape artwork retain their proportions;
+cards shrink to fit containers narrower than the chosen width.
+
+Notes Open by Default controls game notes and the Character Info panel containing
+character notes and resources. Changing it resets saved manual panel choices in
+the same settings write. Subsequent manual choices are remembered per entity.
+Panels read those overrides from the live settings snapshot so navigation and
+preference changes do not wait on a separate read.
+Settings writes and manual panel choices save in invocation order. A panel choice
+records the desired open/closed state and resolves its relative override against
+the saved default when its queued write executes, including after a failed default
+change. Failed writes do not prevent later queued settings from saving.
+The latest panel toggle stays visible through unrelated settings refreshes and
+earlier queued writes until its own save is acknowledged. Changing the selected
+entity or global default discards the previous optimistic choice.
+Each settings request has an increasing token. Live snapshots identify the queued
+writes completed before their read, so an earlier save with the same value cannot
+clear a later pending choice. Failure rollback also checks the latest token per
+setting rather than comparing values.
 
 ## Status bar
 

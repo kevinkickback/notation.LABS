@@ -41,7 +41,7 @@ const SettingsActionsContext = createContext({
     _key: K,
     _value: UserSettings[K],
   ) => false,
-  setNotesOverride: async (_entityId: string, _isOverride: boolean) => {},
+  setNotesPanelOpen: async (_entityId: string, _isOpen: boolean) => {},
 });
 
 function ReparseProgressModal() {
@@ -83,6 +83,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [optimisticSettings, setOptimisticSettings] = useState<
     Partial<UserSettings>
   >({});
+  const requestSequence = useRef(0);
+  const latestSettingsRequests = useRef<
+    Partial<Record<keyof UserSettings, number>>
+  >({});
+  const [appliedRevision, setAppliedRevision] = useState(0);
+  const settingsWriteQueue = useRef(Promise.resolve());
+  const queueSettingsWrite = useCallback(<T,>(write: () => Promise<T>) => {
+    const request = ++requestSequence.current;
+    const result = settingsWriteQueue.current.then(write);
+    // A failed write reports to its caller while later choices still save.
+    const finish = () => setAppliedRevision(request);
+    settingsWriteQueue.current = result.then(finish, finish);
+    return { request, result };
+  }, []);
 
   // Run initialization and data migrations once at mount, outside
   // the useLiveQuery read-only transaction context.
@@ -119,25 +133,34 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Pure read - safe inside useLiveQuery.
-  const { data: settings, error: settingsReadError } = useRecoverableLiveQuery(
-    indexedDbStorage.settings.get,
-    [],
-    attempt,
-  );
+  const { data: settingsSnapshot, error: settingsReadError } =
+    useRecoverableLiveQuery(
+      async () => ({
+        settings: await indexedDbStorage.settings.get(),
+        appliedThrough: appliedRevision,
+      }),
+      [appliedRevision],
+      attempt,
+    );
+  const settings = settingsSnapshot?.settings;
   const currentSettings = {
     ...(settings ?? INITIAL_SETTINGS),
     ...optimisticSettings,
   };
 
   useEffect(() => {
-    if (!settings) return;
+    if (!settingsSnapshot) return;
 
     setOptimisticSettings((current) => {
       const next = { ...current };
       let changed = false;
 
       for (const key of Object.keys(current) as Array<keyof UserSettings>) {
-        if (current[key] === settings[key]) {
+        const request = latestSettingsRequests.current[key];
+        if (
+          request !== undefined &&
+          request <= settingsSnapshot.appliedThrough
+        ) {
           delete next[key];
           changed = true;
         }
@@ -145,23 +168,41 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       return changed ? next : current;
     });
-  }, [settings]);
+  }, [settingsSnapshot]);
 
   const setSetting = useCallback(
     async <K extends keyof UserSettings>(
       key: K,
       value: UserSettings[K],
     ): Promise<boolean> => {
-      setOptimisticSettings((current) => ({ ...current, [key]: value }));
+      // Choosing a new global notes default resets earlier manual choices.
+      const updates: Partial<UserSettings> = {
+        [key]: value,
+        ...(key === 'notesDefaultOpen' ? { notesOverrides: [] } : {}),
+      };
+      const { request, result } = queueSettingsWrite(() =>
+        indexedDbStorage.settings.update(updates),
+      );
+      for (const updatedKey of Object.keys(updates) as Array<
+        keyof UserSettings
+      >) {
+        latestSettingsRequests.current[updatedKey] = request;
+      }
+      setOptimisticSettings((current) => ({ ...current, ...updates }));
 
       try {
-        await indexedDbStorage.settings.update({ [key]: value });
+        await result;
         return true;
       } catch (error) {
         setOptimisticSettings((current) => {
-          if (current[key] !== value) return current;
+          if (latestSettingsRequests.current[key] !== request) return current;
           const next = { ...current };
-          delete next[key];
+          for (const updatedKey of Object.keys(updates) as Array<
+            keyof UserSettings
+          >) {
+            if (latestSettingsRequests.current[updatedKey] === request)
+              delete next[updatedKey];
+          }
           return next;
         });
         reportError('SettingsProvider.setSetting', error);
@@ -169,13 +210,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [],
+    [queueSettingsWrite],
   );
 
-  const setNotesOverride = useCallback(
-    (entityId: string, isOverride: boolean) =>
-      indexedDbStorage.settings.setNotesOverride(entityId, isOverride),
-    [],
+  const setNotesPanelOpen = useCallback(
+    (entityId: string, isOpen: boolean) =>
+      queueSettingsWrite(async () => {
+        const persisted = await indexedDbStorage.settings.get();
+        // Preserve the user's absolute choice even if an earlier default write failed.
+        await indexedDbStorage.settings.setNotesOverride(
+          entityId,
+          isOpen !== (persisted.notesDefaultOpen ?? false),
+        );
+      }).result,
+    [queueSettingsWrite],
   );
 
   useLayoutEffect(() => {
@@ -198,7 +246,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   ]);
 
   return (
-    <SettingsActionsContext.Provider value={{ setSetting, setNotesOverride }}>
+    <SettingsActionsContext.Provider value={{ setSetting, setNotesPanelOpen }}>
       <SettingsContext.Provider value={currentSettings}>
         <SettingsInitializationContext.Provider
           value={{

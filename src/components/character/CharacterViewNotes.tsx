@@ -1,4 +1,5 @@
 import { CaretDownIcon, NoteIcon, NotePencilIcon } from '@phosphor-icons/react';
+import { useId } from 'react';
 import { NotesMarkdown } from '@/components/shared/NotesMarkdown';
 import { Button } from '@/components/ui/button';
 
@@ -15,6 +16,7 @@ export function CharacterViewNotes({
   onToggle,
   onEditNote,
 }: CharacterViewNotesProps) {
+  const contentId = useId();
   if (!notes?.trim()) {
     return null;
   }
@@ -25,6 +27,8 @@ export function CharacterViewNotes({
         <button
           type="button"
           onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={contentId}
           className="flex-1 min-w-0 flex items-center justify-between px-2 py-1 rounded hover:bg-muted/50 transition-colors"
         >
           <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -48,7 +52,7 @@ export function CharacterViewNotes({
         </Button>
       </div>
       {isOpen && (
-        <div className="px-4 py-3 bg-card">
+        <div id={contentId} className="px-4 py-3 bg-card">
           <NotesMarkdown content={notes} />
         </div>
       )}

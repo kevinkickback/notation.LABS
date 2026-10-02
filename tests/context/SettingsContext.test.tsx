@@ -10,8 +10,9 @@ import {
 } from '@/context/SettingsContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
-const { settingsUpdateMock, useLiveQueryMock } = vi.hoisted(() => ({
+const { settingsUpdateMock, notesOverrideMock, useLiveQueryMock } = vi.hoisted(() => ({
   settingsUpdateMock: vi.fn(),
+  notesOverrideMock: vi.fn(),
   useLiveQueryMock: vi.fn(),
 }));
 const initMock = vi.fn();
@@ -27,7 +28,10 @@ async function renderSettings(ui: ReactNode): Promise<RenderResult> {
 }
 
 vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
-  useRecoverableLiveQuery: (...args: unknown[]) => useLiveQueryMock(...args),
+  useRecoverableLiveQuery: (...args: unknown[]) => {
+    const result = useLiveQueryMock(...args);
+    return { error: result.error, data: result.data === undefined ? undefined : { settings: result.data, appliedThrough: result.appliedThrough ?? 0 } };
+  },
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
@@ -36,7 +40,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
       init: (...args: unknown[]) => initMock(...args),
       get: (...args: unknown[]) => getMock(...args),
       update: (...args: unknown[]) => settingsUpdateMock(...args),
-      setNotesOverride: vi.fn(),
+      setNotesOverride: (...args: unknown[]) => notesOverrideMock(...args),
     },
   },
 }));
@@ -57,6 +61,7 @@ describe('SettingsContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     settingsUpdateMock.mockResolvedValue(undefined);
+    notesOverrideMock.mockResolvedValue(undefined);
     useLiveQueryMock.mockReturnValue({ data: DEFAULT_SETTINGS, error: null });
     getMock.mockResolvedValue(DEFAULT_SETTINGS);
     initMock.mockResolvedValue(undefined);
@@ -80,6 +85,17 @@ describe('SettingsContext', () => {
         </button>
       </>
     );
+  }
+
+  function NotesConsumer() {
+    const settings = useSettings();
+    const { setSetting, setNotesPanelOpen } = useSettingsActions();
+    return <>
+      <span>{String(settings.notesDefaultOpen)}</span>
+      <button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Default open</button>
+      <button type="button" onClick={() => void setNotesPanelOpen('char-1', false)}>Close panel</button>
+      <button type="button" onClick={() => void setNotesPanelOpen('char-1', true).catch(() => {})}>Open panel</button>
+    </>;
   }
 
   it('initializes storage once when StrictMode replays effects', async () => {
@@ -151,7 +167,7 @@ describe('SettingsContext', () => {
     expect(screen.getByText('Settings read failed')).toBeTruthy();
     expect(screen.getByText('Loading')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry read' }));
-    expect(useLiveQueryMock).toHaveBeenCalledWith(expect.any(Function), [], 1);
+    expect(useLiveQueryMock).toHaveBeenCalledWith(expect.any(Function), [0], 1);
     useLiveQueryMock.mockReturnValue({ data: DEFAULT_SETTINGS, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
     await waitFor(() => expect(screen.getByText('Ready')).toBeTruthy());
@@ -244,6 +260,7 @@ describe('SettingsContext', () => {
       document.documentElement.style.getPropertyValue('--accent-color'),
     ).toBe('#abcdef');
 
+    await waitFor(() => expect(resolvePersistence).toBeDefined());
     await act(async () => resolvePersistence?.());
   });
 
@@ -265,6 +282,7 @@ describe('SettingsContext', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change accent' }));
     expect(screen.getByText('#abcdef')).not.toBeNull();
 
+    await waitFor(() => expect(rejectPersistence).toBeDefined());
     await act(async () => rejectPersistence?.(new Error('write failed')));
 
     expect(
@@ -277,5 +295,135 @@ describe('SettingsContext', () => {
     expect(toastErrorMock).toHaveBeenCalledWith(
       'Failed to save setting: write failed',
     );
+  });
+
+  it('resets notes overrides with the global default and rolls both back on failure', async () => {
+    const saved = { ...DEFAULT_SETTINGS, notesDefaultOpen: false, notesOverrides: ['char-1'] };
+    useLiveQueryMock.mockReturnValue({ data: saved, error: null });
+    let rejectWrite: (error: Error) => void = () => {};
+    settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
+    function Consumer() {
+      const settings = useSettings();
+      const { setSetting } = useSettingsActions();
+      return <><span>{JSON.stringify([settings.notesDefaultOpen, settings.notesOverrides])}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Open notes</button></>;
+    }
+    await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Open notes' }));
+    expect(screen.getByText('[true,[]]')).toBeTruthy();
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+    await act(async () => rejectWrite(new Error('write failed')));
+    expect(screen.getByText('[false,["char-1"]]')).toBeTruthy();
+  });
+
+  it('releases the optimistic override reset once saved, allowing new panel choices', async () => {
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesOverrides: ['char-1'] }, error: null });
+    function Consumer() {
+      const settings = useSettings();
+      const { setSetting } = useSettingsActions();
+      return <><span>{JSON.stringify(settings.notesOverrides)}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Open notes</button></>;
+    }
+    const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Open notes' })));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: [] }, appliedThrough: 1, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('[]')).toBeTruthy();
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-2'] }, appliedThrough: 1, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('["char-2"]')).toBeTruthy();
+  });
+
+  it('saves a later manual choice after a pending default reset', async () => {
+    let finishDefault: () => void = () => {};
+    settingsUpdateMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishDefault = resolve; }));
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: true });
+    await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    expect(notesOverrideMock).not.toHaveBeenCalled();
+    await act(async () => finishDefault());
+    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', true));
+  });
+
+  it('saves a later default reset after a pending manual choice', async () => {
+    let finishPanel: () => void = () => {};
+    notesOverrideMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishPanel = resolve; }));
+    await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
+    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    expect(settingsUpdateMock).not.toHaveBeenCalled();
+    await act(async () => finishPanel());
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+  });
+
+  it('resolves the manual open/closed intent against the saved default after a failed reset', async () => {
+    let failDefault: (error: Error) => void = () => {};
+    settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { failDefault = reject; }));
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: false });
+    await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    await act(async () => failDefault(new Error('write failed')));
+    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', false));
+    expect(screen.getByText('false')).toBeTruthy();
+  });
+
+  it('continues the settings queue after a failed manual panel write', async () => {
+    notesOverrideMock.mockRejectedValueOnce(new Error('panel write failed'));
+    await renderSettings(<SettingsProvider><NotesConsumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+  });
+
+  function CardSizeConsumer() {
+    const settings = useSettings();
+    const { setSetting } = useSettingsActions();
+    return <><span data-testid="card-size">{settings.gameCardSize}</span>{[180, 190].map(size => <button type="button" key={size} onClick={() => void setSetting('gameCardSize', size)}>Size {size}</button>)}</>;
+  }
+
+  it.each([false, true])('keeps the latest repeated size while earlier writes finish (first fails: %s)', async firstFails => {
+    const writes: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
+    settingsUpdateMock.mockImplementation(() => new Promise<void>((resolve, reject) => { writes.push({ resolve, reject }); }));
+    const { rerender } = await renderSettings(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Size 180' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size 190' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size 180' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    await act(async () => firstFails ? writes[0].reject(new Error('first write failed')) : writes[0].resolve());
+    await waitFor(() => expect(writes).toHaveLength(2));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 180 }, appliedThrough: 1, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('180');
+    await act(async () => writes[1].resolve());
+    await waitFor(() => expect(writes).toHaveLength(3));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 190 }, appliedThrough: 2, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('180');
+    await act(async () => writes[2].resolve());
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 180 }, appliedThrough: 3, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('180');
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 240 }, appliedThrough: 3, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('240');
+  });
+
+  it('acknowledges a notes reset even when a later manual save supersedes its empty list', async () => {
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: true });
+    function Consumer() {
+      const settings = useSettings();
+      const { setSetting, setNotesPanelOpen } = useSettingsActions();
+      return <><span>{JSON.stringify([settings.notesDefaultOpen, settings.notesOverrides])}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Default open</button><button type="button" onClick={() => void setNotesPanelOpen('char-1', false)}>Close panel</button></>;
+    }
+    const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', true));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-1'] }, appliedThrough: 2, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('[true,["char-1"]]')).toBeTruthy();
   });
 });

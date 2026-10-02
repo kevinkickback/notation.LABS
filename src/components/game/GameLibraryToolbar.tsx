@@ -138,6 +138,7 @@ export function GameLibraryToolbar({
                   Card Size
                 </p>
                 <Slider
+                  aria-label="Card size"
                   min={120}
                   max={300}
                   step={10}

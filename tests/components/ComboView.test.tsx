@@ -48,7 +48,7 @@ vi.mock('@/context/SettingsContext', () => ({
   }),
   useSettingsActions: vi.fn().mockReturnValue({
     setSetting: vi.fn().mockResolvedValue(true),
-    setNotesOverride: vi.fn().mockResolvedValue(undefined),
+    setNotesPanelOpen: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 

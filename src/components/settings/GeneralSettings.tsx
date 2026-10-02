@@ -364,11 +364,12 @@ export function GeneralSettings() {
             <div>
               <Label>Notes Open by Default</Label>
               <p className="text-sm text-muted-foreground">
-                Show notes panels expanded when navigating to a game or
-                character
+                Expand game notes and Character Info by default. Changing this
+                resets remembered panel choices.
               </p>
             </div>
             <Switch
+              aria-label="Notes Open by Default"
               checked={settings.notesDefaultOpen ?? false}
               onCheckedChange={(v) => void setSetting('notesDefaultOpen', v)}
             />
