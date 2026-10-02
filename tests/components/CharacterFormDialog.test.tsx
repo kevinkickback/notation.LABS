@@ -60,7 +60,7 @@ describe('CharacterFormDialog', () => {
     );
 
     const name = screen.getByLabelText('Character Name');
-    const image = screen.getByText('Character Image (optional)');
+    const image = screen.getByRole('region', { name: 'Character Image Optional' });
     const notes = screen.getByLabelText('Notes (optional)');
 
     expect(screen.getByText('Required')).not.toBeNull();
@@ -121,5 +121,17 @@ describe('CharacterFormDialog', () => {
     expect(
       screen.getByRole('slider', { name: 'Pan Y' }).getAttribute('aria-valuenow'),
     ).toBe('50');
+  });
+
+  it('saves edited notes and keeps existing portrait adjustments', async () => {
+    const user = userEvent.setup();
+    render(<CharacterFormDialog open game={game} editingCharacter={editingCharacter} onOpenChange={vi.fn()} />);
+    await user.type(screen.getByLabelText('Notes (optional)'), 'New strategy');
+    expect(screen.getByRole('slider', { name: 'Zoom' }).getAttribute('aria-valuenow')).toBe('150');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(indexedDbStorage.characters.update).toHaveBeenCalledWith('character-1', expect.objectContaining({
+      name: 'Ryu', notes: 'New strategy', portraitImage: editingCharacter.portraitImage,
+      portraitFit: 'free', portraitZoom: 150, portraitPanX: 25, portraitPanY: 75,
+    }));
   });
 });

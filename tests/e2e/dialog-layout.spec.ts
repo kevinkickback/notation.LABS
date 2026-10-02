@@ -35,9 +35,8 @@ test('preserves artwork proportions and unsaved fields through nested cover sear
   await opener.click();
   const editor = page.getByRole('dialog', { name: 'Add New Game', exact: true });
   await editor.getByLabel('Game Name').fill('Artwork test');
-  const sections = editor.locator('.dialog-section');
-  const left = await sections.nth(0).boundingBox();
-  const right = await sections.nth(1).boundingBox();
+  const left = await editor.locator('.entity-artwork').boundingBox();
+  const right = await editor.locator('.entity-identity').boundingBox();
   expect(left?.width).toBeLessThan((right?.width ?? 0) * 0.7);
   await page.locator('input[type=file][accept="image/*"]').setInputFiles(resolve('src/assets/images/defaultGame.jpg'));
   const image = editor.locator('[data-slot="cover-image"]');

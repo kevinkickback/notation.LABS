@@ -1,12 +1,6 @@
-import {
-  ImageSquareIcon,
-  MagnifyingGlassIcon,
-  XIcon,
-} from '@phosphor-icons/react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CoverImage } from '@/components/shared/CoverImage';
-import { CoverImageControls } from '@/components/shared/CoverImageControls';
+import { EntityArtworkEditor } from '@/components/shared/EntityArtworkEditor';
 import { FormSection } from '@/components/shared/FormSection';
 import { RequiredBadge } from '@/components/shared/RequiredBadge';
 import { Button } from '@/components/ui/button';
@@ -225,7 +219,13 @@ export function GameFormDialog({
           if (!isOpen) closeDialog();
         }}
       >
-        <DialogContent className="dialog-form game-form-dialog flex flex-col overflow-hidden max-w-5xl">
+        <DialogContent
+          className="dialog-form entity-form-dialog game-form-dialog flex flex-col overflow-hidden"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            document.getElementById(nameInputId)?.focus();
+          }}
+        >
           <form
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
@@ -241,110 +241,44 @@ export function GameFormDialog({
                 Configure the game profile, notation, and optional notes.
               </DialogDescription>
             </DialogHeader>
-            <DialogBody className="dialog-editor-grid">
-              <FormSection>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={nameInputId}>Game Name</Label>
-                    <RequiredBadge />
-                  </div>
-                  <Input
-                    id={nameInputId}
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Street Fighter 6"
-                  />
+            <DialogBody className="entity-editor">
+              <div className="entity-identity">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor={nameInputId}>Game Name</Label>
+                  <RequiredBadge />
                 </div>
-                <div>
-                  <Label>Cover Artwork (optional)</Label>
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    Upload or find artwork, then drag the preview to position
-                    it.
-                  </p>
-                  <div className="game-artwork-editor flex flex-col gap-3 sm:flex-row">
-                    <div className="relative flex aspect-[3/4] w-[clamp(6rem,20dvh,8rem)] shrink-0 self-center items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted sm:self-start">
-                      {logoImage ? (
-                        <>
-                          <CoverImage
-                            src={logoImage}
-                            frameAspect={3 / 4}
-                            fit={coverFit}
-                            zoom={coverZoom}
-                            focalX={coverPanX}
-                            focalY={coverPanY}
-                            interactive
-                            className="absolute inset-0"
-                            onFocalPointChange={(x, y) => {
-                              setCoverPanX(Math.round(x));
-                              setCoverPanY(Math.round(y));
-                            }}
-                          />
-                          <button
-                            type="button"
-                            aria-label="Remove image"
-                            onClick={() => setLogoImage('')}
-                            className="absolute top-1 right-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-red-600/80 text-white transition-colors hover:bg-red-600"
-                          >
-                            <XIcon className="h-3 w-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <ImageSquareIcon className="h-8 w-8 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-3">
-                      {logoImage && (
-                        <CoverImageControls
-                          fit={coverFit}
-                          zoom={coverZoom}
-                          focalX={coverPanX}
-                          focalY={coverPanY}
-                          onFitChange={setCoverFit}
-                          onZoomChange={setCoverZoom}
-                          onFocalXChange={setCoverPanX}
-                          onFocalYChange={setCoverPanY}
-                          onReset={resetCoverTransform}
-                        />
-                      )}
-                      <div className="flex h-full flex-col justify-center gap-1.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleImageSelect}
-                        >
-                          <ImageSquareIcon className="mr-2 h-4 w-4 shrink-0" />
-                          {logoImage ? 'Replace Image' : 'Upload Image'}
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <div className="h-px flex-1 bg-border" />
-                          <span className="text-xs text-muted-foreground">
-                            or
-                          </span>
-                          <div className="h-px flex-1 bg-border" />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCoverSearchOpen(true)}
-                        >
-                          <MagnifyingGlassIcon className="mr-2 h-4 w-4 shrink-0" />
-                          Search Online
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </FormSection>
+                <Input
+                  id={nameInputId}
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Street Fighter 6"
+                />
+              </div>
+              <EntityArtworkEditor
+                label="Cover Artwork"
+                image={logoImage}
+                orientation="portrait"
+                fit={coverFit}
+                zoom={coverZoom}
+                focalX={coverPanX}
+                focalY={coverPanY}
+                onUpload={handleImageSelect}
+                onSearch={() => setCoverSearchOpen(true)}
+                onRemove={() => setLogoImage('')}
+                onFitChange={setCoverFit}
+                onZoomChange={setCoverZoom}
+                onFocalXChange={setCoverPanX}
+                onFocalYChange={setCoverPanY}
+                onReset={resetCoverTransform}
+              />
 
-              <FormSection>
+              <FormSection className="entity-notation">
                 <fieldset>
                   <legend className="text-sm leading-none font-medium">
                     Notation Style
                   </legend>
-                  <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
+                  <div className="entity-notation-options mt-1.5 grid grid-cols-3 gap-2">
                     {NOTATION_PROFILES.map((profile) => (
                       <button
                         key={profile.id}
@@ -388,7 +322,7 @@ export function GameFormDialog({
                     <Label className="mb-2 block text-sm font-medium">
                       Button Colors
                     </Label>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="entity-button-colors grid grid-cols-2 gap-x-4 gap-y-2">
                       {parsedButtons.map((btn, i) => (
                         <ColorPickerRow
                           key={btn}
@@ -412,7 +346,7 @@ export function GameFormDialog({
                 )}
               </FormSection>
 
-              <FormSection>
+              <FormSection className="entity-notes">
                 <div>
                   <Label htmlFor={notesInputId}>Game notes (optional)</Label>
                   <Textarea

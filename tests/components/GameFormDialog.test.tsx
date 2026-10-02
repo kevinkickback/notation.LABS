@@ -154,4 +154,21 @@ describe('GameFormDialog', () => {
       screen.getByRole('slider', { name: 'Pan Y' }).getAttribute('aria-valuenow'),
     ).toBe('50');
   });
+
+  it('saves edited fields and keeps existing button colors and cover adjustments', async () => {
+    const user = userEvent.setup();
+    render(
+      <GameFormDialog open editingGame={{ ...editingGame, notes: 'Original', buttonColors: { L: '#123456' } }} onOpenChange={vi.fn()} />,
+    );
+    await user.clear(screen.getByLabelText('Game Name'));
+    await user.type(screen.getByLabelText('Game Name'), 'Updated game');
+    await user.clear(screen.getByLabelText('Game notes (optional)'));
+    await user.type(screen.getByLabelText('Game notes (optional)'), 'New notes');
+    expect(screen.getByRole('slider', { name: 'Zoom' }).getAttribute('aria-valuenow')).toBe('150');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(updateGame).toHaveBeenCalledWith('game-1', expect.objectContaining({
+      name: 'Updated game', notes: 'New notes', buttonColors: expect.objectContaining({ L: '#123456' }),
+      logoImage: editingGame.logoImage, coverFit: 'free', coverZoom: 150, coverPanX: 25, coverPanY: 75,
+    }));
+  });
 });

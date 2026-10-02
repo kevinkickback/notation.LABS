@@ -276,4 +276,21 @@ describe('NotationGuide', () => {
       expect(syntaxCard?.textContent).toContain('> / → / »');
     }
   });
+
+  it('keeps the reference intact while editing the preview and trying examples', async () => {
+    const user = userEvent.setup();
+    render(<NotationGuide open showTrigger={false} activeGame={tekkenGame} />);
+    const reference = screen.getByRole('region', { name: 'Tekken notation reference' });
+    const terms = Array.from(reference.querySelectorAll('dt')).map(term => term.textContent);
+    const notation = screen.getByRole('textbox', { name: 'Notation' });
+    await user.clear(notation);
+    await user.type(notation, 'WS1,2 > f2,3');
+    expect(Array.from(reference.querySelectorAll('dt')).map(term => term.textContent)).toEqual(terms);
+    expect((notation as HTMLTextAreaElement).value).toBe('WS1,2 > f2,3');
+    await user.click(screen.getByRole('tab', { name: 'NRS' }));
+    const example = screen.getAllByRole('button', { name: /^Try / })[0];
+    const exampleNotation = example.getAttribute('aria-label')?.slice(4);
+    await user.click(example);
+    expect((screen.getByRole('textbox', { name: 'Notation' }) as HTMLTextAreaElement).value).toBe(exampleNotation);
+  });
 });

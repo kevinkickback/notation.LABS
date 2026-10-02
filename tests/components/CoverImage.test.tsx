@@ -150,8 +150,8 @@ describe('CoverImageControls', () => {
     expect(onFitChange).toHaveBeenCalledWith('fill');
 
     const resetButton = screen.getByRole('button', { name: 'Reset' });
-    expect(resetButton.className).toContain('bg-accent');
-    expect(resetButton.className).toContain('hover:bg-destructive');
+    expect(resetButton.className).toContain('text-muted-foreground');
+    expect(resetButton.className).toContain('hover:bg-accent');
     await user.click(resetButton);
     expect(onReset).toHaveBeenCalledOnce();
   });
