@@ -104,7 +104,7 @@ describe('ComboFormDialog', () => {
     expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
   });
 
-  it('groups the form into consistent cards and marks required fields', () => {
+  it('uses field labels without redundant section headings and marks required fields', () => {
     render(
       <ComboFormDialog
         open={true}
@@ -116,18 +116,10 @@ describe('ComboFormDialog', () => {
       />,
     );
 
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.querySelectorAll('[data-slot="card"]')).toHaveLength(4);
-    for (const title of [
-      'Combo Basics',
-      'Combo Details',
-      'Demo Video',
-      'Description & Status',
-    ]) {
-      expect(screen.getByText(title).closest('[data-slot="card"]')).not.toBeNull();
-    }
-
-    expect(screen.getByText('Required')).not.toBeNull();
+    expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    expect(screen.getByLabelText('YouTube demo URL')).not.toBeNull();
+    expect(screen.getByLabelText('Description')).not.toBeNull();
+    expect(screen.getAllByText('Required')).toHaveLength(2);
     expect(screen.getByLabelText('Combo Name').hasAttribute('required')).toBe(
       true,
     );

@@ -4,21 +4,23 @@ import {
   PaletteIcon,
   TextAaIcon,
 } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { AboutTab } from './AboutTab';
 import { ColorCustomization } from './ColorCustomization';
 import { GeneralSettings } from './GeneralSettings';
 import { NotationSettings } from './NotationSettings';
 
-const TAB_TRIGGER_CLS =
-  'cursor-pointer data-[state=inactive]:hover:bg-background/50 data-[state=inactive]:hover:text-foreground transition-colors';
+const TAB_TRIGGER_CLS = 'cursor-pointer transition-colors';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -26,19 +28,27 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
+  const isMobile = useIsMobile();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="settings-dialog max-w-4xl flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-2xl">Settings</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Manage application preferences, appearance, notation, and update
             behavior.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="gap-6 min-w-0">
-          <TabsList className="w-full">
+        <Tabs
+          defaultValue="general"
+          orientation={isMobile ? 'horizontal' : 'vertical'}
+          className="settings-layout min-w-0 min-h-0"
+        >
+          <TabsList
+            aria-label="Settings categories"
+            className="settings-navigation"
+          >
             <TabsTrigger value="general" className={TAB_TRIGGER_CLS}>
               <GearSixIcon className="w-4 h-4" />
               General
@@ -69,6 +79,11 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
             <AboutTab />
           </TabsContent>
         </Tabs>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

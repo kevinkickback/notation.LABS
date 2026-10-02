@@ -4,8 +4,10 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -87,15 +89,15 @@ export function CoverSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] max-h-[80vh] flex flex-col">
+      <DialogContent className="search-dialog max-w-4xl flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Search Game Covers</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Find and apply cover art from IGDB for the current game.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-2">
+        <div className="dialog-search-toolbar">
           <Input
             placeholder="Search for a game..."
             value={searchQuery}
@@ -104,14 +106,16 @@ export function CoverSearchDialog({
             aria-label="Game search query"
           />
           <Button
+            aria-label="Search covers"
             onClick={() => runDebouncedSearch()}
             disabled={loading || !searchQuery.trim()}
           >
             <MagnifyingGlassIcon className="w-4 h-4" />
+            Search
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <DialogBody>
           {loading && (
             <div className="flex items-center justify-center py-12">
               <SpinnerGapIcon className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -141,7 +145,7 @@ export function CoverSearchDialog({
           )}
 
           {!loading && results.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 pt-1">
+            <div className="dialog-image-results">
               {results.map((result) => {
                 const thumb = result.coverImageId
                   ? thumbnails[result.coverImageId]
@@ -192,11 +196,15 @@ export function CoverSearchDialog({
               })}
             </div>
           )}
-        </div>
-
-        <p className="text-xs text-muted-foreground text-center mt-1">
-          Powered by IGDB
-        </p>
+        </DialogBody>
+        <DialogFooter>
+          <span className="dialog-footer-detail">
+            {hasSearched ? `${results.length} results · ` : ''}IGDB
+          </span>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -40,7 +40,7 @@ describe('GameFormDialog', () => {
     vi.clearAllMocks();
   });
 
-  it('groups the form into readable sections', () => {
+  it('uses field labels and keeps required and Markdown guidance accessible', () => {
     render(
       <GameFormDialog
         open
@@ -54,14 +54,13 @@ describe('GameFormDialog', () => {
       true,
     );
 
-    expect(screen.getByText('Game Profile')).not.toBeNull();
-    expect(screen.getByText('Notation & Buttons')).not.toBeNull();
-    expect(screen.getByText('Notes')).not.toBeNull();
-    const notes = screen.getByLabelText('Game notes');
+    expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    expect(screen.getByLabelText('Button Layout (comma-separated)')).not.toBeNull();
+    const notes = screen.getByLabelText('Game notes (optional)');
     expect(notes).not.toBeNull();
     expect(notes.getAttribute('aria-describedby')).not.toBeNull();
     expect(
-      screen.getByText(/multiple lines and markdown are supported/i),
+      screen.getByText(/markdown is supported/i),
     ).not.toBeNull();
   });
 

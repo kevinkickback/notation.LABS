@@ -351,10 +351,10 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-xs sm:max-w-md p-3 sm:p-6">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Export Data</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Choose which games, characters, and combos to include in your
             export.
           </DialogDescription>

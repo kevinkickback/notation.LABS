@@ -97,13 +97,13 @@ describe('NotationGuide', () => {
     expect(screen.getByText('CH')).not.toBeNull();
 
     expect(
-      screen.getByText('WS,1,3 ► Negativa,3+4 ► f,3,4'),
+      screen.getByRole('button', { name: 'Try WS,1,3 ► Negativa,3+4 ► f,3,4' }),
     ).not.toBeNull();
     expect(screen.getByText(/Intermediate:.*held Forward/i)).not.toBeNull();
     expect(screen.getByText(/Advanced:.*held Forward/i)).not.toBeNull();
     const communityExamples = screen
       .getByText('Community Examples')
-      .closest('[data-slot="card"]');
+      .closest('section');
     expect(communityExamples?.querySelectorAll('dt')).toHaveLength(3);
     expect(
       (screen.getByRole('textbox', { name: 'Notation' }) as HTMLInputElement)
@@ -153,7 +153,7 @@ describe('NotationGuide', () => {
     expect(screen.getByText(/Advanced:.*held Kameo/i)).not.toBeNull();
     const communityExamples = screen
       .getByText('Community Examples')
-      .closest('[data-slot="card"]');
+      .closest('section');
     expect(communityExamples?.querySelectorAll('dt')).toHaveLength(3);
   });
 
@@ -170,7 +170,7 @@ describe('NotationGuide', () => {
     expect(screen.queryByText('Button Mappings')).toBeNull();
     const directionsCard = screen
       .getByRole('list', { name: 'Standard direction notation' })
-      .closest('[data-slot="card"]');
+      .closest('section');
     expect(directionsCard).not.toBeNull();
     expect(directionsCard?.textContent).toContain('Directional Reference');
     expect(directionsCard?.textContent).toContain('Parsing Rules');
@@ -192,7 +192,7 @@ describe('NotationGuide', () => {
 
     const communityExamples = screen
       .getByText('Community Examples')
-      .closest('[data-slot="card"]');
+      .closest('section');
     expect(communityExamples?.querySelectorAll('dt')).toHaveLength(3);
     const livePreview = screen.getByText('Live Preview');
     const arrowCallout = screen.getByText('Want arrow inputs?');
@@ -212,8 +212,9 @@ describe('NotationGuide', () => {
       screen.getByRole('img', { name: 'Quarter Circle example, step 1' }),
     ).not.toBeNull();
     expect(
-      screen.getByRole('img', { name: 'Dragon Punch example, step 1' }),
-    ).not.toBeNull();
+      screen.queryByRole('img', { name: /Dragon Punch example/ }),
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset example' })).toBeNull();
     expect(screen.queryByRole('img', { name: /Neutral example/i })).toBeNull();
     expect(
       screen.queryByRole('img', { name: /Down Forward example/i }),
@@ -239,8 +240,8 @@ describe('NotationGuide', () => {
       screen.getByRole('img', { name: 'Quarter Circle example' }),
     ).not.toBeNull();
     expect(
-      screen.getByRole('img', { name: 'Dragon Punch example' }),
-    ).not.toBeNull();
+      screen.queryByRole('img', { name: /Dragon Punch example/ }),
+    ).toBeNull();
     expect(
       screen
         .getByRole('img', { name: 'Hold Forward example' })
@@ -262,7 +263,7 @@ describe('NotationGuide', () => {
 
       const syntaxCard = screen
         .getByText(title)
-        .closest('[data-slot="card"]');
+        .closest('section');
       expect(syntaxCard).not.toBeNull();
       const terms = Array.from(syntaxCard?.querySelectorAll('dt') ?? []).map(
         (term) => term.textContent,

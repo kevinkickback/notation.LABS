@@ -8,13 +8,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -153,12 +147,6 @@ export function GeneralSettings() {
     <div className="space-y-6">
       {/* Appearance Card - always shown */}
       <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>
-            Customize the look and feel of the app
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -273,14 +261,6 @@ export function GeneralSettings() {
       </Card>
       {/* Updates Card and modals - always shown */}
       <Card>
-        <CardHeader>
-          <CardTitle>Updates</CardTitle>
-          <CardDescription>
-            {appVersion
-              ? `Current version: v${appVersion}`
-              : 'Manage app updates'}
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
           {typeof window !== 'undefined' && window.electronAPI && (
             <div className="flex items-center justify-between">
@@ -360,12 +340,6 @@ export function GeneralSettings() {
       </Card>
       {/* Behavior Card - always shown */}
       <Card>
-        <CardHeader>
-          <CardTitle>Behavior</CardTitle>
-          <CardDescription>
-            Configure app behavior and preferences
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>

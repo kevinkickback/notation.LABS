@@ -252,6 +252,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
             variant="ghost"
             size="icon"
             onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
             className="flex-shrink-0"
           >
             <GearSixIcon className="size-5 sm:size-6" />

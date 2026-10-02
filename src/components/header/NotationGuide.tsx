@@ -5,24 +5,16 @@ import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { MotionIcon } from '@/components/combo/icons/MotionIcon';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import {
   COMMON_SYNTAX,
@@ -45,7 +37,6 @@ interface NotationGuideProps {
   showTrigger?: boolean;
   activeGame?: Game;
 }
-
 export function NotationGuide({
   open,
   onOpenChange,
@@ -58,26 +49,24 @@ export function NotationGuide({
     getNotationProfileDefinition(initialProfile).example,
   );
   const previewInputId = useId();
-
   useEffect(() => {
     if (!open) return;
-    const nextProfile = activeGame?.notationProfile ?? 'standard';
-    setProfile(nextProfile);
-    setPreviewNotation(getNotationProfileDefinition(nextProfile).example);
+    const next = activeGame?.notationProfile ?? 'standard';
+    setProfile(next);
+    setPreviewNotation(getNotationProfileDefinition(next).example);
   }, [open, activeGame]);
-
-  const profileDefinition = getNotationProfileDefinition(profile);
+  const definition = getNotationProfileDefinition(profile);
   const guide = PROFILE_GUIDES[profile];
   const previewGame = useMemo<Game>(
     () => ({
       id: 'notation-guide-preview',
-      name: profileDefinition.label,
+      name: definition.label,
       notationProfile: profile,
-      buttonLayout: profileDefinition.defaultButtons,
+      buttonLayout: definition.defaultButtons,
       createdAt: 0,
       updatedAt: 0,
     }),
-    [profile, profileDefinition],
+    [profile, definition],
   );
   const previewTokens = useMemo(
     () =>
@@ -86,15 +75,14 @@ export function NotationGuide({
       }),
     [previewNotation, previewGame, profile],
   );
-
-  const handleProfileChange = (nextProfile: NotationProfile) => {
-    setProfile(nextProfile);
-    setPreviewNotation(getNotationProfileDefinition(nextProfile).example);
+  const selectProfile = (value: string) => {
+    const next = value as NotationProfile;
+    setProfile(next);
+    setPreviewNotation(getNotationProfileDefinition(next).example);
   };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {showTrigger ? (
+      {showTrigger && (
         <DialogTrigger asChild>
           <Button
             variant="ghost"
@@ -105,79 +93,74 @@ export function NotationGuide({
             <BookOpenIcon className="size-6" />
           </Button>
         </DialogTrigger>
-      ) : null}
-      <DialogContent className="flex max-w-4xl flex-col overflow-hidden">
-        <DialogHeader className="shrink-0 border-b border-border pb-4 pr-6">
-          <DialogTitle className="font-mono text-2xl">
-            Combo Notation Guide
-          </DialogTitle>
-          <DialogDescription>
-            Community notation reference with live text and icon previews.
+      )}
+      <DialogContent className="notation-guide-dialog max-w-6xl flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>Combo Notation Guide</DialogTitle>
+          <DialogDescription className="sr-only">
+            Look up an input. Try a sequence. See how it reads.
           </DialogDescription>
         </DialogHeader>
-
-        <DialogBody className="-mr-2 pr-2">
-          <Tabs
-            value={profile}
-            onValueChange={(value) =>
-              handleProfileChange(value as NotationProfile)
-            }
-            className="gap-4"
-          >
-            <TabsList
-              className="grid w-full grid-cols-3"
-              aria-label="Notation style"
+        <Tabs
+          value={profile}
+          onValueChange={selectProfile}
+          className="guide-tabs min-h-0 flex-1"
+        >
+          <TabsList className="guide-profile-tabs" aria-label="Notation style">
+            {NOTATION_PROFILES.map((item) => (
+              <TabsTrigger key={item.id} value={item.id}>
+                {item.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <TabsContent value={profile} className="guide-workspace min-h-0">
+            <section
+              className="guide-reference"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: This scroll region needs keyboard access.
+              tabIndex={0}
+              aria-label={`${definition.shortLabel} notation reference`}
             >
-              {NOTATION_PROFILES.map((item) => (
-                <TabsTrigger key={item.id} value={item.id}>
-                  {item.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <TabsContent value={profile} className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {profileDefinition.description}
+                {definition.description}
               </p>
-
               <DirectionsCard
                 profile={profile}
                 entries={guide.directionRules}
               />
-
               <GuideCard
-                title={`${profileDefinition.shortLabel} Supported Syntax`}
+                title={`${definition.shortLabel} Supported Syntax`}
                 entries={[
                   ...COMMON_SYNTAX,
                   ...PROFILE_INPUT_SYNTAX[profile],
                   ...guide.separators,
                 ]}
               />
-
               <GuideCard title="Mechanics & States" entries={guide.mechanics} />
-              <GuideCard title="Community Examples" entries={guide.examples} />
-
-              <Card className="gap-3 py-4 shadow-none">
-                <CardHeader className="gap-1 px-4">
-                  <CardTitle className="text-sm">Live Preview</CardTitle>
-                  <CardDescription className="text-xs">
-                    Edit the notation to compare preserved text with its visual
-                    interpretation.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 px-4">
+              <GuideCard
+                title="Community Examples"
+                entries={guide.examples}
+                onTry={setPreviewNotation}
+              />
+            </section>
+            <div className="guide-live-preview">
+              <section className="guide-section">
+                <h3>Live Preview</h3>
+                <p className="guide-section-description">
+                  Type a sequence or select a community example.
+                </p>
+                <div className="guide-preview-fields">
                   <div>
                     <Label htmlFor={previewInputId}>Notation</Label>
-                    <Input
+                    <Textarea
                       id={previewInputId}
                       value={previewNotation}
                       onChange={(event) =>
                         setPreviewNotation(event.target.value)
                       }
-                      className="mt-1 font-mono"
+                      className="font-mono min-h-24 resize-y"
                     />
                   </div>
-                  <div className="space-y-3">
+                  <div aria-live="polite" aria-atomic="true">
                     <PreviewPanel label="Text">
                       <ComboDisplay
                         tokens={previewTokens}
@@ -193,18 +176,16 @@ export function NotationGuide({
                       />
                     </PreviewPanel>
                   </div>
-                </CardContent>
-              </Card>
-
+                </div>
+              </section>
               <MotionStyleCallout />
-            </TabsContent>
-          </Tabs>
-        </DialogBody>
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
 }
-
 function DirectionsCard({
   profile,
   entries,
@@ -215,20 +196,20 @@ function DirectionsCard({
   const profileDefinition = getNotationProfileDefinition(profile);
 
   return (
-    <Card className="gap-3 py-4 shadow-none">
-      <CardHeader className="gap-1 px-4">
-        <CardTitle className="text-sm">Directions</CardTitle>
-        <CardDescription className="text-xs">
+    <section className="guide-section">
+      <header>
+        <h3>Directions</h3>
+        <p className="guide-section-description">
           {DIRECTION_REFERENCE_DESCRIPTIONS[profile]}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 px-4">
+        </p>
+      </header>
+      <div className="guide-directions-layout">
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground">
             Directional Reference
           </h4>
           <ul
-            className="mx-auto grid max-w-sm grid-cols-3 gap-2"
+            className="guide-direction-pad"
             aria-label={`${profileDefinition.shortLabel} direction notation`}
           >
             {DIRECTION_REFERENCES[profile].map((entry) => (
@@ -255,48 +236,65 @@ function DirectionsCard({
             ))}
           </ul>
         </div>
-        <div className="space-y-2 border-t border-border pt-4">
+        <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground">
             Parsing Rules
           </h4>
           <GuideGrid entries={entries} />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
 function GuideCard({
   title,
   entries,
+  onTry,
 }: {
   title: string;
   entries: GuideEntry[];
+  onTry?: (value: string) => void;
 }) {
   return (
-    <Card className="gap-3 py-4 shadow-none">
-      <CardHeader className="px-4">
-        <CardTitle className="text-sm">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="px-4">
-        <GuideGrid entries={entries} />
-      </CardContent>
-    </Card>
+    <section className="guide-section">
+      <header>
+        <h3>{title}</h3>
+      </header>
+      <div>
+        <GuideGrid entries={entries} onTry={onTry} />
+      </div>
+    </section>
   );
 }
 
-function GuideGrid({ entries }: { entries: GuideEntry[] }) {
+function GuideGrid({
+  entries,
+  onTry,
+}: {
+  entries: GuideEntry[];
+  onTry?: (value: string) => void;
+}) {
   return (
-    <dl className="divide-y divide-border/60">
+    <dl className={onTry ? 'guide-entries guide-examples' : 'guide-entries'}>
       {entries.map((entry) => (
         <div
           key={`${entry.notation}-${entry.meaning}`}
           className="space-y-0.5 py-2 first:pt-0 last:pb-0"
         >
           <dt>
-            <code className="font-mono font-semibold text-primary">
-              {entry.notation}
-            </code>
+            {onTry ? (
+              <button
+                type="button"
+                aria-label={`Try ${entry.notation}`}
+                onClick={() => onTry(entry.notation)}
+              >
+                <code>{entry.notation}</code>
+                <span aria-hidden="true">↗</span>
+              </button>
+            ) : (
+              <code>{entry.notation}</code>
+            )}
           </dt>
           <dd className="text-sm text-muted-foreground">{entry.meaning}</dd>
         </div>
@@ -316,11 +314,10 @@ function MotionStyleCallout() {
       hold: true,
     },
     { label: 'Quarter Circle', motion: '236' },
-    { label: 'Dragon Punch', motion: '623' },
   ];
 
   return (
-    <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
+    <div className="guide-motion-settings">
       <p className="text-sm font-medium text-foreground">
         Want {offersJoystick ? 'joystick' : 'arrow'} inputs?
       </p>
@@ -331,7 +328,7 @@ function MotionStyleCallout() {
           ? 'Joystick inputs show complete motion paths in a single diagram.'
           : 'Tekken tap and hold arrows use different shapes; neutral uses a star.'}
       </p>
-      <fieldset className="mt-3 flex flex-wrap items-end gap-4">
+      <fieldset className="guide-motion-examples">
         <legend className="sr-only">
           {offersJoystick ? 'Joystick' : 'Arrow'} input examples
         </legend>
@@ -359,7 +356,7 @@ function IconExample({
   hold?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="guide-motion-example">
       <MotionIcon
         motion={motion}
         iconStyle={iconStyle}
@@ -380,7 +377,7 @@ function PreviewPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-muted/30 p-3">
+    <div className="guide-preview-output min-w-0">
       <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
       {children}
     </div>
