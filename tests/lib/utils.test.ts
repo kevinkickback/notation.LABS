@@ -31,12 +31,25 @@ describe('cn (className utility)', () => {
 });
 
 describe('getProviderBase', () => {
-  it('returns the IGDB development proxy', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('uses deployed services in development without local services', () => {
+    vi.stubEnv('VITE_USE_LOCAL_PROVIDERS', '');
     expect(getProviderBase('igdb')).toBe('/api/igdb');
+    expect(getProviderBase('image')).toBe('https://ddg.capitol-k.workers.dev');
   });
 
-  it('returns the image-search development proxy', () => {
+  it('uses local proxies only when explicitly enabled in development', () => {
+    vi.stubEnv('VITE_USE_LOCAL_PROVIDERS', 'true');
+    expect(getProviderBase('igdb')).toBe('/api/igdb');
     expect(getProviderBase('image')).toBe('/api/image');
+  });
+
+  it('keeps production on deployed services even with the local flag enabled', () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_USE_LOCAL_PROVIDERS', 'true');
+    expect(getProviderBase('igdb')).toBe('https://igdb.capitol-k.workers.dev');
+    expect(getProviderBase('image')).toBe('https://ddg.capitol-k.workers.dev');
   });
 });
 

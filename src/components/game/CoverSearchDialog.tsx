@@ -146,7 +146,8 @@ export function CoverSearchDialog({
                 const thumb = result.coverImageId
                   ? thumbnails[result.coverImageId]
                   : null;
-                const isDownloading = downloading === result.coverImageId;
+                const isDownloading =
+                  Boolean(downloading) && downloading === result.coverImageId;
                 const year = formatYear(result.firstReleaseDate);
 
                 return (

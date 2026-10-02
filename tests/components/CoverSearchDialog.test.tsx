@@ -46,6 +46,18 @@ describe('CoverSearchDialog', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('shows available covers while a coverless result stays disabled without a download spinner', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [
+      { id: 1, name: 'Street Fighter III', coverImageId: 'co7t3g', firstReleaseDate: null },
+      { id: 2, name: 'Coverless game', coverImageId: null },
+    ] });
+    render(<CoverSearchDialog open {...defaultProps} />);
+    const unavailable = await screen.findByRole('button', { name: 'Select cover for Coverless game' });
+    expect(unavailable.hasAttribute('disabled')).toBe(true);
+    expect(unavailable.querySelector('.animate-spin')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Select cover for Street Fighter III' }).hasAttribute('disabled')).toBe(false);
+  });
+
   it('does not re-fetch when the search button is clicked with an unchanged query', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
