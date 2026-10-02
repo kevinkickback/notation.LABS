@@ -83,15 +83,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [optimisticSettings, setOptimisticSettings] = useState<
     Partial<UserSettings>
   >({});
+  const requestSequence = useRef(0);
+  const latestSettingsRequests = useRef<
+    Partial<Record<keyof UserSettings, number>>
+  >({});
+  const [appliedRevision, setAppliedRevision] = useState(0);
   const settingsWriteQueue = useRef(Promise.resolve());
   const queueSettingsWrite = useCallback(<T,>(write: () => Promise<T>) => {
+    const request = ++requestSequence.current;
     const result = settingsWriteQueue.current.then(write);
     // A failed write reports to its caller while later choices still save.
-    settingsWriteQueue.current = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
+    const finish = () => setAppliedRevision(request);
+    settingsWriteQueue.current = result.then(finish, finish);
+    return { request, result };
   }, []);
 
   // Run initialization and data migrations once at mount, outside
@@ -129,29 +133,33 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Pure read - safe inside useLiveQuery.
-  const { data: settings, error: settingsReadError } = useRecoverableLiveQuery(
-    indexedDbStorage.settings.get,
-    [],
-    attempt,
-  );
+  const { data: settingsSnapshot, error: settingsReadError } =
+    useRecoverableLiveQuery(
+      async () => ({
+        settings: await indexedDbStorage.settings.get(),
+        appliedThrough: appliedRevision,
+      }),
+      [appliedRevision],
+      attempt,
+    );
+  const settings = settingsSnapshot?.settings;
   const currentSettings = {
     ...(settings ?? INITIAL_SETTINGS),
     ...optimisticSettings,
   };
 
   useEffect(() => {
-    if (!settings) return;
+    if (!settingsSnapshot) return;
 
     setOptimisticSettings((current) => {
       const next = { ...current };
       let changed = false;
 
       for (const key of Object.keys(current) as Array<keyof UserSettings>) {
+        const request = latestSettingsRequests.current[key];
         if (
-          current[key] === settings[key] ||
-          (key === 'notesOverrides' &&
-            current.notesOverrides?.length === 0 &&
-            settings.notesOverrides?.length === 0)
+          request !== undefined &&
+          request <= settingsSnapshot.appliedThrough
         ) {
           delete next[key];
           changed = true;
@@ -160,7 +168,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       return changed ? next : current;
     });
-  }, [settings]);
+  }, [settingsSnapshot]);
 
   const setSetting = useCallback(
     async <K extends keyof UserSettings>(
@@ -172,21 +180,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         [key]: value,
         ...(key === 'notesDefaultOpen' ? { notesOverrides: [] } : {}),
       };
+      const { request, result } = queueSettingsWrite(() =>
+        indexedDbStorage.settings.update(updates),
+      );
+      for (const updatedKey of Object.keys(updates) as Array<
+        keyof UserSettings
+      >) {
+        latestSettingsRequests.current[updatedKey] = request;
+      }
       setOptimisticSettings((current) => ({ ...current, ...updates }));
 
       try {
-        await queueSettingsWrite(() =>
-          indexedDbStorage.settings.update(updates),
-        );
+        await result;
         return true;
       } catch (error) {
         setOptimisticSettings((current) => {
-          if (current[key] !== value) return current;
+          if (latestSettingsRequests.current[key] !== request) return current;
           const next = { ...current };
           for (const updatedKey of Object.keys(updates) as Array<
             keyof UserSettings
           >) {
-            if (current[updatedKey] === updates[updatedKey])
+            if (latestSettingsRequests.current[updatedKey] === request)
               delete next[updatedKey];
           }
           return next;
@@ -208,7 +222,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           entityId,
           isOpen !== (persisted.notesDefaultOpen ?? false),
         );
-      }),
+      }).result,
     [queueSettingsWrite],
   );
 

@@ -76,6 +76,10 @@ change. Failed writes do not prevent later queued settings from saving.
 The latest panel toggle stays visible through unrelated settings refreshes and
 earlier queued writes until its own save is acknowledged. Changing the selected
 entity or global default discards the previous optimistic choice.
+Each settings request has an increasing token. Live snapshots identify the queued
+writes completed before their read, so an earlier save with the same value cannot
+clear a later pending choice. Failure rollback also checks the latest token per
+setting rather than comparing values.
 
 ## Status bar
 

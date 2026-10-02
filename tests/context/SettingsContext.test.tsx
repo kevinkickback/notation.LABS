@@ -28,7 +28,10 @@ async function renderSettings(ui: ReactNode): Promise<RenderResult> {
 }
 
 vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
-  useRecoverableLiveQuery: (...args: unknown[]) => useLiveQueryMock(...args),
+  useRecoverableLiveQuery: (...args: unknown[]) => {
+    const result = useLiveQueryMock(...args);
+    return { error: result.error, data: result.data === undefined ? undefined : { settings: result.data, appliedThrough: result.appliedThrough ?? 0 } };
+  },
 }));
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
@@ -164,7 +167,7 @@ describe('SettingsContext', () => {
     expect(screen.getByText('Settings read failed')).toBeTruthy();
     expect(screen.getByText('Loading')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry read' }));
-    expect(useLiveQueryMock).toHaveBeenCalledWith(expect.any(Function), [], 1);
+    expect(useLiveQueryMock).toHaveBeenCalledWith(expect.any(Function), [0], 1);
     useLiveQueryMock.mockReturnValue({ data: DEFAULT_SETTINGS, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
     await waitFor(() => expect(screen.getByText('Ready')).toBeTruthy());
@@ -321,10 +324,10 @@ describe('SettingsContext', () => {
     }
     const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Open notes' })));
-    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: [] }, error: null });
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: [] }, appliedThrough: 1, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
     expect(screen.getByText('[]')).toBeTruthy();
-    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-2'] }, error: null });
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-2'] }, appliedThrough: 1, error: null });
     rerender(<SettingsProvider><Consumer /></SettingsProvider>);
     expect(screen.getByText('["char-2"]')).toBeTruthy();
   });
@@ -373,5 +376,54 @@ describe('SettingsContext', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open panel' }));
     fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
     await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notesDefaultOpen: true, notesOverrides: [] }));
+  });
+
+  function CardSizeConsumer() {
+    const settings = useSettings();
+    const { setSetting } = useSettingsActions();
+    return <><span data-testid="card-size">{settings.gameCardSize}</span>{[180, 190].map(size => <button type="button" key={size} onClick={() => void setSetting('gameCardSize', size)}>Size {size}</button>)}</>;
+  }
+
+  it.each([false, true])('keeps the latest repeated size while earlier writes finish (first fails: %s)', async firstFails => {
+    const writes: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
+    settingsUpdateMock.mockImplementation(() => new Promise<void>((resolve, reject) => { writes.push({ resolve, reject }); }));
+    const { rerender } = await renderSettings(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Size 180' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size 190' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Size 180' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    await act(async () => firstFails ? writes[0].reject(new Error('first write failed')) : writes[0].resolve());
+    await waitFor(() => expect(writes).toHaveLength(2));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 180 }, appliedThrough: 1, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('180');
+    await act(async () => writes[1].resolve());
+    await waitFor(() => expect(writes).toHaveLength(3));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 190 }, appliedThrough: 2, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('180');
+    await act(async () => writes[2].resolve());
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 180 }, appliedThrough: 3, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('180');
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, gameCardSize: 240 }, appliedThrough: 3, error: null });
+    rerender(<SettingsProvider><CardSizeConsumer /></SettingsProvider>);
+    expect(screen.getByTestId('card-size').textContent).toBe('240');
+  });
+
+  it('acknowledges a notes reset even when a later manual save supersedes its empty list', async () => {
+    getMock.mockResolvedValue({ ...DEFAULT_SETTINGS, notesDefaultOpen: true });
+    function Consumer() {
+      const settings = useSettings();
+      const { setSetting, setNotesPanelOpen } = useSettingsActions();
+      return <><span>{JSON.stringify([settings.notesDefaultOpen, settings.notesOverrides])}</span><button type="button" onClick={() => void setSetting('notesDefaultOpen', true)}>Default open</button><button type="button" onClick={() => void setNotesPanelOpen('char-1', false)}>Close panel</button></>;
+    }
+    const { rerender } = await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Default open' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    await waitFor(() => expect(notesOverrideMock).toHaveBeenCalledWith('char-1', true));
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notesDefaultOpen: true, notesOverrides: ['char-1'] }, appliedThrough: 2, error: null });
+    rerender(<SettingsProvider><Consumer /></SettingsProvider>);
+    expect(screen.getByText('[true,["char-1"]]')).toBeTruthy();
   });
 });
