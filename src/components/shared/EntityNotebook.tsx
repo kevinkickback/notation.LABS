@@ -48,6 +48,7 @@ const DEFAULT_DOCK_WIDTH = 400;
 const MAX_DOCK_WIDTH = 600;
 const NotebookDock = createContext<{
   target: HTMLDivElement | null;
+  portalContainer: HTMLDivElement | null;
   triggerTarget: HTMLDivElement | null;
   setTriggerTarget: (target: HTMLDivElement | null) => void;
   width: number;
@@ -64,7 +65,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
   const [triggerTarget, setTriggerTarget] = useState<HTMLDivElement | null>(
     null,
   );
-  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [workspace, setWorkspace] = useState<HTMLDivElement | null>(null);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const [mainWidth, setMainWidth] = useState(0);
   const [dockHeight, setDockHeight] = useState(0);
@@ -81,7 +82,6 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
   const clampWidth = (value: number) =>
     Math.round(Math.max(MIN_DOCK_WIDTH, Math.min(maxWidth, value)));
   useEffect(() => {
-    const workspace = workspaceRef.current;
     if (!workspace) return;
     const container = workspace.parentElement;
     const measure = () => {
@@ -120,11 +120,12 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [workspace]);
   return (
     <NotebookDock.Provider
       value={{
         target: dockTarget,
+        portalContainer: workspace,
         triggerTarget,
         setTriggerTarget,
         width,
@@ -139,7 +140,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
     >
       <div
         className="notebook-workspace"
-        ref={workspaceRef}
+        ref={setWorkspace}
         style={
           {
             '--notebook-dock-width': `${width}px`,
@@ -345,7 +346,9 @@ export const EntityNotebook = forwardRef<
   const saveResource = async () => {
     if (!resourceDraft || savingResource || props.kind !== 'character') return;
     const raw = resourceDraft.url.trim();
-    const candidate = /^[a-z][a-z\d+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+    const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(raw)
+      ? raw
+      : `https://${raw}`;
     const result = externalHttpUrlSchema.safeParse(candidate);
     if (!result.success) {
       setUrlError('Enter a valid HTTP or HTTPS URL without credentials.');
@@ -804,7 +807,7 @@ export const EntityNotebook = forwardRef<
           </aside>,
           dockTarget,
         )}
-      {!isDocked && (
+      {!isDocked && (!dock || dock.portalContainer) && (
         <Dialog
           modal={false}
           open={isOpen}
@@ -814,6 +817,7 @@ export const EntityNotebook = forwardRef<
         >
           <DialogContent
             className="notebook-drawer"
+            portalContainer={dock?.portalContainer}
             hideCloseButton
             id={contentId}
             onOpenAutoFocus={(event) => {

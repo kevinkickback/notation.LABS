@@ -95,6 +95,13 @@ describe('EntityNotebook', () => {
     expect(screen.getByRole('dialog', { name: 'Ryu Notebook' })).not.toBeNull();
   });
 
+  it('keeps the floating notebook inside the page interaction boundary', () => {
+    render(<main inert><CharacterNotebook /></main>);
+    const drawer = screen.getByRole('dialog', { name: 'Ryu Notebook' });
+    expect(drawer.closest('main')?.hasAttribute('inert')).toBe(true);
+    expect(drawer.closest('.notebook-workspace')).not.toBeNull();
+  });
+
   it('preserves the note draft through preview and closing', async () => {
     const user = userEvent.setup();
     render(<CharacterNotebook notes="Old note" />);
@@ -361,6 +368,17 @@ describe('EntityNotebook', () => {
     expect(screen.getByRole('alert').textContent).toContain('HTTP or HTTPS');
     expect(updateCharacter).not.toHaveBeenCalled();
     expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe(url);
+  });
+
+  it.each(['localhost:3000/guide', 'example.com:8080/guide'])('saves the schemeless host and port %s as HTTPS', async url => {
+    const user = userEvent.setup();
+    render(<CharacterNotebook resources={[]} />);
+    await user.click(screen.getByRole('tab', { name: /^Resources/ }));
+    await user.click(screen.getByRole('button', { name: 'Add resource link' }));
+    await user.type(screen.getByRole('textbox', { name: 'URL' }), url);
+    await user.click(screen.getByRole('button', { name: 'Add resource' }));
+    expect(updateCharacter).toHaveBeenCalledWith('ryu', { links: [expect.objectContaining({ url: `https://${url}` })] });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('edits a resource while preserving its identity and other resources', async () => {

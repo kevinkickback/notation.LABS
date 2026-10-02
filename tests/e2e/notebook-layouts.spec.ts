@@ -191,6 +191,64 @@ test('loads resource favicons with an offline fallback and keeps notebook action
   await expect(guide).toHaveAttribute('href', 'https://example.com/guide');
 });
 
+test('accepts resource hosts with ports while rejecting explicit non-HTTP schemes', async ({ page }) => {
+  await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
+  const drawer = page.getByRole('dialog', { name: 'Ryu Notebook' });
+  await drawer.getByRole('tab', { name: /^Resources/ }).click();
+  await drawer.getByRole('button', { name: 'Add resource link', exact: true }).click();
+  const url = drawer.getByRole('textbox', { name: 'URL', exact: true });
+  await url.fill('ftp://example.com/guide');
+  await drawer.getByRole('button', { name: 'Add resource', exact: true }).click();
+  await expect(drawer.getByRole('alert')).toContainText('HTTP or HTTPS');
+  for (const [host, label] of [['localhost:3000/guide', 'Local guide'], ['example.com:8080/guide', 'Port guide']]) {
+    await url.fill(host);
+    await drawer.getByRole('textbox', { name: /Label/ }).fill(label);
+    await drawer.getByRole('button', { name: 'Add resource', exact: true }).click();
+    await expect(drawer.getByRole('link', { name: `Open ${label} in a new tab`, exact: true })).toHaveAttribute('href', `https://${host}`);
+    if (label === 'Local guide') await drawer.getByRole('button', { name: 'Add resource link', exact: true }).click();
+  }
+});
+
+for (const kind of ['game', 'character'] as const) {
+  test(`blocks the floating ${kind} editor while destination reads are pending`, async ({ page }) => {
+    if (kind === 'game') await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: kind === 'game' ? 'Notes' : 'Notes & Resources', exact: true }).click();
+    const drawer = page.locator('.notebook-drawer');
+    await drawer.getByRole('button', { name: 'Edit note', exact: true }).click();
+    const editor = drawer.locator('textarea');
+    await editor.fill('Keep this draft unsaved during navigation');
+    await page.evaluate(async () => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      let writes = 0;
+      const ready = new Promise<void>(resolve => Object.assign(window, { finishNotebookNavigation: resolve }));
+      Object.assign(window, { notebookEntityWrites: () => writes });
+      const readCharacters = indexedDbStorage.characters.getByGame;
+      const readCombos = indexedDbStorage.combos.getByCharacter;
+      indexedDbStorage.characters.getByGame = id => readCharacters(id).then(async rows => { await ready; return rows; });
+      indexedDbStorage.combos.getByCharacter = id => readCombos(id).then(async rows => { await ready; return rows; });
+      const updateCharacter = indexedDbStorage.characters.update;
+      const updateGame = indexedDbStorage.games.update;
+      indexedDbStorage.characters.update = (...args) => { writes++; return updateCharacter(...args); };
+      indexedDbStorage.games.update = (...args) => { writes++; return updateGame(...args); };
+    });
+    if (kind === 'game') await page.locator('h3', { hasText: 'Ryu' }).click();
+    else await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page.locator('main')).toHaveAttribute('inert', '');
+    expect(await drawer.evaluate(element => Boolean(element.closest('main[inert]')))).toBe(true);
+    await editor.evaluate(element => element.focus());
+    await expect(editor).not.toBeFocused();
+    const save = await drawer.locator('button[aria-label="Save Note"]').boundingBox();
+    if (!save) throw new Error('The retained note editor is missing');
+    await page.mouse.click(save.x + save.width / 2, save.y + save.height / 2);
+    expect(await page.evaluate(() => (window as unknown as { notebookEntityWrites: () => number }).notebookEntityWrites())).toBe(0);
+    await page.evaluate(() => (window as unknown as { finishNotebookNavigation: () => void }).finishNotebookNavigation());
+    await expect(page.locator('main')).toHaveAttribute('aria-busy', 'false');
+    await expect(drawer).toHaveCount(0);
+    await expect(page.locator('h3', { hasText: kind === 'game' ? 'Mid-screen confirm' : 'Ryu' })).toBeVisible();
+  });
+}
+
 test('docks beside the workspace, preserves drafts through resizing, and restores the docking choice', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
   let drawer = page.getByRole('dialog', { name: 'Ryu Notebook' });

@@ -55,6 +55,9 @@ Controlled dialogs restore focus to the invoking control when it remains present
 including returning from image search to its parent editor. Motion stays brief and
 respects reduced-motion preferences. Notes and resources use a shared floating or
 docked notebook. Export commit-phase protections are preserved.
+The floating drawer portals inside its page workspace so pending navigation also
+blocks its editing controls. Resource entry accepts HTTP/S URLs and schemeless
+hosts, including ports, by adding HTTPS when needed.
 
 ## Collection cards and notes
 
