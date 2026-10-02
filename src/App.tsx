@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CharacterView } from '@/components/character/CharacterView';
 import { ComboView } from '@/components/combo/ComboView';
@@ -7,7 +7,11 @@ import { GameLibrary } from '@/components/game/GameLibrary';
 import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
 import { Header } from '@/components/header/Header';
 import { Toaster } from '@/components/ui/sonner';
-import { useSettings } from '@/context/SettingsContext';
+import { AppLoadingOverlay } from '@/components/workbench/AppLoadingOverlay';
+import {
+  useSettings,
+  useSettingsInitialization,
+} from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
@@ -15,6 +19,9 @@ import { useAppStore } from '@/lib/store';
 function App() {
   const { selectedGameId, selectedCharacterId } = useAppStore();
   const settings = useSettings();
+  const initialization = useSettingsInitialization();
+  const [starting, setStarting] = useState(true);
+  const finishStartup = useCallback(() => setStarting(false), []);
   const {
     status: updateStatus,
     availabilityEventId,
@@ -63,31 +70,53 @@ function App() {
     [characters, selectedCharacterId],
   );
 
+  const startupStage = initialization.isReparsing
+    ? 'parsing'
+    : !initialization.initialized
+      ? 'settings'
+      : games === undefined
+        ? 'library'
+        : 'ready';
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Header activeGame={selectedGame} />
-      <BreadcrumbBar
-        selectedGame={selectedGame}
-        selectedCharacter={selectedCharacter}
-      />
+      <div
+        className="app-workspace"
+        inert={starting}
+        aria-hidden={starting || undefined}
+      >
+        <Header activeGame={selectedGame} />
+        <BreadcrumbBar
+          selectedGame={selectedGame}
+          selectedCharacter={selectedCharacter}
+        />
 
-      <main className="container mx-auto px-4 py-8">
-        {!selectedGameId && <GameLibrary games={games || []} />}
+        <main className="container mx-auto px-4 py-8">
+          {!selectedGameId && <GameLibrary games={games || []} />}
 
-        {selectedGameId && !selectedCharacterId && selectedGame && (
-          <CharacterView game={selectedGame} characters={characters || []} />
-        )}
+          {selectedGameId && !selectedCharacterId && selectedGame && (
+            <CharacterView game={selectedGame} characters={characters || []} />
+          )}
 
-        {selectedCharacterId && selectedGame && selectedCharacter && (
-          <ComboView
-            game={selectedGame}
-            character={selectedCharacter}
-            combos={combos || []}
-          />
-        )}
-      </main>
+          {selectedCharacterId && selectedGame && selectedCharacter && (
+            <ComboView
+              game={selectedGame}
+              character={selectedCharacter}
+              combos={combos || []}
+            />
+          )}
+        </main>
 
-      <Toaster />
+        <Toaster />
+      </div>
+      {starting && (
+        <AppLoadingOverlay
+          stage={startupStage}
+          error={initialization.error}
+          onRetry={initialization.retry}
+          onComplete={finishStartup}
+        />
+      )}
     </div>
   );
 }

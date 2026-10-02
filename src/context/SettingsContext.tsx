@@ -6,6 +6,8 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
+  useRef,
   useState,
 } from 'react';
 import { toast } from 'sonner';
@@ -28,6 +30,12 @@ const INITIAL_SETTINGS: UserSettings = {
 };
 
 const SettingsContext = createContext<UserSettings>(INITIAL_SETTINGS);
+const SettingsInitializationContext = createContext({
+  initialized: true,
+  isReparsing: false,
+  error: null as string | null,
+  retry: () => {},
+});
 const SettingsActionsContext = createContext({
   setSetting: async <K extends keyof UserSettings>(
     _key: K,
@@ -63,6 +71,15 @@ function ReparseProgressModal() {
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [isReparsing, setIsReparsing] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+  const [initializationError, setInitializationError] = useState<string | null>(
+    null,
+  );
+  const [attempt, setAttempt] = useState(0);
+  const initialization = useRef<{
+    attempt: number;
+    promise: Promise<void>;
+  } | null>(null);
   const [optimisticSettings, setOptimisticSettings] = useState<
     Partial<UserSettings>
   >({});
@@ -70,15 +87,35 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Run initialization and data migrations once at mount, outside
   // the useLiveQuery read-only transaction context.
   useEffect(() => {
-    indexedDbStorage.settings
-      .init({
-        onReparseStart: () => setIsReparsing(true),
-        onReparseEnd: () => setIsReparsing(false),
+    let cancelled = false;
+    if (initialization.current?.attempt !== attempt) {
+      initialization.current = {
+        attempt,
+        promise: indexedDbStorage.settings.init({
+          onReparseStart: () => setIsReparsing(true),
+          onReparseEnd: () => setIsReparsing(false),
+        }),
+      };
+    }
+    initialization.current.promise
+      .then(() => {
+        if (!cancelled) setInitialized(true);
       })
       .catch((err) => {
+        if (cancelled) return;
+        setInitializationError(toUserMessage(err));
         reportError('SettingsProvider.init', err);
         toast.error(`Failed to load saved settings: ${toUserMessage(err)}`);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
+
+  const retryInitialization = useCallback(() => {
+    setInitialized(false);
+    setInitializationError(null);
+    setAttempt((current) => current + 1);
   }, []);
 
   // Pure read - safe inside useLiveQuery.
@@ -137,7 +174,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.style.setProperty(
       '--app-font-family',
       getFontFamilyCSS(currentSettings.fontFamily),
@@ -159,8 +196,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   return (
     <SettingsActionsContext.Provider value={{ setSetting, setNotesOverride }}>
       <SettingsContext.Provider value={currentSettings}>
-        {children}
-        {isReparsing && <ReparseProgressModal />}
+        <SettingsInitializationContext.Provider
+          value={{
+            initialized: initialized && settings !== undefined,
+            isReparsing,
+            error: initializationError,
+            retry: retryInitialization,
+          }}
+        >
+          {children}
+          {isReparsing && initialized && <ReparseProgressModal />}
+        </SettingsInitializationContext.Provider>
       </SettingsContext.Provider>
     </SettingsActionsContext.Provider>
   );
@@ -168,3 +214,5 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 export const useSettings = () => useContext(SettingsContext);
 export const useSettingsActions = () => useContext(SettingsActionsContext);
+export const useSettingsInitialization = () =>
+  useContext(SettingsInitializationContext);
