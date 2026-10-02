@@ -1,10 +1,12 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, type RenderResult, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ReactNode, StrictMode } from 'react';
 
 import {
   SettingsProvider,
   useSettings,
   useSettingsActions,
+  useSettingsInitialization,
 } from '@/context/SettingsContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
@@ -16,6 +18,13 @@ const initMock = vi.fn();
 const getMock = vi.fn();
 const toastErrorMock = vi.fn();
 const reportErrorMock = vi.fn();
+
+async function renderSettings(ui: ReactNode): Promise<RenderResult> {
+  let result: RenderResult | undefined;
+  await act(async () => { result = render(ui); });
+  if (!result) throw new Error('Settings provider did not render');
+  return result;
+}
 
 vi.mock('dexie-react-hooks', () => ({
   useLiveQuery: (...args: unknown[]) => useLiveQueryMock(...args),
@@ -73,7 +82,26 @@ describe('SettingsContext', () => {
     );
   }
 
-  it('applies saved presentation settings to the document', () => {
+  it('initializes storage once when StrictMode replays effects', async () => {
+    await renderSettings(<StrictMode><SettingsProvider><div>child</div></SettingsProvider></StrictMode>);
+    await waitFor(() => expect(initMock).toHaveBeenCalledOnce());
+  });
+
+  it('retries a failed startup before marking preferences ready', async () => {
+    initMock.mockRejectedValueOnce(new Error('temporary storage error'));
+    function StartupConsumer() {
+      const { initialized, error, retry } = useSettingsInitialization();
+      return <><span>{initialized ? 'Ready' : 'Loading'}</span><span>{error}</span><button type="button" onClick={retry}>Retry</button></>;
+    }
+    await renderSettings(<SettingsProvider><StartupConsumer /></SettingsProvider>);
+    await waitFor(() => expect(screen.getByText('temporary storage error')).toBeTruthy());
+    expect(screen.getByText('Loading')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getByText('Ready')).toBeTruthy());
+    expect(initMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies saved presentation settings to the document', async () => {
     useLiveQueryMock.mockReturnValue({
       ...DEFAULT_SETTINGS,
       fontFamily: 'verdana',
@@ -81,7 +109,7 @@ describe('SettingsContext', () => {
       colorTheme: 'dark',
     });
 
-    render(
+    await renderSettings(
       <SettingsProvider>
         <div>child</div>
       </SettingsProvider>,
@@ -97,7 +125,7 @@ describe('SettingsContext', () => {
   });
 
   it('passes reparse lifecycle callbacks to settings init', async () => {
-    render(
+    await renderSettings(
       <SettingsProvider>
         <div>child</div>
       </SettingsProvider>,
@@ -128,7 +156,7 @@ describe('SettingsContext', () => {
       };
     });
 
-    const { queryByText } = render(
+    const { queryByText } = await renderSettings(
       <SettingsProvider>
         <div>child</div>
       </SettingsProvider>,
@@ -161,7 +189,7 @@ describe('SettingsContext', () => {
   it('shows a toast when settings initialization fails', async () => {
     initMock.mockRejectedValueOnce(new Error('db unavailable'));
 
-    render(
+    await renderSettings(
       <SettingsProvider>
         <div>child</div>
       </SettingsProvider>,
@@ -187,7 +215,7 @@ describe('SettingsContext', () => {
         }),
     );
 
-    render(
+    await renderSettings(
       <SettingsProvider>
         <SettingsConsumer />
       </SettingsProvider>,
@@ -211,7 +239,7 @@ describe('SettingsContext', () => {
         }),
     );
 
-    render(
+    await renderSettings(
       <SettingsProvider>
         <SettingsConsumer />
       </SettingsProvider>,

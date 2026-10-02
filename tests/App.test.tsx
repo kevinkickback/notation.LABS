@@ -22,6 +22,7 @@ vi.mock('dexie-react-hooks', () => ({
 
 vi.mock('@/context/SettingsContext', () => ({
   useSettings: () => mocks.useSettings(),
+  useSettingsInitialization: () => ({ initialized: true, isReparsing: false, error: null, retry: vi.fn() }),
 }));
 
 vi.mock('@/context/UpdaterContext', () => ({

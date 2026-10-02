@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const writeFileMock = vi.fn();
+const mkdirSyncMock = vi.fn();
 
 type LoadMainModuleOptions = {
   mainLoadError?: Error;
-  splashLoadError?: Error;
+  instanceLock?: boolean;
 };
 
 async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
@@ -25,11 +26,7 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
       mainFrame: {},
     };
     loadFile = vi.fn(async () => {
-      const windowIndex = browserWindows.indexOf(this);
-      if (windowIndex === 0 && loadOptions.splashLoadError) {
-        throw loadOptions.splashLoadError;
-      }
-      if (windowIndex === 1 && loadOptions.mainLoadError) {
+      if (loadOptions.mainLoadError) {
         throw loadOptions.mainLoadError;
       }
     });
@@ -39,6 +36,9 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
       }
     });
     show = vi.fn();
+    focus = vi.fn();
+    restore = vi.fn();
+    isMinimized = vi.fn(() => false);
     center = vi.fn();
     close = vi.fn();
     isDestroyed = vi.fn(() => false);
@@ -53,7 +53,11 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
   }
 
   const appMock = {
+    commandLine: { appendSwitch: vi.fn() },
     isPackaged: false,
+    getPath: vi.fn(() => 'C:/Profiles/notation-labs'),
+    setPath: vi.fn(),
+    requestSingleInstanceLock: vi.fn(() => loadOptions.instanceLock ?? true),
     getVersion: vi.fn(() => '1.3.0'),
     quit: vi.fn(),
     on: vi.fn((event: string, callback: (...args: unknown[]) => unknown) => {
@@ -122,6 +126,7 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
     default: { writeFile: writeFileMock },
     writeFile: writeFileMock,
   }));
+  vi.doMock('node:fs', () => ({ __esModule: true, default: { mkdirSync: mkdirSyncMock }, mkdirSync: mkdirSyncMock }));
 
   vi.doMock('../../electron/updateManager', () => updateManagerMock);
 
@@ -144,6 +149,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.resetModules();
+  vi.unstubAllEnvs();
   writeFileMock.mockReset();
 });
 
@@ -153,15 +159,19 @@ describe('electron main process wiring', () => {
 
     await context.appEvents.ready();
 
-    expect(context.browserWindows).toHaveLength(2);
+    expect(context.browserWindows).toHaveLength(1);
     expect(context.browserWindows[0]?.options).toMatchObject({
-      width: 478,
-      height: 358,
-      useContentSize: true,
-      frame: false,
-      hasShadow: false,
-      resizable: false,
+      width: 1200,
+      height: 800,
+      backgroundColor: '#080b15',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+      },
     });
+    expect(context.appMock.setPath).not.toHaveBeenCalled();
+    expect(context.browserWindows[0].show).toHaveBeenCalled();
     expect(
       context.sessionMock.defaultSession.webRequest.onHeadersReceived,
     ).toHaveBeenCalled();
@@ -232,22 +242,44 @@ describe('electron main process wiring', () => {
     );
   });
 
-  it('continues to the main window when the splash cannot load', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const context = await loadMainModule({
-      splashLoadError: new Error('missing splash'),
-    });
+  it('loads current renderer styles without the HTTP cache in development', async () => {
+    vi.stubEnv('VITE_DEV_SERVER_URL', 'http://localhost:5173');
+    const context = await loadMainModule();
 
     await context.appEvents.ready();
 
-    expect(context.browserWindows).toHaveLength(2);
-    expect(context.browserWindows[0].close).toHaveBeenCalled();
-    expect(context.browserWindows[1].show).toHaveBeenCalled();
+    expect(context.appMock.commandLine.appendSwitch).toHaveBeenCalledWith('disable-http-cache');
+    expect(context.appMock.setPath).toHaveBeenCalledWith('userData', 'C:/Profiles/notation-labs-development');
+    expect(mkdirSyncMock).toHaveBeenCalledWith('C:/Profiles/notation-labs-development', { recursive: true });
+    expect(context.appMock.setPath).toHaveBeenCalledWith('sessionData', 'C:/Profiles/notation-labs-development');
+    const pathCalls = context.appMock.setPath.mock.invocationCallOrder;
+    expect(pathCalls[pathCalls.length - 1]).toBeLessThan(context.appMock.requestSingleInstanceLock.mock.invocationCallOrder[0]);
+    expect(context.browserWindows).toHaveLength(1);
+    expect(context.browserWindows[0].loadURL).toHaveBeenCalledWith('http://localhost:5173');
+    expect(context.browserWindows[0].show).toHaveBeenCalled();
     expect(context.appMock.quit).not.toHaveBeenCalled();
-    expect(console.error).toHaveBeenCalledWith(
-      'Unable to load the splash window; continuing.',
-      expect.any(Error),
-    );
+    vi.unstubAllEnvs();
+  });
+
+  it('quits a duplicate instance before opening storage or windows', async () => {
+    const context = await loadMainModule({ instanceLock: false });
+    await context.appEvents.ready();
+    context.appEvents.activate();
+    expect(context.appMock.quit).toHaveBeenCalled();
+    expect(context.browserWindows).toHaveLength(0);
+    expect(context.updateManagerMock.initAutoUpdater).not.toHaveBeenCalled();
+    expect(context.sessionMock.defaultSession.webRequest.onHeadersReceived).not.toHaveBeenCalled();
+  });
+
+  it('restores and focuses the existing window when launched again', async () => {
+    const context = await loadMainModule();
+    await context.appEvents.ready();
+    const window = context.browserWindows[0];
+    window.isMinimized.mockReturnValue(true);
+    context.appEvents['second-instance']();
+    expect(window.restore).toHaveBeenCalled();
+    expect(window.focus).toHaveBeenCalled();
+    expect(context.browserWindows).toHaveLength(1);
   });
 
   it('reports a fatal startup error when the main window cannot load', async () => {
@@ -258,10 +290,9 @@ describe('electron main process wiring', () => {
 
     await context.appEvents.ready();
 
-    expect(context.browserWindows).toHaveLength(2);
+    expect(context.browserWindows).toHaveLength(1);
+    expect(context.browserWindows[0].show).not.toHaveBeenCalled();
     expect(context.browserWindows[0].close).toHaveBeenCalled();
-    expect(context.browserWindows[1].show).not.toHaveBeenCalled();
-    expect(context.browserWindows[1].close).toHaveBeenCalled();
     expect(context.dialogMock.showMessageBox).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'error',
@@ -330,7 +361,7 @@ describe('electron main process wiring', () => {
 
     await context.appEvents.ready();
 
-    const mainWindow = context.browserWindows[1];
+    const mainWindow = context.browserWindows[0];
     const windowOpenHandler = mainWindow.webContents.setWindowOpenHandler.mock
       .calls[0][0] as ({ url }: { url: string }) => { action: 'deny' };
 
@@ -369,7 +400,7 @@ describe('electron main process wiring', () => {
 
     await context.appEvents.ready();
 
-    const mainWindow = context.browserWindows[1];
+    const mainWindow = context.browserWindows[0];
     const windowOpenHandler = mainWindow.webContents.setWindowOpenHandler.mock
       .calls[0][0] as ({ url }: { url: string }) => { action: 'deny' };
 

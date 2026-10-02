@@ -117,14 +117,6 @@
     },
     "extraResources": [
       {
-        "from": "build/splash.html",
-        "to": "splash.html"
-      },
-      {
-        "from": "build/splash.png",
-        "to": "splash.png"
-      },
-      {
         "from": "build/icon.ico",
         "to": "icon.ico"
       }

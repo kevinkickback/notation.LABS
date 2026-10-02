@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,12 +24,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
-let splashWindow: BrowserWindow | null = null;
 const backupWriter = new BackupWriter();
-
-const SPLASH_LOAD_TIMEOUT_MS = 5_000;
-const DEBUG_SPLASH_DELAY_MS = 5_000;
 const MAIN_WINDOW_LOAD_TIMEOUT_MS = 15_000;
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
+
+// Chromium cannot safely share a profile between development and installed apps.
+// Leave the installed profile in place; development has its own library and cache.
+if (isDev) {
+  const developmentProfile = `${app.getPath('userData')}-development`;
+  mkdirSync(developmentProfile, { recursive: true });
+  app.setPath('userData', developmentProfile);
+  app.setPath('sessionData', developmentProfile);
+  app.commandLine.appendSwitch('disable-http-cache');
+}
+
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) app.quit();
+
+app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
 
 const iconPath = app.isPackaged
   ? join(process.resourcesPath, 'icon.ico')
@@ -59,56 +78,6 @@ async function loadWindowContent(
   }
 }
 
-function closeSplashWindow(): void {
-  const window = splashWindow;
-  splashWindow = null;
-  if (window && !window.isDestroyed()) {
-    window.close();
-  }
-}
-
-async function createSplashWindow(): Promise<void> {
-  const window = new BrowserWindow({
-    icon: iconPath,
-    width: 478,
-    height: 358,
-    useContentSize: true,
-    frame: false,
-    hasShadow: false,
-    transparent: false,
-    backgroundColor: '#1a1a2e',
-    resizable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    show: false,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-    },
-  });
-  splashWindow = window;
-
-  const splashPath = app.isPackaged
-    ? join(process.resourcesPath, 'splash.html')
-    : join(__dirname, '..', 'build', 'splash.html');
-
-  try {
-    await loadWindowContent(
-      window,
-      () => window.loadFile(splashPath),
-      SPLASH_LOAD_TIMEOUT_MS,
-    );
-    if (!window.isDestroyed()) {
-      window.center();
-      window.show();
-    }
-  } catch (error) {
-    console.error('Unable to load the splash window; continuing.', error);
-    closeSplashWindow();
-  }
-}
-
 async function createWindow(): Promise<boolean> {
   const window = new BrowserWindow({
     icon: iconPath,
@@ -116,6 +85,7 @@ async function createWindow(): Promise<boolean> {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    backgroundColor: '#080b15',
     webPreferences: {
       preload: join(__dirname, 'preload.mjs'),
       nodeIntegration: false,
@@ -188,7 +158,6 @@ async function createWindow(): Promise<boolean> {
       mainWindow = null;
     }
   });
-
   window.webContents.on('render-process-gone', () => {
     void backupWriter.abort().catch(console.error);
   });
@@ -202,14 +171,12 @@ async function createWindow(): Promise<boolean> {
           : window.loadFile(join(__dirname, '../dist/index.html')),
       MAIN_WINDOW_LOAD_TIMEOUT_MS,
     );
-    closeSplashWindow();
     if (!window.isDestroyed()) {
       window.show();
     }
     return true;
   } catch (error) {
     console.error('Unable to load the main application window.', error);
-    closeSplashWindow();
     if (!window.isDestroyed()) {
       window.close();
     }
@@ -239,8 +206,6 @@ async function createWindow(): Promise<boolean> {
   }
 }
 
-const isDev = !!process.env.VITE_DEV_SERVER_URL;
-
 function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
   if (
     !mainWindow ||
@@ -252,6 +217,7 @@ function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
 }
 
 app.on('ready', async () => {
+  if (!hasInstanceLock) return;
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     // Only apply our CSP to the app's own pages, not to external resources
     // (applying frame-ancestors 'none' to YouTube's response would block the embed)
@@ -298,10 +264,6 @@ app.on('ready', async () => {
 
   session.defaultSession.setPermissionCheckHandler(() => false);
 
-  await createSplashWindow();
-  if (isDev) {
-    await new Promise((resolve) => setTimeout(resolve, DEBUG_SPLASH_DELAY_MS));
-  }
   const mainWindowReady = createWindow();
 
   initAutoUpdater();
@@ -470,7 +432,7 @@ app.on('ready', async () => {
 
 // macOS: re-create window when dock icon clicked
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (hasInstanceLock && BrowserWindow.getAllWindows().length === 0) {
     void createWindow();
   }
 });
