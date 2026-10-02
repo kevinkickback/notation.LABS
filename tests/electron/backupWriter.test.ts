@@ -1,14 +1,21 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BackupWriter } from '../../electron/backupWriter';
+
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  const unlink = vi.fn(actual.unlink);
+  return { ...actual, unlink, default: { ...actual, unlink } };
+});
 
 describe('streamed backup destination', () => {
   let directory: string;
   let writer: BackupWriter;
   beforeEach(async () => { directory = await mkdtemp(join(tmpdir(), 'notation-export-test-')); writer = new BackupWriter(); });
-  afterEach(async () => { await writer.abort(); const target = resolve(directory);
+  afterEach(async () => { vi.restoreAllMocks(); await writer.abort(); const target = resolve(directory);
     if (!target.startsWith(resolve(tmpdir()) + sep) || !basename(target).startsWith('notation-export-test-')) throw new Error('Invalid test cleanup directory');
     await rm(target, { recursive: true, force: true }); });
   it('writes chunks in order and replaces the destination only on completion', async () => {
@@ -59,5 +66,14 @@ describe('streamed backup destination', () => {
     expect(await readdir(directory)).toEqual([]);
   });
 
-});
+  it('reports failed partial-file cleanup without blocking a later export', async () => {
+    const id = await writer.begin(join(directory, 'first.zip'));
+    vi.mocked(fsPromises.unlink).mockRejectedValueOnce(Object.assign(new Error('File is locked'), { code: 'EPERM' }));
+    await expect(writer.abort(id)).rejects.toThrow('File is locked');
+    const next = await writer.begin(join(directory, 'next.zip'));
+    await writer.write(next, new Uint8Array([7]));
+    await writer.finish(next);
+    expect([...await readFile(join(directory, 'next.zip'))]).toEqual([7]);
+  });
 
+});

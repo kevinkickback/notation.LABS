@@ -8,6 +8,13 @@ import {
   type BackupFilter,
   closeBackupSelection,
 } from '@/lib/backup/selectionClosure';
+import {
+  MAX_BACKUP_METADATA_BYTES,
+  MAX_BACKUP_VIDEO_BYTES,
+  MAX_BACKUP_VIDEO_COUNT,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_ZIP_BACKUP_BYTES,
+} from '@/lib/defaults';
 import { settingsSchema } from '@/lib/schemas';
 import { db } from './database';
 import {
@@ -49,9 +56,9 @@ export async function exportBackupTo(
     const videoIds = collectLocalVideoIds(selection.combos).filter((id) =>
       availableIds.has(id),
     );
-    if (videoIds.length >= 65535)
+    if (videoIds.length > MAX_BACKUP_VIDEO_COUNT)
       throw new Error(
-        'This selection contains too many videos for one ZIP. Export smaller selections.',
+        `Backups support at most ${MAX_BACKUP_VIDEO_COUNT} videos. Export smaller selections.`,
       );
     const demoVideos: Array<{
       id: string;
@@ -61,6 +68,7 @@ export async function exportBackupTo(
     }> = [];
     let pending = Promise.resolve();
     let bytesWritten = 0;
+    let videoBytes = 0;
     let archiveError: Error | undefined;
     let current = 0;
     let phase: BackupExportProgress['phase'] = 'videos';
@@ -84,9 +92,9 @@ export async function exportBackupTo(
         ) {
           check();
           const part = chunk.subarray(offset, offset + BACKUP_CHUNK_BYTES);
-          if (bytesWritten + part.byteLength >= 0xffffffff)
+          if (bytesWritten + part.byteLength > MAX_ZIP_BACKUP_BYTES)
             throw new Error(
-              'ZIP backups must be smaller than 4 GB. Export smaller selections.',
+              'Backups must fit the 512 MB import limit. Export smaller selections.',
             );
           await sink.write(part);
           bytesWritten += part.byteLength;
@@ -123,6 +131,15 @@ export async function exportBackupTo(
       check();
       const video = await db.demoVideos.get(id);
       if (!video) continue;
+      if (video.data.byteLength > MAX_VIDEO_SIZE_BYTES)
+        throw new Error(
+          `Video "${video.fileName}" exceeds the 50 MB per-video backup limit.`,
+        );
+      videoBytes += video.data.byteLength;
+      if (videoBytes > MAX_BACKUP_VIDEO_BYTES)
+        throw new Error(
+          'Backup videos exceed the 500 MB limit. Export smaller selections.',
+        );
       const extension = /\.[a-z0-9]{1,12}$/i.exec(video.fileName)?.[0] ?? '';
       const descriptor = {
         id,
@@ -147,10 +164,18 @@ export async function exportBackupTo(
       ),
       demoVideos,
     };
-    await writeEntry('backup.json', strToU8(JSON.stringify(metadata, null, 2)));
+    const metadataBytes = strToU8(JSON.stringify(metadata, null, 2));
+    if (metadataBytes.byteLength > MAX_BACKUP_METADATA_BYTES)
+      throw new Error(
+        'Backup metadata exceeds the 10 MB limit. Export smaller selections.',
+      );
+    await writeEntry('backup.json', metadataBytes);
     zip.end();
     await pending;
     check();
+    // File-system commit cannot safely be cancelled once close begins.
+    phase = 'committing';
+    reportProgress();
     await sink.close();
   } catch (error) {
     zip?.terminate();

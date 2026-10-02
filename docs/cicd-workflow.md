@@ -22,6 +22,11 @@ Passing CI does not opt a pull request into merging. Once a change is intentiona
 all branch-protection requirements pass. There is no custom merge workflow or repository-dispatch
 handoff.
 
+For every pull request, wait for the automated Copilot review of the current head revision before
+enabling auto-merge. Inspect each finding, fix valid issues, and run the affected checks again. After
+pushing corrections, wait for the review of the new revision as well. Passing CI alone does not
+complete this review step.
+
 Pull requests that change `.github/workflows/**`, `.github/scripts/**`, or
 `scripts/check-release.mjs` are the exception: do not enable auto-merge until the complete workflow
 diff and advisory review have been inspected. Once that review is complete, the pull request may use
@@ -46,10 +51,15 @@ Commit and push the branch, then open a pull request:
 ```bash
 git push -u origin feat/short-description
 gh pr create --base main --fill
+```
+
+Wait for Copilot's review, address its findings, and verify CI. Then enable auto-merge:
+
+```bash
 gh pr merge --auto --squash
 ```
 
-The final command opts that pull request into GitHub native auto-merge. It does not bypass CI,
+This command opts that pull request into GitHub native auto-merge. It does not bypass CI,
 branch protection, or an out-of-date base.
 
 `ci.yml` runs on every non-draft pull request targeting `main`. It validates release metadata,

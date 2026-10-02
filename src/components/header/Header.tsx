@@ -54,6 +54,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
   const [exportProgress, setExportProgress] =
     useState<BackupExportProgress | null>(null);
   const exportController = useRef<AbortController | null>(null);
+  const exportCommitting = useRef(false);
   const [importProgress, setImportProgress] =
     useState<ZipImportProgress | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
@@ -89,6 +90,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
         if (!sink) return;
         const controller = new AbortController();
         exportController.current = controller;
+        exportCommitting.current = false;
         setExportProgress({
           phase: 'videos',
           current: 0,
@@ -98,7 +100,10 @@ export function Header({ activeGame }: { activeGame?: Game }) {
         await createBackupTo(
           sink,
           filter,
-          setExportProgress,
+          (progress) => {
+            exportCommitting.current = progress.phase === 'committing';
+            setExportProgress(progress);
+          },
           controller.signal,
         );
         toast.success(successMessage);
@@ -130,6 +135,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
     } finally {
       setExportProgress(null);
       exportController.current = null;
+      exportCommitting.current = false;
     }
   };
 
@@ -323,7 +329,9 @@ export function Header({ activeGame }: { activeGame?: Game }) {
       {exportProgress && (
         <ExportProgressModal
           {...exportProgress}
-          onCancel={() => exportController.current?.abort()}
+          onCancel={() => {
+            if (!exportCommitting.current) exportController.current?.abort();
+          }}
         />
       )}
       {importProgress && (

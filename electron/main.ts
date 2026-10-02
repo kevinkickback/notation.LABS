@@ -24,6 +24,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
+let rendererGeneration = 0;
 const backupWriter = new BackupWriter();
 const MAIN_WINDOW_LOAD_TIMEOUT_MS = 15_000;
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
@@ -100,6 +101,16 @@ async function createWindow(): Promise<boolean> {
     autoHideMenuBar: true,
   });
   mainWindow = window;
+  rendererGeneration++;
+  window.webContents.on(
+    'did-start-navigation',
+    (_event, _url, isInPlace, isMainFrame) => {
+      if (isMainFrame && !isInPlace) {
+        rendererGeneration++;
+        void backupWriter.abort().catch(console.error);
+      }
+    },
+  );
 
   // Restrict navigation to app's own URLs
   window.webContents.on('will-navigate', (event, url) => {
@@ -153,12 +164,14 @@ async function createWindow(): Promise<boolean> {
   });
 
   window.on('closed', () => {
+    rendererGeneration++;
     void backupWriter.abort().catch(console.error);
     if (mainWindow === window) {
       mainWindow = null;
     }
   });
   window.webContents.on('render-process-gone', () => {
+    rendererGeneration++;
     void backupWriter.abort().catch(console.error);
   });
 
@@ -209,7 +222,9 @@ async function createWindow(): Promise<boolean> {
 function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
   if (
     !mainWindow ||
+    mainWindow.isDestroyed() ||
     event.sender !== mainWindow.webContents ||
+    event.sender.isDestroyed() ||
     event.senderFrame !== mainWindow.webContents.mainFrame
   ) {
     throw new Error('Rejected IPC request from an untrusted renderer');
@@ -368,6 +383,7 @@ app.on('ready', async () => {
             : [];
 
       try {
+        const generation = rendererGeneration;
         const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
           defaultPath: safeFilename,
           filters: [...filters, { name: 'All Files', extensions: ['*'] }],
@@ -376,6 +392,12 @@ app.on('ready', async () => {
         if (canceled || !filePath) {
           return { success: false, error: 'User cancelled' };
         }
+
+        assertTrustedIpcSender(event);
+        if (generation !== rendererGeneration)
+          throw new Error(
+            'Export cancelled because the application page changed',
+          );
 
         await writeFile(filePath, Buffer.from(buffer));
         return { success: true, path: filePath };
@@ -397,6 +419,7 @@ app.on('ready', async () => {
         throw new Error('Invalid filename');
       if (mimeType !== 'application/zip' && mimeType !== 'application/json')
         throw new Error('Unsupported file type');
+      const generation = rendererGeneration;
       const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
         defaultPath: basename(filename.trim()).slice(0, 255),
         filters: [
@@ -407,6 +430,11 @@ app.on('ready', async () => {
         ],
       });
       if (canceled || !filePath) return null;
+      assertTrustedIpcSender(event);
+      if (generation !== rendererGeneration)
+        throw new Error(
+          'Export cancelled because the application page changed',
+        );
       return backupWriter.begin(filePath);
     },
   );
