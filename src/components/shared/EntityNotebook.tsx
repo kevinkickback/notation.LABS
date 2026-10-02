@@ -287,7 +287,14 @@ export const EntityNotebook = forwardRef<
   const [urlError, setUrlError] = useState<string | null>(null);
   const contentId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const dockControlRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const panelFocusRequested = useRef(false);
+  const dockFocusRequested = useRef(false);
+  const returnFocusRequested = useRef(false);
+  const noteFocusRequested = useRef(false);
+  const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const resourceFocusRequested = useRef(false);
   const titleId = useId();
   const noteId = useId();
   const urlId = useId();
@@ -295,7 +302,41 @@ export const EntityNotebook = forwardRef<
   const errorId = useId();
   const hasNotes = Boolean(notes.trim());
 
+  const focusNoteInput = useCallback((input: HTMLTextAreaElement | null) => {
+    noteInputRef.current = input;
+    if (!input || !noteFocusRequested.current) return;
+    noteFocusRequested.current = false;
+    if (!hasModalOverlay()) input.focus();
+  }, []);
+  const focusResourceInput = useCallback((input: HTMLInputElement | null) => {
+    if (!input || !resourceFocusRequested.current) return;
+    resourceFocusRequested.current = false;
+    if (!hasModalOverlay()) input.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!isDocked || !isOpen) return;
+    if (panelFocusRequested.current || dockFocusRequested.current) {
+      panelFocusRequested.current = false;
+      dockFocusRequested.current = false;
+      if (!hasModalOverlay()) dockControlRef.current?.focus();
+    }
+  }, [isDocked, isOpen]);
+
+  const closeNotebook = () => {
+    panelFocusRequested.current = false;
+    dockFocusRequested.current = false;
+    returnFocusRequested.current = !isDocked;
+    onToggle();
+    (toggleRef.current ?? openerRef.current)?.focus();
+  };
+
   const openNoteEditor = () => {
+    noteFocusRequested.current = true;
+    if (noteInputRef.current) {
+      noteFocusRequested.current = false;
+      if (!hasModalOverlay()) noteInputRef.current.focus();
+    }
     if (!isOpen)
       openerRef.current =
         document.activeElement instanceof HTMLElement
@@ -310,6 +351,7 @@ export const EntityNotebook = forwardRef<
 
   const openResourceEditor = (link?: CharacterLink) => {
     if (props.kind !== 'character') return;
+    resourceFocusRequested.current = true;
     if (!isOpen)
       openerRef.current =
         document.activeElement instanceof HTMLElement
@@ -415,7 +457,13 @@ export const EntityNotebook = forwardRef<
             void saveNote();
           }}
         >
-          <Tabs value={editorTab} onValueChange={setEditorTab}>
+          <Tabs
+            value={editorTab}
+            onValueChange={(value) => {
+              noteFocusRequested.current = value === 'write';
+              setEditorTab(value);
+            }}
+          >
             <TabsList aria-label="Note editor mode" className="notebook-tabs">
               <TabsTrigger value="write">Write</TabsTrigger>
               <TabsTrigger value="preview">Preview</TabsTrigger>
@@ -425,11 +473,11 @@ export const EntityNotebook = forwardRef<
                 Note
               </Label>
               <Textarea
+                ref={focusNoteInput}
                 id={noteId}
                 value={noteDraft}
                 onChange={(event) => setNoteDraft(event.target.value)}
                 rows={9}
-                autoFocus={!hasModalOverlay()}
                 disabled={savingNote}
                 placeholder="Game plan, matchup reminders, practice goals…"
               />
@@ -513,9 +561,9 @@ export const EntityNotebook = forwardRef<
           <div>
             <Label htmlFor={urlId}>URL</Label>
             <Input
+              ref={focusResourceInput}
               id={urlId}
               type="url"
-              autoFocus={!hasModalOverlay()}
               placeholder="https://dustloop.com/…"
               value={resourceDraft.url}
               onChange={(event) => {
@@ -630,14 +678,17 @@ export const EntityNotebook = forwardRef<
   const dockControl =
     wideWindow && dockTarget ? (
       <Button
+        ref={dockControlRef}
         type="button"
         variant="ghost"
         size="icon"
         className="notebook-panel-icon"
         aria-label={dockRequested ? 'Undock' : 'Dock'}
         title={dockRequested ? 'Undock' : 'Dock'}
-        onClick={() => void setSetting('notebookDocked', !dockRequested)}
-        autoFocus={isDocked && !hasModalOverlay()}
+        onClick={() => {
+          dockFocusRequested.current = true;
+          void setSetting('notebookDocked', !dockRequested);
+        }}
       >
         <SidebarSimpleIcon size={16} />
       </Button>
@@ -653,10 +704,7 @@ export const EntityNotebook = forwardRef<
         className="notebook-panel-icon"
         aria-label={isDocked ? 'Close notebook' : 'Close'}
         title="Close notebook"
-        onClick={() => {
-          onToggle();
-          (toggleRef.current ?? openerRef.current)?.focus();
-        }}
+        onClick={closeNotebook}
       >
         <XIcon size={18} />
       </Button>
@@ -708,7 +756,13 @@ export const EntityNotebook = forwardRef<
         type="button"
         variant={isOpen ? 'secondary' : 'ghost'}
         className="notebook-toggle"
-        onClick={onToggle}
+        onClick={() => {
+          if (isOpen) closeNotebook();
+          else {
+            panelFocusRequested.current = true;
+            onToggle();
+          }
+        }}
         aria-expanded={isOpen}
         aria-controls={isOpen ? contentId : undefined}
         aria-haspopup={!isDocked ? 'dialog' : undefined}
@@ -812,7 +866,12 @@ export const EntityNotebook = forwardRef<
           modal={false}
           open={isOpen}
           onOpenChange={(open) => {
-            if (open !== isOpen) onToggle();
+            if (open !== isOpen) {
+              if (open) {
+                panelFocusRequested.current = true;
+                onToggle();
+              } else closeNotebook();
+            }
           }}
         >
           <DialogContent
@@ -821,12 +880,22 @@ export const EntityNotebook = forwardRef<
             hideCloseButton
             id={contentId}
             onOpenAutoFocus={(event) => {
-              if (hasModalOverlay()) event.preventDefault();
+              if (dockFocusRequested.current) {
+                event.preventDefault();
+                dockFocusRequested.current = false;
+                if (!hasModalOverlay()) dockControlRef.current?.focus();
+              } else if (!panelFocusRequested.current || hasModalOverlay()) {
+                event.preventDefault();
+              }
+              panelFocusRequested.current = false;
             }}
             onInteractOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => {
               event.preventDefault();
-              (toggleRef.current ?? openerRef.current)?.focus();
+              if (returnFocusRequested.current) {
+                returnFocusRequested.current = false;
+                (toggleRef.current ?? openerRef.current)?.focus();
+              }
             }}
           >
             <DialogTitle className="sr-only">{entityName} Notebook</DialogTitle>

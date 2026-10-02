@@ -102,6 +102,20 @@ describe('EntityNotebook', () => {
     expect(drawer.closest('.notebook-workspace')).not.toBeNull();
   });
 
+  it.each([false, true])('preserves existing focus when restoring a notebook with docked=%s', notebookDocked => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
+    try {
+      preferences.saved = { ...DEFAULT_SETTINGS, notebookDocked };
+      render(<button type="button">Keep focus</button>);
+      const control = screen.getByRole('button', { name: 'Keep focus' });
+      control.focus();
+      render(<CharacterNotebook />);
+      expect(document.activeElement).toBe(control);
+    } finally {
+      mediaSpy.mockRestore();
+    }
+  });
+
   it('preserves the note draft through preview and closing', async () => {
     const user = userEvent.setup();
     render(<CharacterNotebook notes="Old note" />);
@@ -142,9 +156,11 @@ describe('EntityNotebook', () => {
       const user = userEvent.setup();
       render(<CharacterNotebook notes="Saved note" resources={[]} />);
       await user.click(screen.getByRole('button', { name: 'Edit note' }));
+      expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Note' }));
       await user.clear(screen.getByRole('textbox', { name: 'Note' }));
       await user.type(screen.getByRole('textbox', { name: 'Note' }), 'Docked draft');
       await user.click(screen.getByRole('button', { name: 'Dock' }));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Undock' }));
       const dock = screen.getByRole('complementary', { name: 'Ryu Notebook' });
       expect(screen.queryByRole('dialog')).toBeNull();
       expect((within(dock).getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Docked draft');
@@ -152,6 +168,7 @@ describe('EntityNotebook', () => {
       await user.click(within(dock).getByRole('button', { name: 'Add resource link' }));
       await user.type(screen.getByRole('textbox', { name: 'URL' }), 'https://example.com/draft');
       await user.click(within(dock).getByRole('button', { name: 'Undock' }));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Dock' }));
       expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe('https://example.com/draft');
       await user.click(screen.getByRole('button', { name: 'Dock' }));
       await user.click(screen.getByRole('button', { name: 'Close notebook' }));
@@ -437,6 +454,9 @@ describe('EntityNotebook', () => {
     expect(onToggle).toHaveBeenCalledOnce();
     rerender(<EntityNotebook ref={ref} kind="character" entityId="ryu" entityName="Ryu" notes="" links={[]} isOpen onToggle={onToggle} />);
     expect(screen.getByRole('textbox', { name: 'Note' })).not.toBeNull();
+    screen.getByRole('button', { name: 'Save Note' }).focus();
+    act(() => ref.current?.editNote());
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Note' }));
     await user.click(screen.getByRole('tab', { name: 'Resources (0)' }));
     await user.click(screen.getByRole('button', { name: 'Add resource link' }));
     expect(screen.getByRole('textbox', { name: 'URL' })).not.toBeNull();

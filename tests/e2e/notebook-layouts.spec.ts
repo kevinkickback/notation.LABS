@@ -249,6 +249,44 @@ for (const kind of ['game', 'character'] as const) {
   });
 }
 
+test('preserves outside focus through responsive layout changes and remembered docking', async ({ page }) => {
+  await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
+  const drawer = page.getByRole('dialog', { name: 'Ryu Notebook' });
+  await drawer.getByRole('button', { name: 'Edit note', exact: true }).click();
+  await expect(drawer.getByRole('textbox', { name: 'Note', exact: true })).toBeFocused();
+  await drawer.getByRole('button', { name: 'Dock', exact: true }).click();
+  const dock = page.getByRole('complementary', { name: 'Ryu Notebook' });
+  await expect(dock.getByRole('button', { name: 'Undock', exact: true })).toBeFocused();
+  const outside = page.getByRole('button', { name: 'Export data', exact: true });
+  for (const section of ['notes', 'resources']) {
+    if (section === 'resources') {
+      await dock.getByRole('tab', { name: /^Resources/ }).click();
+      await dock.getByRole('button', { name: 'Add resource link', exact: true }).click();
+      await expect(dock.getByRole('textbox', { name: 'URL', exact: true })).toBeFocused();
+    }
+    await outside.focus();
+    await page.setViewportSize({ width: 800, height: 900 });
+    await expect(drawer).toBeVisible();
+    await expect(outside).toBeFocused();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expect(dock).toBeVisible();
+    await expect(outside).toBeFocused();
+  }
+  await dock.getByRole('button', { name: 'Undock', exact: true }).click();
+  await expect(drawer.getByRole('button', { name: 'Dock', exact: true })).toBeFocused();
+  await drawer.getByRole('button', { name: 'Dock', exact: true }).click();
+  await expect.poll(() => page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    return (await indexedDbStorage.settings.get()).notebookDocked;
+  })).toBe(true);
+  await page.reload();
+  await page.locator('h3', { hasText: 'Street Fighter 6' }).click();
+  await page.locator('h3', { hasText: 'Ryu' }).click();
+  await expect(dock).toBeVisible();
+  await expect(dock.getByRole('button', { name: 'Undock', exact: true })).not.toBeFocused();
+});
+
 test('docks beside the workspace, preserves drafts through resizing, and restores the docking choice', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
   let drawer = page.getByRole('dialog', { name: 'Ryu Notebook' });

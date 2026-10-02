@@ -58,6 +58,8 @@ docked notebook. Export commit-phase protections are preserved.
 The floating drawer portals inside its page workspace so pending navigation also
 blocks its editing controls. Resource entry accepts HTTP/S URLs and schemeless
 hosts, including ports, by adding HTTPS when needed.
+Opening, docking, and editing explicitly move focus to the panel or editor;
+restored panels and responsive layout changes preserve focus outside the notebook.
 
 ## Collection cards and notes
 
