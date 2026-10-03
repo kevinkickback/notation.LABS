@@ -114,6 +114,12 @@ selection selects the whole branch when checked. The existing backup closure der
 parents for the final export; components do not synchronize parent selections manually. A closed
 export dialog's pending reads cannot replace a reopened session's data.
 
+Single and bulk game or character deletion use the same storage cascade. Records, descendant combos,
+unreferenced local videos, and notebook page choices commit in one transaction. Videos referenced by
+retained combos stay available. Preference normalization can read both parent tables inside that
+transaction, including older default-open settings; any write failure leaves the entire cascade
+unchanged for retry.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch
