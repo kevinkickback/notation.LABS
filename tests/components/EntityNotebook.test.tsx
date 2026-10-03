@@ -18,13 +18,14 @@ vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
 }));
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: { settings: {
-    // Startup is covered separately; keep its mount update out of notebook interactions.
-    init: () => new Promise<void>(() => {}),
     get: async () => preferences.saved,
     update: (...args: unknown[]) => preferences.update(...args),
     setNotebookOpen: (...args: unknown[]) => preferences.openUpdate(...args),
   } },
 }));
+
+// Startup is covered separately; keep its mount update out of notebook interactions.
+vi.mock('@/lib/application/initializeApplication', () => ({ initializeApplication: () => new Promise<void>(() => {}) }));
 
 vi.mock('@/lib/application/characterCommands', () => ({ updateCharacter: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/application/gameCommands', () => ({ updateGame: vi.fn().mockResolvedValue(undefined) }));

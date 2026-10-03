@@ -92,6 +92,14 @@ the narrow streaming preload bridge and atomic temporary-file commit. Browsers w
 picker download a Blob assembled from chunks after completion. Both formats enforce their import
 size limits before committing a file.
 
+Application initialization sets up preferences, then runs versioned notation maintenance. Preference
+reads and initialization do not rewrite combos. Maintenance commits derived combo tokens and the
+local parser version in one transaction; failures leave both unchanged for retry. Imports derive
+their own tokens and atomically refresh retained combos affected by changed game controls or a
+character's parent game. Up-to-date libraries do not reparse unrelated combos. A backup's parser
+version cannot replace the local maintenance marker. Older libraries receive one complete parser
+update in the same import transaction. Existing database migration history is preserved.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch

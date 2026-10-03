@@ -1,16 +1,14 @@
+import { haveSameGameNotation } from '@/lib/comboParsing';
 import { resolveNotationProfile } from '@/lib/notationProfiles';
 import type { Game } from '@/lib/types';
 import { db } from './database';
+import { reparseCombosForGame } from './notationMaintenance';
 import { generateId, toUniqueIds } from './repositoryUtils';
-import { reparseCombosForGame, settingsRepository } from './settingsRepository';
+import { settingsRepository } from './settingsRepository';
 import {
   collectLocalVideoIds,
   deleteUnreferencedLocalVideos,
 } from './videoRepository';
-
-function areStringArraysEqual(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
-}
 
 export const gameRepository = {
   getAll: () => db.games.toArray(),
@@ -41,13 +39,10 @@ export const gameRepository = {
         const nextNotationProfile = updates.notationProfile;
         const shouldReparseCombos =
           currentGame !== undefined &&
-          ((nextButtonLayout !== undefined &&
-            !areStringArraysEqual(
-              currentGame.buttonLayout,
-              nextButtonLayout,
-            )) ||
-            (nextNotationProfile !== undefined &&
-              nextNotationProfile !== resolveNotationProfile(currentGame)));
+          !haveSameGameNotation(currentGame, {
+            buttonLayout: nextButtonLayout ?? currentGame.buttonLayout,
+            notationProfile: nextNotationProfile ?? currentGame.notationProfile,
+          });
 
         await db.games.update(id, {
           ...updates,
@@ -58,11 +53,7 @@ export const gameRepository = {
         });
 
         if (shouldReparseCombos) {
-          await reparseCombosForGame(
-            id,
-            nextButtonLayout ?? currentGame.buttonLayout,
-            nextNotationProfile ?? resolveNotationProfile(currentGame),
-          );
+          await reparseCombosForGame(id);
         }
       },
     );
