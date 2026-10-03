@@ -28,6 +28,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "assets:optimize": "svgo --folder src/assets/motion-icons --output src/assets/motion-icons --multipass",
+    "assets:branding": "node scripts/build-branding-assets.mjs",
     "version:check": "node scripts/check-release.mjs"
   },
   "dependencies": {

@@ -18,6 +18,12 @@
   text-align: center;
   margin-bottom: 48px;
 }
+.startup-logo {
+  display: block;
+  width: clamp(88px, 14vw, 128px);
+  height: auto;
+  margin: 0 auto 24px;
+}
 .startup-brand h1 {
   font-size: clamp(32px, 5vw, 48px);
   letter-spacing: -0.06em;
@@ -75,6 +81,15 @@
 .startup-error p {
   color: var(--destructive);
   margin-bottom: 16px;
+}
+@media (max-height: 600px) {
+  .startup-brand {
+    margin-bottom: 32px;
+  }
+  .startup-logo {
+    width: 80px;
+    margin-bottom: 20px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .app-loading-overlay,

@@ -278,7 +278,7 @@ export function GameFormDialog({
                   <legend className="text-sm leading-none font-medium">
                     Notation Style
                   </legend>
-                  <div className="entity-notation-options mt-1.5 grid grid-cols-3 gap-2">
+                  <div className="entity-notation-options mt-1.5 grid gap-2">
                     {NOTATION_PROFILES.map((profile) => (
                       <button
                         key={profile.id}
@@ -286,7 +286,7 @@ export function GameFormDialog({
                         aria-label={profile.label}
                         aria-pressed={notationProfile === profile.id}
                         onClick={() => handleProfileChange(profile.id)}
-                        className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                        className={`rounded-md border px-3 py-2 text-center transition-colors ${
                           notationProfile === profile.id
                             ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                             : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'

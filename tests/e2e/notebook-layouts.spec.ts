@@ -561,6 +561,13 @@ test('resizes the dock by dragging or keyboard without squeezing the workspace, 
 test('uses space outside the centered container for the dock while preserving the main column on wide windows', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 2560, height: 1100 });
   const main = page.locator('.notebook-main');
+  await expect.poll(() => main.evaluate(element => {
+    const container = element.closest('main');
+    if (!container) throw new Error('The main container is missing');
+    const style = getComputedStyle(container);
+    const availableWidth = container.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight);
+    return element.getBoundingClientRect().width - availableWidth;
+  })).toBeCloseTo(0, 0);
   const original = await main.boundingBox();
   if (!original) throw new Error('The main workspace is missing');
   const toggle = page.getByRole('button', { name: 'Notes & Resources', exact: true });
@@ -613,8 +620,7 @@ test('uses space outside the centered container for the dock while preserving th
   await expect(dock.getByRole('link', { name: 'Open Matchup guide in a new tab', exact: true })).toBeVisible();
   await toggle.click();
   await expect(dock).toHaveCount(0);
-  const restored = await main.boundingBox();
-  expect(restored?.width).toBeCloseTo(original.width, 0);
+  await expect.poll(async () => (await main.boundingBox())?.width).toBeCloseTo(original.width, 0);
 });
 
 test('keeps the dock right edge anchored while dragging through the outer-margin transition', async ({ page }) => {
@@ -699,6 +705,7 @@ test('fits the dock above the footer without adding page scroll and scrolls long
   await dock.getByRole('button', { name: 'Edit note', exact: true }).click();
   await dock.getByRole('textbox', { name: 'Note', exact: true }).fill(Array.from({ length: 60 }, (_, i) => `Practice reminder ${i + 1}`).join('\n\n'));
   await dock.getByRole('button', { name: 'Save Note', exact: true }).click();
+  await expect(dock.getByRole('button', { name: 'Edit note', exact: true })).toBeFocused();
   const body = dock.locator('[data-slot="dialog-body"]');
   await expect.poll(() => body.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(100);
   expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
