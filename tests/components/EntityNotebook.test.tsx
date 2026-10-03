@@ -8,9 +8,10 @@ import { SettingsProvider } from '@/context/SettingsContext';
 import { updateCharacter } from '@/lib/application/characterCommands';
 import { updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
+import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import type { CharacterLink, UserSettings } from '@/lib/types';
 
-const preferences = vi.hoisted(() => ({ saved: {} as UserSettings, update: vi.fn() }));
+const preferences = vi.hoisted(() => ({ saved: {} as UserSettings, update: vi.fn(), openUpdate: vi.fn() }));
 vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
   useRecoverableLiveQuery: () => ({ data: { settings: preferences.saved, appliedThrough: 0 }, error: null }),
 }));
@@ -20,6 +21,7 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     init: () => new Promise<void>(() => {}),
     get: async () => preferences.saved,
     update: (...args: unknown[]) => preferences.update(...args),
+    setNotebookOpen: (...args: unknown[]) => preferences.openUpdate(...args),
   } },
 }));
 
@@ -40,6 +42,11 @@ const links: CharacterLink[] = [
 function CharacterNotebook({ notes = '', resources = links, initiallyOpen = true }: { notes?: string; resources?: CharacterLink[]; initiallyOpen?: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
   return <NotebookWorkspace><EntityNotebook kind="character" entityId="ryu" entityName="Ryu" notes={notes} links={resources} isOpen={open} onToggle={() => setOpen(value => !value)} /></NotebookWorkspace>;
+}
+
+function RememberedCharacterNotebook() {
+  const [open, toggle] = useNotebookOpen('ryu');
+  return <NotebookWorkspace><EntityNotebook kind="character" entityId="ryu" entityName="Ryu" notes="Practice" links={[]} isOpen={open} onToggle={toggle} /></NotebookWorkspace>;
 }
 
 describe('EntityNotebook', () => {
@@ -100,6 +107,28 @@ describe('EntityNotebook', () => {
     const drawer = screen.getByRole('dialog', { name: 'Ryu Notebook' });
     expect(drawer.closest('main')?.hasAttribute('inert')).toBe(true);
     expect(drawer.closest('.notebook-workspace')).not.toBeNull();
+  });
+
+  it.each([false, true])('returns focus to the opener if saving an optimistic open fails with docked=%s', async notebookDocked => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
+    try {
+      preferences.saved = { ...DEFAULT_SETTINGS, notebookDocked };
+      let rejectOpen!: (error: Error) => void;
+      preferences.openUpdate.mockReturnValueOnce(new Promise<void>((_resolve, reject) => { rejectOpen = reject; }));
+      const user = userEvent.setup();
+      render(<RememberedCharacterNotebook />);
+      const toggle = screen.getByRole('button', { name: 'Notes & Resources' });
+      await user.click(toggle);
+      const role = notebookDocked ? 'complementary' : 'dialog';
+      const drawer = screen.getByRole(role, { name: 'Ryu Notebook' });
+      expect(drawer.contains(document.activeElement)).toBe(true);
+      await act(async () => rejectOpen(new Error('Storage unavailable')));
+      await waitFor(() => expect(screen.queryByRole(role)).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(toggle));
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    } finally {
+      mediaSpy.mockRestore();
+    }
   });
 
   it.each([false, true])('preserves existing focus when restoring a notebook with docked=%s', notebookDocked => {

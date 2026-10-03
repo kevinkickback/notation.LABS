@@ -292,6 +292,7 @@ export const EntityNotebook = forwardRef<
   const panelFocusRequested = useRef(false);
   const dockFocusRequested = useRef(false);
   const returnFocusRequested = useRef(false);
+  const previousOpen = useRef(isOpen);
   const noteFocusRequested = useRef(false);
   const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const resourceFocusRequested = useRef(false);
@@ -315,6 +316,15 @@ export const EntityNotebook = forwardRef<
   }, []);
 
   useEffect(() => {
+    const closed = previousOpen.current && !isOpen;
+    previousOpen.current = isOpen;
+    if (
+      closed &&
+      isDocked &&
+      document.activeElement === document.body &&
+      !hasModalOverlay()
+    )
+      (toggleRef.current ?? openerRef.current)?.focus();
     if (!isDocked || !isOpen) return;
     if (panelFocusRequested.current || dockFocusRequested.current) {
       panelFocusRequested.current = false;
@@ -892,9 +902,13 @@ export const EntityNotebook = forwardRef<
             onInteractOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => {
               event.preventDefault();
-              if (returnFocusRequested.current) {
+              if (
+                returnFocusRequested.current ||
+                (!isOpen && document.activeElement === document.body)
+              ) {
                 returnFocusRequested.current = false;
-                (toggleRef.current ?? openerRef.current)?.focus();
+                if (!hasModalOverlay())
+                  (toggleRef.current ?? openerRef.current)?.focus();
               }
             }}
           >

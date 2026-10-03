@@ -249,6 +249,42 @@ for (const kind of ['game', 'character'] as const) {
   });
 }
 
+for (const notebookDocked of [false, true]) {
+  test(`restores opener focus when saving an open preference fails with docked=${notebookDocked} and allows retry`, async ({ page }) => {
+    await page.evaluate(async notebookDocked => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      await indexedDbStorage.settings.update({ notebookDocked });
+    }, notebookDocked);
+    await page.reload();
+    await page.locator('h3', { hasText: 'Street Fighter 6' }).click();
+    await page.locator('h3', { hasText: 'Ryu' }).click();
+    await page.evaluate(async () => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      const saveOpen = indexedDbStorage.settings.setNotebookOpen;
+      let failOnce = true;
+      indexedDbStorage.settings.setNotebookOpen = (id, open) => {
+        if (!failOnce) return saveOpen(id, open);
+        failOnce = false;
+        return new Promise<void>((_resolve, reject) => Object.assign(window, { failNotebookOpen: () => reject(new Error('Storage unavailable')) }));
+      };
+    });
+    const toggle = page.getByRole('button', { name: 'Notes & Resources', exact: true });
+    await toggle.click();
+    const drawer = page.getByRole(notebookDocked ? 'complementary' : 'dialog', { name: 'Ryu Notebook' });
+    const focused = notebookDocked ? drawer.getByRole('button', { name: 'Undock', exact: true }) : drawer.getByRole('tab', { name: 'Notes', exact: true });
+    await expect(focused).toBeFocused();
+    await page.evaluate(() => (window as unknown as { failNotebookOpen: () => void }).failNotebookOpen());
+    await expect(drawer).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await expect(drawer).toBeVisible();
+    await expect(focused).toBeFocused();
+  });
+}
+
 test('preserves outside focus through responsive layout changes and remembered docking', async ({ page }) => {
   await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
   const drawer = page.getByRole('dialog', { name: 'Ryu Notebook' });

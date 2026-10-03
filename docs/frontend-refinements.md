@@ -60,6 +60,7 @@ blocks its editing controls. Resource entry accepts HTTP/S URLs and schemeless
 hosts, including ports, by adding HTTPS when needed.
 Opening, docking, and editing explicitly move focus to the panel or editor;
 restored panels and responsive layout changes preserve focus outside the notebook.
+If an open preference rolls back, either layout returns lost focus to its opener.
 
 ## Collection cards and notes
 
