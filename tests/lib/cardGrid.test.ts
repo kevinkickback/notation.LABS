@@ -26,4 +26,9 @@ describe('flexible card grid choices', () => {
     expect(getCardGridLayout(200, 16, 300)).toEqual({ sizes: [120], index: 0, columns: 1, width: 200 });
     expect(getCardGridLayout(0, 0, 180).width).toBe(0);
   });
+  it('matches fractional game minima and rounded character minima', () => {
+    expect(getCardGridLayout(769, 16, 180.4).columns).toBe(3);
+    expect(getCardGridLayout(769, 16, 180).columns).toBe(4);
+    expect(getCardGridLayout(769, 16, 180.4, 4 / 3).columns).toBe(3);
+  });
 });

@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePersistedCardSize } from '@/hooks/usePersistedCardSize';
+import { useGameViewMode } from '@/hooks/useGameViewMode';
+import { useCharacterViewMode } from '@/hooks/useCharacterViewMode';
 
 const { setSettingMock } = vi.hoisted(() => ({
   setSettingMock: vi.fn(),
@@ -38,5 +40,12 @@ describe('usePersistedCardSize', () => {
     rerender({ initialSize: 240 });
 
     expect(result.current.cardSize).toBe(240);
+  });
+  it('clamps imported game and character sizes without rewriting saved preferences', () => {
+    const game = renderHook(() => useGameViewMode(400));
+    const character = renderHook(() => useCharacterViewMode(10));
+    expect(game.result.current.cardSize).toBe(300);
+    expect(character.result.current.cardSize).toBe(120);
+    expect(setSettingMock).not.toHaveBeenCalled();
   });
 });

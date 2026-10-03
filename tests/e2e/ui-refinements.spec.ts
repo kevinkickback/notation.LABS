@@ -115,6 +115,28 @@ async function waitForNotebookChoice(page: Page, kind: 'game' | 'character', nam
   }, { kind, name })).toBe(isOpen);
 }
 
+test('keeps imported out-of-range and fractional game sizes consistent with the slider', async ({ page }) => {
+  const grid = card(page, 'Size fixture').locator('..');
+  for (const [target, width, columns] of [[400, 997, 3], [180.4, 769, 3], [10, 997, 7]]) {
+    await grid.evaluate((element, width) => { element.style.width = `${width}px`; }, width);
+    await page.evaluate(async target => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      await indexedDbStorage.settings.update({ gameCardSize: target });
+    }, target);
+    await expect.poll(() => grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(columns);
+    await page.getByRole('button', { name: 'View', exact: true }).click();
+    const slider = page.getByRole('slider', { name: 'Card size', exact: true });
+    await expect(slider).toHaveAttribute('aria-valuetext', `${Math.round((width - 16 * (columns - 1)) / columns)} pixels, ${columns} per row`);
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(async () => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      return (await indexedDbStorage.settings.get()).gameCardSize;
+    })).toBe(target);
+  }
+});
+
 test('recalculates card sizes after docking without changing a saved preference', async ({ page }) => {
   await page.evaluate(async () => {
     const path = '/src/lib/storage/indexedDbStorage.ts';

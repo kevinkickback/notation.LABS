@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { usePersistedCardSize } from '@/hooks/usePersistedCardSize';
-
-const clampCharSize = (v: number) => Math.min(300, Math.max(120, v));
+import { clampCardSize } from '@/lib/cardGrid';
 
 /**
  * Manages character view mode and card size.
@@ -11,7 +10,7 @@ export function useCharacterViewMode(initialCardSize: number) {
   const { cardSize, handleCardSizeChange } = usePersistedCardSize(
     'characterCardSize',
     initialCardSize,
-    clampCharSize,
+    clampCardSize,
   );
 
   return {

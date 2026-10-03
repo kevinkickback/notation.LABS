@@ -5,6 +5,9 @@ export interface CardGridLayout {
   width: number;
 }
 
+export const clampCardSize = (size: number) =>
+  Math.min(300, Math.max(120, size));
+
 /** Keep one target size for each layout produced by the flexible grid. */
 export function getCardGridLayout(
   containerWidth: number,
@@ -15,7 +18,10 @@ export function getCardGridLayout(
   const columnsFor = (size: number) =>
     Math.max(
       1,
-      Math.floor((containerWidth + gap) / (Math.round(size * scale) + gap)),
+      Math.floor(
+        (containerWidth + gap) /
+          ((scale === 1 ? size : Math.round(size * scale)) + gap),
+      ),
     );
   const sizes: number[] = [];
   let previousColumns = 0;
