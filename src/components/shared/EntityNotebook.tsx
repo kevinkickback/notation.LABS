@@ -288,6 +288,18 @@ export const EntityNotebook = forwardRef<
   const contentId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const dockControlRef = useRef<HTMLButtonElement>(null);
+  const [restoreDockFocus, setRestoreDockFocus] = useState(false);
+  const noteActionRef = useRef<HTMLButtonElement>(null);
+  const resourceActionRef = useRef<HTMLButtonElement>(null);
+  const noteEditorRef = useRef<HTMLFormElement>(null);
+  const resourceEditorRef = useRef<HTMLFormElement>(null);
+  const resourceEditorOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const noteActionFocusRequested = useRef(false);
+  const resourceActionFocusRequested = useRef(false);
+  const [removedResource, setRemovedResource] = useState<{
+    id: string;
+    opener: HTMLElement;
+  } | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const panelFocusRequested = useRef(false);
   const dockFocusRequested = useRef(false);
@@ -325,13 +337,74 @@ export const EntityNotebook = forwardRef<
       !hasModalOverlay()
     )
       (toggleRef.current ?? openerRef.current)?.focus();
-    if (!isDocked || !isOpen) return;
-    if (panelFocusRequested.current || dockFocusRequested.current) {
+    if (!isOpen) {
+      if (restoreDockFocus) setRestoreDockFocus(false);
+      return;
+    }
+    if (
+      (isDocked && panelFocusRequested.current) ||
+      dockFocusRequested.current ||
+      restoreDockFocus
+    ) {
+      if (!dockControlRef.current) return;
       panelFocusRequested.current = false;
       dockFocusRequested.current = false;
+      if (restoreDockFocus) setRestoreDockFocus(false);
       if (!hasModalOverlay()) dockControlRef.current?.focus();
     }
-  }, [isDocked, isOpen]);
+  }, [isDocked, isOpen, restoreDockFocus]);
+
+  useEffect(() => {
+    if (!editingNote && noteActionFocusRequested.current) {
+      noteActionFocusRequested.current = false;
+      if (!hasModalOverlay()) noteActionRef.current?.focus();
+    }
+    if (!resourceDraft && resourceActionFocusRequested.current) {
+      resourceActionFocusRequested.current = false;
+      const opener = resourceEditorOpenerRef.current;
+      if (!hasModalOverlay())
+        (opener?.isConnected ? opener : resourceActionRef.current)?.focus();
+    }
+  }, [editingNote, resourceDraft]);
+
+  useEffect(() => {
+    if (
+      removedResource &&
+      !links.some((link) => link.id === removedResource.id)
+    ) {
+      setRemovedResource(null);
+      if (
+        !removedResource.opener.isConnected &&
+        document.activeElement === document.body &&
+        !hasModalOverlay()
+      )
+        resourceActionRef.current?.focus();
+    }
+  }, [links, removedResource]);
+
+  const finishNoteEditing = (
+    restoreFocus = Boolean(
+      noteEditorRef.current?.contains(document.activeElement),
+    ),
+  ) => {
+    noteActionFocusRequested.current =
+      restoreFocus &&
+      (document.activeElement === document.body ||
+        Boolean(noteEditorRef.current?.contains(document.activeElement)));
+    setEditingNote(false);
+  };
+  const finishResourceEditing = (
+    restoreFocus = Boolean(
+      resourceEditorRef.current?.contains(document.activeElement),
+    ),
+  ) => {
+    resourceActionFocusRequested.current =
+      restoreFocus &&
+      (document.activeElement === document.body ||
+        Boolean(resourceEditorRef.current?.contains(document.activeElement)));
+    setResourceDraft(null);
+    setUrlError(null);
+  };
 
   const closeNotebook = () => {
     panelFocusRequested.current = false;
@@ -362,6 +435,10 @@ export const EntityNotebook = forwardRef<
   const openResourceEditor = (link?: CharacterLink) => {
     if (props.kind !== 'character') return;
     resourceFocusRequested.current = true;
+    resourceEditorOpenerRef.current =
+      document.activeElement instanceof HTMLButtonElement
+        ? document.activeElement
+        : null;
     if (!isOpen)
       openerRef.current =
         document.activeElement instanceof HTMLElement
@@ -380,12 +457,15 @@ export const EntityNotebook = forwardRef<
 
   const saveNote = async () => {
     if (savingNote) return;
+    const restoreFocus = Boolean(
+      noteEditorRef.current?.contains(document.activeElement),
+    );
     setSavingNote(true);
     try {
       const updates = { notes: noteDraft.trim() };
       if (props.kind === 'game') await updateGame(entityId, updates);
       else await updateCharacter(entityId, updates);
-      setEditingNote(false);
+      finishNoteEditing(restoreFocus);
       toast.success('Note updated');
     } catch (error) {
       reportError('EntityNotebook.saveNote', error);
@@ -411,6 +491,9 @@ export const EntityNotebook = forwardRef<
       url: result.data,
       label: resourceDraft.label.trim() || getDomain(result.data),
     };
+    const restoreFocus = Boolean(
+      resourceEditorRef.current?.contains(document.activeElement),
+    );
     setSavingResource(true);
     try {
       await updateCharacter(entityId, {
@@ -418,8 +501,7 @@ export const EntityNotebook = forwardRef<
           ? links.map((item) => (item.id === link.id ? link : item))
           : [...links, link],
       });
-      setResourceDraft(null);
-      setUrlError(null);
+      finishResourceEditing(restoreFocus);
     } catch (error) {
       reportError('EntityNotebook.saveResource', error);
       toast.error('Failed to save resource');
@@ -431,10 +513,15 @@ export const EntityNotebook = forwardRef<
   const removeResource = async (id: string) => {
     if (savingResource || props.kind !== 'character') return;
     setSavingResource(true);
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     try {
       await updateCharacter(entityId, {
         links: links.filter((link) => link.id !== id),
       });
+      if (opener) setRemovedResource({ id, opener });
     } catch (error) {
       reportError('EntityNotebook.removeResource', error);
       toast.error('Failed to remove resource');
@@ -445,6 +532,7 @@ export const EntityNotebook = forwardRef<
 
   const noteAction = !editingNote && (
     <Button
+      ref={noteActionRef}
       type="button"
       variant="outline"
       size="sm"
@@ -461,6 +549,7 @@ export const EntityNotebook = forwardRef<
     <section className="notebook-notes" aria-label="Notes">
       {editingNote ? (
         <form
+          ref={noteEditorRef}
           className="notebook-note-editor"
           onSubmit={(event) => {
             event.preventDefault();
@@ -508,7 +597,7 @@ export const EntityNotebook = forwardRef<
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setEditingNote(false)}
+                onClick={() => finishNoteEditing()}
                 disabled={savingNote}
               >
                 Cancel
@@ -541,6 +630,7 @@ export const EntityNotebook = forwardRef<
 
   const resourceAction = !resourceDraft && (
     <Button
+      ref={resourceActionRef}
       type="button"
       variant="outline"
       size="sm"
@@ -561,6 +651,7 @@ export const EntityNotebook = forwardRef<
       )}
       {resourceDraft && (
         <form
+          ref={resourceEditorRef}
           className="notebook-resource-editor"
           noValidate
           onSubmit={(event) => {
@@ -611,10 +702,7 @@ export const EntityNotebook = forwardRef<
             <Button
               type="button"
               variant="ghost"
-              onClick={() => {
-                setResourceDraft(null);
-                setUrlError(null);
-              }}
+              onClick={() => finishResourceEditing()}
               disabled={savingResource}
             >
               Cancel
@@ -697,7 +785,16 @@ export const EntityNotebook = forwardRef<
         title={dockRequested ? 'Undock' : 'Dock'}
         onClick={() => {
           dockFocusRequested.current = true;
-          void setSetting('notebookDocked', !dockRequested);
+          void setSetting('notebookDocked', !dockRequested).then((saved) => {
+            if (
+              !saved &&
+              (document.activeElement === document.body ||
+                document.activeElement === dockControlRef.current)
+            ) {
+              dockFocusRequested.current = true;
+              setRestoreDockFocus(true);
+            }
+          });
         }}
       >
         <SidebarSimpleIcon size={16} />
@@ -890,9 +987,10 @@ export const EntityNotebook = forwardRef<
             hideCloseButton
             id={contentId}
             onOpenAutoFocus={(event) => {
-              if (dockFocusRequested.current) {
+              if (dockFocusRequested.current || restoreDockFocus) {
                 event.preventDefault();
                 dockFocusRequested.current = false;
+                if (restoreDockFocus) setRestoreDockFocus(false);
                 if (!hasModalOverlay()) dockControlRef.current?.focus();
               } else if (!panelFocusRequested.current || hasModalOverlay()) {
                 event.preventDefault();

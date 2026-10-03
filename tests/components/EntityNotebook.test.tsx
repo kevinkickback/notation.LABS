@@ -165,6 +165,7 @@ describe('EntityNotebook', () => {
     expect((screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('**New** note');
     await user.click(screen.getByRole('button', { name: 'Save Note' }));
     expect(updateCharacter).toHaveBeenCalledWith('ryu', { notes: '**New** note' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit note' }));
   });
 
   it('cancels note edits without writing and starts the next edit from saved content', async () => {
@@ -174,6 +175,7 @@ describe('EntityNotebook', () => {
     await user.type(screen.getByRole('textbox', { name: 'Note' }), ' draft');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(updateCharacter).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit note' }));
     await user.click(screen.getByRole('button', { name: 'Edit note' }));
     expect((screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Saved note');
   });
@@ -251,6 +253,7 @@ describe('EntityNotebook', () => {
       await waitFor(() => expect(screen.getByRole('dialog', { name: 'Ryu Notebook' })).not.toBeNull());
       expect(preferences.saved.notebookDocked).toBe(false);
       expect(screen.queryByRole('complementary')).toBeNull();
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Dock' })));
     } finally {
       mediaSpy.mockRestore();
     }
@@ -402,6 +405,7 @@ describe('EntityNotebook', () => {
     await user.click(screen.getByRole('button', { name: 'Add resource' }));
     expect(updateCharacter).toHaveBeenCalledWith('ryu', { links: [expect.objectContaining({ url: 'https://dustloop.com', label: 'dustloop.com' })] });
     expect(screen.queryByRole('textbox', { name: 'URL' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add resource link' }));
   });
 
   it.each(['javascript:alert(1)', 'ftp://example.com', 'https://user:pass@example.com', 'not a url'])('rejects the unsafe or malformed URL %s without losing the draft', async url => {
@@ -436,6 +440,7 @@ describe('EntityNotebook', () => {
     await user.type(screen.getByRole('textbox', { name: /Label/ }), 'Frame data');
     await user.click(screen.getByRole('button', { name: 'Save resource' }));
     expect(updateCharacter).toHaveBeenCalledWith('ryu', { links: [{ ...links[0], label: 'Frame data' }, links[1]] });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit Dustloop Wiki' }));
   });
 
   it('cancels resource edits without writing', async () => {
@@ -447,6 +452,7 @@ describe('EntityNotebook', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(updateCharacter).not.toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Open Dustloop Wiki in a new tab' })).not.toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit Dustloop Wiki' }));
   });
 
   it('preserves a resource draft across closing and failed saves', async () => {

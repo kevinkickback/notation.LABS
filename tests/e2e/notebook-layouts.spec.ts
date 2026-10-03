@@ -250,6 +250,38 @@ for (const kind of ['game', 'character'] as const) {
 }
 
 for (const notebookDocked of [false, true]) {
+  test(`restores focus after note and resource edits and removal with docked=${notebookDocked}`, async ({ page }) => {
+    await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
+    if (notebookDocked) await page.getByRole('button', { name: 'Dock', exact: true }).click();
+    const panel = page.getByRole(notebookDocked ? 'complementary' : 'dialog', { name: 'Ryu Notebook' });
+    await panel.getByRole('button', { name: 'Edit note', exact: true }).click();
+    await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Edit note', exact: true })).toBeFocused();
+    await panel.getByRole('button', { name: 'Edit note', exact: true }).click();
+    await panel.getByRole('textbox', { name: 'Note', exact: true }).fill('Updated practice plan');
+    await panel.getByRole('button', { name: 'Save Note', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Edit note', exact: true })).toBeFocused();
+    await panel.getByRole('tab', { name: /^Resources/ }).click();
+    await panel.getByRole('button', { name: 'Add resource link', exact: true }).click();
+    await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Add resource link', exact: true })).toBeFocused();
+    await panel.getByRole('button', { name: 'Add resource link', exact: true }).click();
+    await panel.getByRole('textbox', { name: 'URL', exact: true }).fill('https://example.com/focus');
+    await panel.getByRole('textbox', { name: /Label/ }).fill('Focus guide');
+    await panel.getByRole('button', { name: 'Add resource', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Add resource link', exact: true })).toBeFocused();
+    await panel.getByRole('button', { name: 'Edit Focus guide', exact: true }).click();
+    await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Edit Focus guide', exact: true })).toBeFocused();
+    await panel.getByRole('button', { name: 'Edit Focus guide', exact: true }).click();
+    await panel.getByRole('textbox', { name: /Label/ }).fill('Updated focus guide');
+    await panel.getByRole('button', { name: 'Save resource', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Edit Updated focus guide', exact: true })).toBeFocused();
+    await panel.getByRole('button', { name: 'Remove Updated focus guide', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Remove Updated focus guide', exact: true })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Add resource link', exact: true })).toBeFocused();
+  });
+
   test(`restores opener focus when saving an open preference fails with docked=${notebookDocked} and allows retry`, async ({ page }) => {
     await page.evaluate(async notebookDocked => {
       const path = '/src/lib/storage/indexedDbStorage.ts';
@@ -284,6 +316,29 @@ for (const notebookDocked of [false, true]) {
     await expect(focused).toBeFocused();
   });
 }
+
+test('restores focus to the docking control when saving a layout preference fails', async ({ page }) => {
+  await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const save = indexedDbStorage.settings.update;
+    let failOnce = true;
+    indexedDbStorage.settings.update = updates => {
+      if (!failOnce || updates.notebookDocked === undefined) return save(updates);
+      failOnce = false;
+      return new Promise<void>((_resolve, reject) => Object.assign(window, { failNotebookDock: () => reject(new Error('Storage unavailable')) }));
+    };
+  });
+  const drawer = page.getByRole('dialog', { name: 'Ryu Notebook' });
+  await drawer.getByRole('button', { name: 'Dock', exact: true }).click();
+  const dock = page.getByRole('complementary', { name: 'Ryu Notebook' });
+  await expect(dock.getByRole('button', { name: 'Undock', exact: true })).toBeFocused();
+  await page.evaluate(() => (window as unknown as { failNotebookDock: () => void }).failNotebookDock());
+  await expect(drawer.getByRole('button', { name: 'Dock', exact: true })).toBeFocused();
+  await drawer.getByRole('button', { name: 'Dock', exact: true }).click();
+  await expect(dock.getByRole('button', { name: 'Undock', exact: true })).toBeFocused();
+});
 
 test('preserves outside focus through responsive layout changes and remembered docking', async ({ page }) => {
   await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
