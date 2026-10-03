@@ -120,6 +120,11 @@ retained combos stay available. Preference normalization can read both parent ta
 transaction, including older default-open settings; any write failure leaves the entire cascade
 unchanged for retry.
 
+Card grids use flexible columns to fill the content width, preserving empty slots in incomplete
+rows. Their size sliders expose one stop per distinct layout at the observed container width.
+Window resizing and notebook docking recalculate choices without rewriting the saved target size.
+Character columns retain the v1.8.0 width multiplier and current portrait aspect ratios.
+
 Styling imports Tailwind once through `src/main.css`. `src/styles/theme.css` owns the app's light and
 dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings provider
 applies the `.dark` class, font, and custom accent, and notifications read the same theme preference.

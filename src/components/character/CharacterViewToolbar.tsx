@@ -9,6 +9,7 @@ import {
   SquaresFourIcon,
 } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
+import { CardSizeSlider } from '@/components/shared/CardSizeSlider';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,8 +18,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import type { CharacterSort } from '@/hooks/useCharacterFilters';
+import type { CardGridLayout } from '@/lib/cardGrid';
 
 const SORT_LABELS: Record<CharacterSort, string> = {
   'name-asc': 'Name A–Z',
@@ -35,7 +36,7 @@ interface CharacterViewToolbarProps {
   onSortByChange: (sort: CharacterSort) => void;
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
-  cardSize: number;
+  cardLayout: CardGridLayout;
   onCardSizeChange: (size: number) => void;
   onToggleSelect: () => void;
   onOpenColorDialog: () => void;
@@ -50,7 +51,7 @@ export function CharacterViewToolbar({
   onSortByChange,
   viewMode,
   onViewModeChange,
-  cardSize,
+  cardLayout,
   onCardSizeChange,
   onToggleSelect,
   onOpenColorDialog,
@@ -144,14 +145,9 @@ export function CharacterViewToolbar({
                   <p className="text-xs font-medium text-muted-foreground mb-1.5">
                     Card Size
                   </p>
-                  <Slider
-                    aria-label="Card size"
-                    min={120}
-                    max={300}
-                    step={10}
-                    value={[cardSize]}
-                    onValueChange={([v]) => onCardSizeChange(v)}
-                    className="w-full"
+                  <CardSizeSlider
+                    layout={cardLayout}
+                    onSizeChange={onCardSizeChange}
                   />
                 </div>
               )}
