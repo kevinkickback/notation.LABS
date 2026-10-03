@@ -63,6 +63,8 @@ restored panels and responsive layout changes preserve focus outside the noteboo
 If an open preference rolls back, either layout returns lost focus to its opener.
 Editor save/cancel returns focus to the initiating Add/Edit action. Removing a
 focused resource returns it to Add; a failed dock choice restores its layout control.
+The dock stays at the workspace's measured top while scrolling, below the sticky
+header and breadcrumb. That same offset sets its available height above the footer.
 
 ## Collection cards and notes
 

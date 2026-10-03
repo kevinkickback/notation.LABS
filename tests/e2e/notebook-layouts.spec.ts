@@ -707,6 +707,48 @@ test('fits the dock above the footer without adding page scroll and scrolls long
   await page.screenshot({ path: testInfo.outputPath('notebook-dock-fits-window.png') });
 });
 
+for (const kind of ['game', 'character'] as const) {
+  test(`keeps dock controls clear of sticky navigation on a long ${kind} page`, async ({ page }) => {
+    await page.evaluate(async target => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      const game = (await indexedDbStorage.games.getAll()).find(item => item.name === 'Street Fighter 6');
+      if (!game) throw new Error('Missing seeded game');
+      const character = (await indexedDbStorage.characters.getByGame(game.id)).find(item => item.name === 'Ryu');
+      if (!character) throw new Error('Missing seeded character');
+      for (let index = 0; index < 40; index++) {
+        if (target === 'game') await indexedDbStorage.characters.add({ gameId: game.id, name: `Practice character ${index}` });
+        else await indexedDbStorage.combos.add({ characterId: character.id, name: `Practice combo ${index}`, notation: '2M > 236H', parsedNotation: [], tags: [] });
+      }
+    }, kind);
+    if (kind === 'game') await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: kind === 'game' ? 'Notes' : 'Notes & Resources', exact: true }).click();
+    await page.getByRole('button', { name: 'Dock', exact: true }).click();
+    const dock = page.getByRole('complementary', { name: `${kind === 'game' ? 'Street Fighter 6' : 'Ryu'} Notebook` });
+    for (const height of [1000, 600]) {
+      await page.setViewportSize({ width: 1440, height });
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(500);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      const sidebar = await dock.boundingBox();
+      const navigationBottom = await page.locator('main').evaluate(element => element.previousElementSibling?.getBoundingClientRect().bottom ?? 0);
+      const footer = await page.locator('footer').boundingBox();
+      if (!sidebar || !footer) throw new Error('Missing dock or footer');
+      expect(sidebar.y).toBeGreaterThanOrEqual(navigationBottom + 23);
+      expect(sidebar.y + sidebar.height).toBeLessThanOrEqual(footer.y - 23);
+      for (const name of ['Undock', 'Close notebook']) {
+        const control = dock.getByRole('button', { name, exact: true });
+        await expect(control).toBeInViewport();
+        expect(await control.evaluate(element => {
+          const box = element.getBoundingClientRect();
+          return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+        })).toBe(true);
+      }
+    }
+    await dock.getByRole('button', { name: 'Undock', exact: true }).click();
+    await expect(page.locator('.notebook-drawer')).toBeVisible();
+  });
+}
+
 test('remembers dock mode and adjusted width across navigation and reloads without replacing them on small windows', async ({ page }) => {
   await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
   await page.getByRole('button', { name: 'Dock', exact: true }).click();

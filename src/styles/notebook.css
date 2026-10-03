@@ -378,7 +378,7 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
 }
 .notebook-dock-host:has(> .notebook-docked) {
   position: sticky;
-  top: 24px;
+  top: var(--notebook-dock-top, 146px);
   min-width: 0;
 }
 .notebook-docked {

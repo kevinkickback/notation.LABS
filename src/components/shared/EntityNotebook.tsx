@@ -69,6 +69,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const [mainWidth, setMainWidth] = useState(0);
   const [dockHeight, setDockHeight] = useState(0);
+  const [dockTop, setDockTop] = useState(0);
   const [draftWidth, setDraftWidth] = useState<number | null>(null);
   const cancelWidth = useCallback(() => setDraftWidth(null), []);
   const maxWidth =
@@ -94,6 +95,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
             (Number.parseFloat(style.paddingRight) || 0),
         );
         const top = workspace.getBoundingClientRect().top + window.scrollY;
+        setDockTop(top);
         const footerHeight =
           container.nextElementSibling?.getBoundingClientRect().height ?? 0;
         setDockHeight(
@@ -148,6 +150,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
               mainWidth > 0 ? `${mainWidth}px` : undefined,
             '--notebook-max-dock-width': `${MAX_DOCK_WIDTH}px`,
             '--notebook-dock-height': `${dockHeight}px`,
+            '--notebook-dock-top': dockTop > 0 ? `${dockTop}px` : undefined,
           } as CSSProperties
         }
       >
