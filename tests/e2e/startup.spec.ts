@@ -35,14 +35,14 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(overlay).toHaveCount(0);
     const headerLogo = page.locator('header img');
     await expect(headerLogo).toHaveJSProperty('naturalWidth', 32);
-    await expect(headerLogo).toHaveAttribute('src', /(?:^data:image\/svg\+xml|(?:app|flask)-mark.*\.svg)/);
+    await expect(headerLogo).toHaveAttribute('src', /(?:^data:image\/svg\+xml|app-mark.*\.svg)/);
     expect(await headerLogo.getAttribute('src')).not.toBe(source);
     for (const width of [320, 800, 1440]) {
       await page.setViewportSize({ width, height: 700 });
       await expect(headerLogo).toBeInViewport();
       await expect(page.locator('header').getByRole('heading', { name: 'notation.LABS' })).toBeVisible();
       const header = await page.locator('header').boundingBox();
-      expect(header?.height).toBeCloseTo(61, 0);
+      expect(header?.height).toBeCloseTo(65, 0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
       if (width === 1440) await page.screenshot({ path: testInfo.outputPath(`header-${theme}.png`) });
     }

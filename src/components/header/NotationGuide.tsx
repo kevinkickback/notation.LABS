@@ -95,7 +95,7 @@ export function NotationGuide({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="notation-guide-dialog max-w-6xl flex flex-col overflow-hidden">
+      <DialogContent className="notation-guide-dialog max-w-[922px] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Combo Notation Guide</DialogTitle>
           <DialogDescription className="sr-only">

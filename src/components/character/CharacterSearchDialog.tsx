@@ -73,7 +73,7 @@ export function CharacterSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="search-dialog max-w-4xl flex flex-col overflow-hidden">
+      <DialogContent className="search-dialog max-w-[691px] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Search Character Images</DialogTitle>
           <DialogDescription className="sr-only">

@@ -115,7 +115,6 @@
 }
 @container guide-reference (max-width: 560px) {
   .guide-reference .guide-directions-layout {
-    grid-template-columns: 184px minmax(0, 1fr);
     gap: 20px;
   }
   .guide-reference .guide-direction-rules .guide-entries dt {
