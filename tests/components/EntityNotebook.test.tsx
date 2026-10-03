@@ -10,6 +10,7 @@ import { updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import type { CharacterLink, UserSettings } from '@/lib/types';
+import { toast } from 'sonner';
 
 const preferences = vi.hoisted(() => ({ saved: {} as UserSettings, update: vi.fn(), openUpdate: vi.fn() }));
 vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
@@ -17,13 +18,14 @@ vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
 }));
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: { settings: {
-    // Startup is covered separately; keep its mount update out of notebook interactions.
-    init: () => new Promise<void>(() => {}),
     get: async () => preferences.saved,
     update: (...args: unknown[]) => preferences.update(...args),
     setNotebookOpen: (...args: unknown[]) => preferences.openUpdate(...args),
   } },
 }));
+
+// Startup is covered separately; keep its mount update out of notebook interactions.
+vi.mock('@/lib/application/initializeApplication', () => ({ initializeApplication: () => new Promise<void>(() => {}) }));
 
 vi.mock('@/lib/application/characterCommands', () => ({ updateCharacter: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/application/gameCommands', () => ({ updateGame: vi.fn().mockResolvedValue(undefined) }));
@@ -55,6 +57,42 @@ async function chooseLayout(name: string) {
 }
 
 describe('EntityNotebook', () => {
+  it.each(['note', 'resource'] as const)('blocks repeated %s submissions before the saving state renders', async kind => {
+    const user = userEvent.setup();
+    let finish!: () => void;
+    const saved = new Promise<void>(resolve => { finish = resolve; });
+    vi.mocked(updateCharacter).mockReturnValueOnce(saved);
+    render(<CharacterNotebook notes="Saved note" resources={[]} />);
+    if (kind === 'note') {
+      await user.click(screen.getByRole('button', { name: 'Edit note' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: 'New note' } });
+    } else {
+      await user.click(screen.getByRole('tab', { name: /^Resources/ }));
+      await user.click(screen.getByRole('button', { name: 'Add resource link' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), { target: { value: 'https://example.com' } });
+    }
+    const button = screen.getByRole('button', { name: kind === 'note' ? 'Save Note' : 'Add resource' }) as HTMLButtonElement;
+    const form = button.closest('form')!;
+    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
+    expect(updateCharacter).toHaveBeenCalledOnce();
+    expect(button.disabled).toBe(true);
+    await act(async () => { finish(); await saved; });
+    expect(screen.queryByRole('textbox', { name: kind === 'note' ? 'Note' : 'URL' })).toBeNull();
+  });
+
+  it('retains a legacy HTTP resource and explains how to make it openable', async () => {
+    const user = userEvent.setup();
+    render(<CharacterNotebook resources={[{ id: 'old', url: 'http://example.com/guide', label: 'Old guide' }]} />);
+    await user.click(screen.getByRole('tab', { name: /^Resources/ }));
+    const link = screen.getByLabelText('Open Old guide in a new tab');
+    expect(link.hasAttribute('href')).toBe(false);
+    expect(link.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText('example.com · Edit to use HTTPS')).not.toBeNull();
+    await user.click(link);
+    expect(toast.error).toHaveBeenCalledWith('This saved resource uses HTTP. Edit it to use HTTPS before opening.');
+    await user.click(screen.getByRole('button', { name: 'Edit Old guide' }));
+    expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe('http://example.com/guide');
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     preferences.saved = { ...DEFAULT_SETTINGS };
@@ -194,18 +232,31 @@ describe('EntityNotebook', () => {
       await user.click(screen.getByRole('button', { name: 'Edit note' }));
       expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Note' }));
       await user.clear(screen.getByRole('textbox', { name: 'Note' }));
-      await user.type(screen.getByRole('textbox', { name: 'Note' }), 'Docked draft');
+      await user.paste('Docked draft');
+      const noteInput = screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement;
+      noteInput.setSelectionRange(2, 8);
       await chooseLayout('Dock right');
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' }));
       const dock = screen.getByRole('complementary', { name: 'Ryu Notebook' });
       expect(screen.queryByRole('dialog')).toBeNull();
       expect((within(dock).getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Docked draft');
+      expect(within(dock).getByRole('textbox', { name: 'Note' })).toBe(noteInput);
+      expect([noteInput.selectionStart, noteInput.selectionEnd]).toEqual([2, 8]);
       await user.click(within(dock).getByRole('tab', { name: 'Resources (0)' }));
       await user.click(within(dock).getByRole('button', { name: 'Add resource link' }));
-      await user.type(screen.getByRole('textbox', { name: 'URL' }), 'https://example.com/draft');
+      await user.click(screen.getByRole('textbox', { name: 'URL' }));
+      await user.paste('https://example.com/draft');
+      const urlInput = screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement;
+      const labelInput = screen.getByRole('textbox', { name: /Label/ }) as HTMLInputElement;
+      await user.click(labelInput);
+      await user.paste('Draft label');
+      labelInput.setSelectionRange(2, 8);
       await chooseLayout('Floating');
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' }));
       expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe('https://example.com/draft');
+      expect(screen.getByRole('textbox', { name: 'URL' })).toBe(urlInput);
+      expect(screen.getByRole('textbox', { name: /Label/ })).toBe(labelInput);
+      expect([labelInput.selectionStart, labelInput.selectionEnd]).toEqual([2, 8]);
       await chooseLayout('Dock right');
       await user.click(screen.getByRole('button', { name: 'Close notebook' }));
       expect(screen.queryByRole('complementary')).toBeNull();
@@ -498,14 +549,14 @@ describe('EntityNotebook', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add resource link' }));
   });
 
-  it.each(['javascript:alert(1)', 'ftp://example.com', 'https://user:pass@example.com', 'not a url'])('rejects the unsafe or malformed URL %s without losing the draft', async url => {
+  it.each(['javascript:alert(1)', 'ftp://example.com', 'https://user:pass@example.com', 'not a url', 'http://example.com/guide'])('rejects the unsafe or malformed URL %s without losing the draft', async url => {
     const user = userEvent.setup();
     render(<CharacterNotebook resources={[]} />);
     await user.click(screen.getByRole('tab', { name: /^Resources/ }));
     await user.click(screen.getByRole('button', { name: 'Add resource link' }));
     await user.type(screen.getByRole('textbox', { name: 'URL' }), url);
     await user.click(screen.getByRole('button', { name: 'Add resource' }));
-    expect(screen.getByRole('alert').textContent).toContain('HTTP or HTTPS');
+    expect(screen.getByRole('alert').textContent).toContain('HTTPS');
     expect(updateCharacter).not.toHaveBeenCalled();
     expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe(url);
   });

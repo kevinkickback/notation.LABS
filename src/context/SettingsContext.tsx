@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
+import { getAccentAppearance } from '@/lib/accentAppearance';
+import { initializeApplication } from '@/lib/application/initializeApplication';
 import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
@@ -106,7 +108,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (initialization.current?.attempt !== attempt) {
       initialization.current = {
         attempt,
-        promise: indexedDbStorage.settings.init({
+        promise: initializeApplication({
           onReparseStart: () => setIsReparsing(true),
           onReparseEnd: () => setIsReparsing(false),
         }),
@@ -220,13 +222,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   useLayoutEffect(() => {
+    const accent = getAccentAppearance(currentSettings.accentColor);
     document.documentElement.style.setProperty(
       '--app-font-family',
       getFontFamilyCSS(currentSettings.fontFamily),
     );
     document.documentElement.style.setProperty(
       '--accent-color',
-      currentSettings.accentColor || '#3b82f6',
+      accent.background,
+    );
+    document.documentElement.style.setProperty(
+      '--accent-foreground',
+      accent.foreground,
     );
     document.documentElement.classList.toggle(
       'dark',

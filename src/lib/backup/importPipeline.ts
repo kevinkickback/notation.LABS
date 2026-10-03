@@ -1,3 +1,4 @@
+import { parseComboRecords } from '@/lib/comboParsing';
 import { normalizeGameNotationProfile } from '@/lib/notationProfiles';
 import { sanitizeImportedVideoReference } from '@/lib/storage/videoReferences';
 import type {
@@ -57,5 +58,8 @@ export function normalizeBackupImport(
     );
   }
 
-  return plan;
+  return {
+    ...plan,
+    combos: parseComboRecords(plan.combos, plan.games, plan.characters),
+  };
 }

@@ -1,0 +1,43 @@
+import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+test('shows partial selection for an empty character and exports that branch with its parent', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Export data', exact: true })).toBeVisible();
+  await page.evaluate(async () => {
+    const gamePath = '/src/lib/application/gameCommands.ts';
+    const characterPath = '/src/lib/application/characterCommands.ts';
+    const comboPath = '/src/lib/application/comboCommands.ts';
+    const { createGame } = await import(/* @vite-ignore */ gamePath) as typeof import('../../src/lib/application/gameCommands');
+    const { createCharacter } = await import(/* @vite-ignore */ characterPath) as typeof import('../../src/lib/application/characterCommands');
+    const { createCombo } = await import(/* @vite-ignore */ comboPath) as typeof import('../../src/lib/application/comboCommands');
+    const gameId = await createGame({ name: 'Mixed game', buttonLayout: ['A'], notationProfile: 'standard' });
+    const active = await createCharacter({ gameId, name: 'Active fighter' });
+    await createCharacter({ gameId, name: 'Empty fighter' });
+    await createGame({ name: 'Empty game', buttonLayout: ['A'], notationProfile: 'standard' });
+    await createCombo({ characterId: active, name: 'Active route', notation: 'A', tags: [] });
+  });
+  await page.getByRole('button', { name: 'Export data', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export Data', exact: true });
+  await dialog.getByRole('button', { name: 'Expand Mixed game', exact: true }).click();
+  const game = dialog.getByRole('checkbox', { name: 'Include game Mixed game', exact: true });
+  const empty = dialog.getByRole('checkbox', { name: 'Include character Empty fighter', exact: true });
+  await empty.click();
+  await expect(game).toHaveAttribute('aria-checked', 'mixed');
+  await game.click();
+  await expect(game).toHaveAttribute('aria-checked', 'true');
+  await expect(empty).toHaveAttribute('aria-checked', 'true');
+  await dialog.getByRole('button', { name: 'None', exact: true }).click();
+  await empty.click();
+  await expect(game).toHaveAttribute('aria-checked', 'mixed');
+  const download = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click();
+  const saved = await download;
+  const file = await saved.path();
+  expect(file).not.toBeNull();
+  const backup = JSON.parse(await readFile(file!, 'utf8')) as { games: { name: string }[]; characters: { name: string }[]; combos: unknown[] };
+  expect(backup.games.map(game => game.name)).toEqual(['Mixed game']);
+  expect(backup.characters.map(character => character.name)).toEqual(['Empty fighter']);
+  expect(backup.combos).toEqual([]);
+});

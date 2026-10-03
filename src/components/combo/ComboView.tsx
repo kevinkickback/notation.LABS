@@ -54,7 +54,7 @@ export function ComboView({ game, character, combos }: ComboViewProps) {
 
   const filters = useComboFilters(combos);
   const selection = useSelection();
-  const videoPlayer = useVideoPlayer(settings.videoPlayerSize);
+  const videoPlayer = useVideoPlayer(settings.videoPlayerSize, character.id);
   const deleteState = useComboDelete({
     confirmBeforeDelete: settings.confirmBeforeDelete ?? false,
   });

@@ -1,15 +1,13 @@
 import type { CSSProperties } from 'react';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
+import { useSettings } from '@/context/SettingsContext';
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const theme =
-    document.documentElement.getAttribute('data-appearance') === 'light'
-      ? 'light'
-      : 'dark';
+  const { colorTheme } = useSettings();
 
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={colorTheme}
       className="toaster group"
       style={
         {

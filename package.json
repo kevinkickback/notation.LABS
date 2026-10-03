@@ -18,7 +18,9 @@
     "dev:web": "cross-env ELECTRON=false vite --open",
     "dev:app": "cross-env ELECTRON=true vite --no-open",
     "build:web": "tsc -b && cross-env ELECTRON=false vite build",
-    "build:app": "npm run clean:app && tsc -b && cross-env ELECTRON=true vite build && electron-builder --publish never",
+    "build:app": "npm run build:desktop && electron-builder --publish never",
+    "build:desktop": "npm run clean:app && tsc -b && cross-env ELECTRON=true vite build && node scripts/stage-desktop-app.mjs",
+    "package:check": "node scripts/check-desktop-package.mjs",
     "clean:app": "node scripts/clean-app-build.mjs",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
@@ -29,7 +31,8 @@
     "test:e2e:ui": "playwright test --ui",
     "assets:optimize": "svgo --folder src/assets/motion-icons --output src/assets/motion-icons --multipass",
     "assets:branding": "node scripts/build-branding-assets.mjs",
-    "version:check": "node scripts/check-release.mjs"
+    "version:check": "node scripts/check-release.mjs",
+    "audit:electron": "node scripts/check-electron-audit.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -49,13 +52,13 @@
     "@radix-ui/react-slot": "^1.1.2",
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@zip.js/zip.js": "^2.23.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",
     "electron-updater": "^6.8.9",
     "fflate": "^0.8.3",
-    "jszip": "^3.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-error-boundary": "^6.1.1",
@@ -69,6 +72,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
+    "@electron/asar": "3.4.1",
+    "@electron/fuses": "1.8.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.2.1",
     "@testing-library/react": "^16.3.2",
@@ -77,31 +82,35 @@
     "@types/react-dom": "^19.2.3",
     "@types/semver": "^7.8.0",
     "@vitejs/plugin-react-swc": "^4.2.3",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "cross-env": "^10.1.0",
-    "electron": "^43.4.1",
+    "electron": "^43.7.7",
     "electron-builder": "^26.15.3",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^28.1.0",
-    "svgo": "^4.0.2",
+    "jszip": "^3.10.1",
+    "svgo": "^4.1.0",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.6",
     "vite-plugin-electron": "^0.29.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "build": {
     "appId": "com.notationlabs.app",
     "productName": "Notation Labs",
     "copyright": "Copyright © 2026 KevinKickback",
     "directories": {
+      "app": ".tmp/desktop-app",
       "output": "release",
       "buildResources": "build"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "LICENSE"
     ],
+    "beforeBuild": "./scripts/stage-desktop-app.mjs",
     "icon": "build/icon.ico",
     "publish": {
       "provider": "github",
@@ -174,7 +183,6 @@
   },
   "allowScripts": {
     "@swc/core@1.15.18": true,
-    "electron@43.4.1": true,
     "electron-winstaller@5.4.0": true,
     "esbuild@0.28.2": true
   }

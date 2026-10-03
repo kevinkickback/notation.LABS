@@ -1,7 +1,6 @@
 import {
   createContext,
   type ReactNode,
-  type SetStateAction,
   useCallback,
   useContext,
   useEffect,
@@ -13,24 +12,12 @@ import { ChangelogModal } from '@/components/updates/ChangelogModal';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings } from '@/context/SettingsContext';
 import { reportError } from '@/lib/errors';
-import type {
-  UpdateIPCResponse,
-  UpdateStatus,
+import {
+  INITIAL_UPDATE_STATUS,
+  type UpdateDetails,
+  type UpdateIPCResponse,
+  type UpdateStatus,
 } from '@/lib/updater/ipcContract';
-
-interface UpdaterController {
-  status: UpdateStatus;
-  knownUpdate: UpdateStatus | null;
-  availabilityEventId: number;
-  checkForUpdate: () => Promise<UpdateStatus>;
-  downloadUpdate: () => Promise<UpdateIPCResponse<null>>;
-  cancelUpdate: () => Promise<UpdateIPCResponse<null>>;
-  installUpdate: () => Promise<void>;
-  showAvailableUpdate: (status?: UpdateStatus) => void;
-  showChangelog: (presentation: ChangelogPresentation) => void;
-  dismissChangelog: () => void;
-  reset: () => void;
-}
 
 interface ChangelogPresentation {
   version: string;
@@ -39,286 +26,184 @@ interface ChangelogPresentation {
   installable?: boolean;
   isPortable?: boolean;
 }
-
+interface UpdaterController {
+  status: UpdateStatus;
+  knownUpdate: UpdateDetails | null;
+  availabilityEventId: number;
+  checkForUpdate: () => Promise<UpdateStatus>;
+  downloadUpdate: () => Promise<UpdateIPCResponse<null>>;
+  cancelUpdate: () => Promise<UpdateIPCResponse<null>>;
+  installUpdate: () => Promise<void>;
+  showAvailableUpdate: (update?: UpdateDetails | null) => void;
+  showChangelog: (presentation: ChangelogPresentation) => void;
+  dismissChangelog: () => void;
+}
 const UNAVAILABLE_RESPONSE: UpdateIPCResponse<null> = {
   success: false,
   data: null,
   error: 'Updates are unavailable in this environment.',
 };
-
 const UpdaterContext = createContext<UpdaterController>({
-  status: { status: 'idle' },
+  status: INITIAL_UPDATE_STATUS,
   knownUpdate: null,
   availabilityEventId: 0,
-  checkForUpdate: async () => ({
-    status: 'error',
-    error: UNAVAILABLE_RESPONSE.error ?? undefined,
-  }),
+  checkForUpdate: () =>
+    Promise.reject(
+      new Error(UNAVAILABLE_RESPONSE.error ?? 'Updates unavailable'),
+    ),
   downloadUpdate: async () => UNAVAILABLE_RESPONSE,
   cancelUpdate: async () => UNAVAILABLE_RESPONSE,
   installUpdate: async () => undefined,
   showAvailableUpdate: () => undefined,
   showChangelog: () => undefined,
   dismissChangelog: () => undefined,
-  reset: () => undefined,
 });
 
 export function UpdaterProvider({ children }: { children: ReactNode }) {
   const settings = useSettings();
-  const [{ status, knownUpdate }, setUpdateState] = useState<{
-    status: UpdateStatus;
-    knownUpdate: UpdateStatus | null;
-  }>({ status: { status: 'idle' }, knownUpdate: null });
-  const statusRevision = useRef(0);
-  const metadataRevision = useRef(0);
-  // Keep confirmed metadata separately from transient checks/errors, atomically
-  // with each event so batched events cannot discard a known update.
-  const setStatus = useCallback(
-    (
-      next: SetStateAction<UpdateStatus>,
-      confirmsMetadata = typeof next !== 'function' &&
-        ['available', 'downloaded', 'not-available'].includes(next.status),
-    ) => {
-      statusRevision.current += 1;
-      if (confirmsMetadata) metadataRevision.current += 1;
-      setUpdateState((current) => {
-        const status = typeof next === 'function' ? next(current.status) : next;
-        const knownUpdate =
-          status.status === 'available'
-            ? status
-            : status.status === 'downloaded'
-              ? { ...current.knownUpdate, ...status }
-              : status.status === 'not-available'
-                ? null
-                : current.knownUpdate;
-        return { status, knownUpdate };
-      });
-    },
-    [],
-  );
-  const [availabilityEventId, setAvailabilityEventId] = useState(0);
+  const [status, setStatus] = useState<UpdateStatus>(INITIAL_UPDATE_STATUS);
+  const latestStatus = useRef(status);
   const [changelogPresentation, setChangelogPresentation] =
     useState<ChangelogPresentation | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [downloadStarting, setDownloadStarting] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const downloadPromise = useRef<Promise<UpdateIPCResponse<null>> | null>(null);
+
+  const receiveStatus = useCallback((next: UpdateStatus) => {
+    if (next.revision <= latestStatus.current.revision)
+      return latestStatus.current;
+    latestStatus.current = next;
+    setStatus(next);
+    if (
+      ['downloading', 'downloaded', 'error', 'cancelled'].includes(next.status)
+    )
+      setDownloadStarting(false);
+    return next;
+  }, []);
 
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) return;
     let active = true;
-    const initialStatusRevision = statusRevision.current;
-    const initialMetadataRevision = metadataRevision.current;
-
+    const unsubscribe = api.onUpdateStatus((next) => {
+      if (active) receiveStatus(next);
+    });
     void api
       .getUpdateStatus()
-      .then((initialStatus) => {
-        if (!active) return;
-        if (statusRevision.current === initialStatusRevision) {
-          setStatus(initialStatus);
-        } else if (
-          metadataRevision.current === initialMetadataRevision &&
-          ['available', 'downloaded'].includes(initialStatus.status)
-        ) {
-          // An older snapshot may still carry the only confirmed metadata.
-          // Preserve newer live status, but never override a newer result.
-          metadataRevision.current += 1;
-          setUpdateState((current) =>
-            current.knownUpdate
-              ? current
-              : {
-                  ...current,
-                  knownUpdate: initialStatus,
-                },
-          );
-        }
+      .then((next) => {
+        if (active) receiveStatus(next);
       })
       .catch((error) => reportError('UpdaterProvider.getStatus', error));
-
-    const unsubscribers = [
-      api.onUpdateChecking(() => setStatus({ status: 'checking' })),
-      api.onUpdateAvailable((data) => {
-        setStatus({
-          status: 'available',
-          version: data.version,
-          changelog: data.changelog ?? undefined,
-          isPortable: data.isPortable,
-        });
-        setAvailabilityEventId((current) => current + 1);
-      }),
-      api.onUpdateNotAvailable(() => setStatus({ status: 'not-available' })),
-      api.onUpdateError((data) =>
-        setStatus({ status: 'error', error: data.message }),
-      ),
-      api.onDownloadProgress((progress) =>
-        setStatus((current) => ({
-          ...current,
-          status: 'downloading',
-          progress,
-          error: undefined,
-        })),
-      ),
-      api.onUpdateDownloaded((data) =>
-        setStatus(
-          (current) => ({
-            ...current,
-            status: 'downloaded',
-            version: data.version,
-            progress: undefined,
-          }),
-          true,
-        ),
-      ),
-      api.onUpdateCancelled(() =>
-        setStatus((current) => ({
-          ...current,
-          status: 'cancelled',
-          progress: undefined,
-        })),
-      ),
-    ];
-
     return () => {
       active = false;
-      for (const unsubscribe of unsubscribers) unsubscribe();
+      unsubscribe();
     };
-  }, [setStatus]);
+  }, [receiveStatus]);
 
   useEffect(() => {
-    const setAutoCheck = window.electronAPI?.setAutoCheck;
-    if (!setAutoCheck) return;
-    void setAutoCheck(settings.autoUpdate).catch((error) =>
-      reportError('UpdaterProvider.setAutoCheck', error),
-    );
+    void window.electronAPI
+      ?.setAutoCheck(settings.autoUpdate)
+      .catch((error) => reportError('UpdaterProvider.setAutoCheck', error));
   }, [settings.autoUpdate]);
 
-  const checkForUpdate = useCallback(async (): Promise<UpdateStatus> => {
+  const checkForUpdate = useCallback(async () => {
     const check = window.electronAPI?.checkForUpdate;
-    if (!check) {
-      const unavailable: UpdateStatus = {
-        status: 'error',
-        error: UNAVAILABLE_RESPONSE.error ?? undefined,
-      };
-      setStatus(unavailable);
-      return unavailable;
-    }
-
+    if (!check)
+      throw new Error(UNAVAILABLE_RESPONSE.error ?? 'Updates unavailable');
     const result = await check();
-    const nextStatus =
-      result.success && result.data
-        ? result.data
-        : {
-            status: 'error' as const,
-            error: result.error ?? 'Could not check for updates.',
-          };
-    setStatus(nextStatus);
-    return nextStatus;
-  }, [setStatus]);
+    if (!result.success || !result.data)
+      throw new Error(result.error ?? 'Could not check for updates.');
+    return receiveStatus(result.data);
+  }, [receiveStatus]);
 
-  const downloadUpdate = useCallback(async () => {
+  const downloadUpdate = useCallback((): Promise<UpdateIPCResponse<null>> => {
+    if (downloadPromise.current) return downloadPromise.current;
     const download = window.electronAPI?.downloadUpdate;
-    if (!download) return UNAVAILABLE_RESPONSE;
-    setStatus((current) => ({
-      ...knownUpdate,
-      ...current,
-      version: current.version ?? knownUpdate?.version,
-      isPortable: current.isPortable ?? knownUpdate?.isPortable,
-      status:
-        (current.isPortable ?? knownUpdate?.isPortable)
-          ? 'available'
-          : 'downloading',
-      error: undefined,
-      progress: undefined,
-    }));
-    let result: UpdateIPCResponse<null>;
-    try {
-      result = await download();
-    } catch (error) {
-      reportError('UpdaterProvider.downloadUpdate', error);
-      result = {
-        success: false,
-        data: null,
-        error: 'Could not start the update.',
-      };
-    }
-    if (!result.success) {
-      setStatus((current) => ({
-        ...current,
-        status: 'error',
-        error: result.error ?? 'Could not start the update.',
-      }));
-    }
-    return result;
-  }, [knownUpdate, setStatus]);
-
-  const cancelUpdate = useCallback(() => {
-    const cancel = window.electronAPI?.cancelUpdate;
-    if (!cancel) return Promise.resolve(UNAVAILABLE_RESPONSE);
-    return cancel();
+    if (!download) return Promise.resolve(UNAVAILABLE_RESPONSE);
+    setDownloadStarting(true);
+    setDownloadError(null);
+    const request = Promise.resolve()
+      .then(download)
+      .then((result) => {
+        if (!result.success)
+          setDownloadError(result.error ?? 'Could not start the update.');
+        return result;
+      })
+      .catch((error) => {
+        reportError('UpdaterProvider.downloadUpdate', error);
+        const result = {
+          success: false,
+          data: null,
+          error: 'Could not start the update.',
+        };
+        setDownloadError(result.error);
+        return result;
+      })
+      .finally(() => {
+        setDownloadStarting(false);
+        downloadPromise.current = null;
+      });
+    downloadPromise.current = request;
+    return request;
   }, []);
 
+  const cancelUpdate = useCallback(
+    () =>
+      window.electronAPI?.cancelUpdate() ??
+      Promise.resolve(UNAVAILABLE_RESPONSE),
+    [],
+  );
   const installUpdate = useCallback(async () => {
-    await window.electronAPI?.installUpdate?.();
+    await window.electronAPI?.installUpdate();
   }, []);
-
   const showAvailableUpdate = useCallback(
-    (candidate: UpdateStatus = status) => {
-      if (candidate.status !== 'available') return;
+    (update = latestStatus.current.update) => {
+      if (update?.status === 'downloaded') {
+        setProgressOpen(true);
+        return;
+      }
+      if (update?.status !== 'available') return;
       setChangelogPresentation({
-        version: candidate.version ?? '',
-        changelog: candidate.changelog ?? null,
+        version: update.version,
+        changelog: update.changelog,
+        loading: update.changelogLoading,
         installable: true,
-        isPortable: candidate.isPortable,
+        isPortable: update.isPortable,
       });
     },
-    [status],
+    [],
   );
-
   const showChangelog = useCallback((presentation: ChangelogPresentation) => {
     setChangelogPresentation(presentation);
   }, []);
   const dismissChangelog = useCallback(() => {
     setChangelogPresentation(null);
   }, []);
+  // Keep an open update presentation current when its release notes arrive.
+  const presentedUpdate = changelogPresentation?.installable
+    ? status.update
+    : null;
+  const presentedVersion =
+    presentedUpdate?.version ?? changelogPresentation?.version ?? '';
+  const presentedPortable =
+    presentedUpdate?.isPortable ?? changelogPresentation?.isPortable;
 
   const startPresentedDownload = useCallback(async () => {
     if (!changelogPresentation?.installable) return;
-    const isPortable = changelogPresentation?.isPortable ?? status.isPortable;
-    setStatus({
-      status: isPortable ? 'available' : 'downloading',
-      version: changelogPresentation.version,
-      changelog: changelogPresentation.changelog ?? undefined,
-      isPortable,
-    });
     setChangelogPresentation(null);
-    if (!isPortable) setProgressOpen(true);
-    try {
-      const result = await downloadUpdate();
-      if (!result.success) {
-        setProgressOpen(false);
-        toast.error(result.error ?? 'Could not start the update.');
-      }
-    } catch (error) {
-      setProgressOpen(false);
-      reportError('UpdaterProvider.downloadUpdate', error);
-      toast.error('Could not start the update.');
-    }
-  }, [changelogPresentation, downloadUpdate, status.isPortable, setStatus]);
-
-  const handleProgressOpenChange = useCallback(
-    (open: boolean) => {
-      setProgressOpen(open);
-      if (!open) setStatus({ status: 'idle' });
-    },
-    [setStatus],
-  );
-
-  const reset = useCallback(() => setStatus({ status: 'idle' }), [setStatus]);
+    if (!latestStatus.current.update?.isPortable) setProgressOpen(true);
+    const result = await downloadUpdate();
+    if (!result.success)
+      toast.error(result.error ?? 'Could not start the update.');
+  }, [changelogPresentation, downloadUpdate]);
 
   return (
     <UpdaterContext.Provider
       value={{
         status,
-        knownUpdate,
-        availabilityEventId,
+        knownUpdate: status.update,
+        availabilityEventId: status.availabilityEventId,
         checkForUpdate,
         downloadUpdate,
         cancelUpdate,
@@ -326,32 +211,47 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
         showAvailableUpdate,
         showChangelog,
         dismissChangelog,
-        reset,
       }}
     >
       {children}
       <ChangelogModal
         open={changelogPresentation !== null}
-        onOpenChange={(open) => !open && setChangelogPresentation(null)}
-        version={changelogPresentation?.version ?? ''}
-        changelog={changelogPresentation?.changelog ?? null}
-        loading={changelogPresentation?.loading}
+        onOpenChange={(open) => {
+          if (!open) setChangelogPresentation(null);
+        }}
+        version={presentedVersion}
+        changelog={
+          presentedUpdate
+            ? presentedUpdate.changelog
+            : (changelogPresentation?.changelog ?? null)
+        }
+        loading={
+          presentedUpdate
+            ? presentedUpdate.changelogLoading
+            : changelogPresentation?.loading
+        }
         onInstall={
-          changelogPresentation?.installable
-            ? () => void startPresentedDownload()
+          changelogPresentation?.installable &&
+          status.update?.status === 'available'
+            ? () => {
+                void startPresentedDownload();
+              }
             : undefined
         }
-        installLabel={
-          changelogPresentation?.isPortable ? 'Open Download Page' : undefined
-        }
+        installLabel={presentedPortable ? 'Open Download Page' : undefined}
       />
       <UpdateProgressModal
         open={progressOpen}
-        version={status.version ?? changelogPresentation?.version ?? ''}
-        onOpenChange={handleProgressOpenChange}
+        version={status.update?.version ?? ''}
+        status={status}
+        starting={downloadStarting}
+        error={downloadError}
+        onOpenChange={setProgressOpen}
+        onCancel={cancelUpdate}
+        onRetry={downloadUpdate}
+        onInstall={installUpdate}
       />
     </UpdaterContext.Provider>
   );
 }
-
 export const useUpdater = () => useContext(UpdaterContext);

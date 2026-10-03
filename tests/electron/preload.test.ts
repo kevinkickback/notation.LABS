@@ -50,7 +50,6 @@ describe('Electron preload bridge', () => {
     await api.setAutoCheck(true);
     await api.getAppVersion();
     await api.getCurrentChangelog();
-    await api.saveFile(buffer, 'backup.zip', 'application/zip');
     await api.beginBackup('backup.zip', 'application/zip');
     await api.writeBackupChunk('session', buffer);
     await api.finishBackup('session');
@@ -65,7 +64,6 @@ describe('Electron preload bridge', () => {
       ['update:set-auto-check', true],
       ['update:get-version'],
       ['update:get-current-changelog'],
-      ['file:save', buffer, 'backup.zip', 'application/zip'],
       ['backup:begin', 'backup.zip', 'application/zip'],
       ['backup:write', 'session', buffer],
       ['backup:finish', 'session'],
@@ -73,54 +71,17 @@ describe('Electron preload bridge', () => {
     ]);
   });
 
-  it.each([
-    ['onUpdateChecking', 'update-checking'],
-    ['onUpdateNotAvailable', 'update-not-available'],
-    ['onUpdateCancelled', 'update-cancelled'],
-  ] as const)(
-    'forwards and unsubscribes the %s event',
-    async (method, channel) => {
-      const api = await loadPreloadApi();
-      const callback = vi.fn();
-      const unsubscribe = api[method](callback);
-      const listener = mocks.on.mock.calls[0][1] as (...args: unknown[]) => void;
-
-      expect(mocks.on).toHaveBeenCalledWith(channel, listener);
-      listener({ sender: 'main' });
-      expect(callback).toHaveBeenCalledWith();
-
-      unsubscribe();
-      expect(mocks.removeListener).toHaveBeenCalledWith(channel, listener);
-    },
-  );
-
-  it.each([
-    [
-      'onUpdateAvailable',
-      'update-available',
-      { version: '2.0.0', changelog: 'Fixes', isPortable: false },
-    ],
-    ['onUpdateError', 'update-error', { message: 'network down' }],
-    [
-      'onDownloadProgress',
-      'download-progress',
-      { percentage: 50, bytesPerSecond: 100, total: 200, transferred: 100 },
-    ],
-    ['onUpdateDownloaded', 'update-downloaded', { version: '2.0.0' }],
-  ] as const)(
-    'forwards event data and unsubscribes the %s listener',
-    async (method, channel, data) => {
-      const api = await loadPreloadApi();
-      const callback = vi.fn();
-      const unsubscribe = api[method](callback as never);
-      const listener = mocks.on.mock.calls[0][1] as (...args: unknown[]) => void;
-
-      expect(mocks.on).toHaveBeenCalledWith(channel, listener);
-      listener({ sender: 'main' }, data);
-      expect(callback).toHaveBeenCalledWith(data);
-
-      unsubscribe();
-      expect(mocks.removeListener).toHaveBeenCalledWith(channel, listener);
-    },
-  );
+  it('forwards complete update snapshots and removes the exact listener', async () => {
+    const api = await loadPreloadApi();
+    const callback = vi.fn();
+    const unsubscribe = api.onUpdateStatus(callback);
+    const listener = mocks.on.mock.calls[0][1] as (...args: unknown[]) => void;
+    const status = { status: 'checking', update: null, revision: 1, availabilityEventId: 0 };
+    expect(mocks.on).toHaveBeenCalledWith('update-status', listener);
+    listener({ sender: 'main' }, status);
+    expect(callback).toHaveBeenCalledWith(status);
+    unsubscribe();
+    expect(mocks.removeListener).toHaveBeenCalledWith('update-status', listener);
+    expect(Object.keys(api).filter(key => key.startsWith('on'))).toEqual(['onUpdateStatus']);
+  });
 });

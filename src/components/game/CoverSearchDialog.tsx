@@ -1,5 +1,5 @@
 import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useCachedSearch } from '@/hooks/useCachedSearch';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
 import {
   downloadIgdbCover,
   getIgdbCoverUrl,
@@ -36,7 +37,7 @@ export function CoverSearchDialog({
   defaultQuery,
   onCoverSelect,
 }: CoverSearchDialogProps) {
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const { pending: downloading, run } = useMediaRequest(open, defaultQuery);
   const {
     query: searchQuery,
     setQuery: setSearchQuery,
@@ -67,19 +68,14 @@ export function CoverSearchDialog({
 
   const handleCoverSelect = async (result: IGDBSearchResult) => {
     if (!result.coverImageId || downloading) return;
-    setDownloading(result.coverImageId);
-    try {
-      const dataUrl = await downloadIgdbCover(result.coverImageId);
-      if (dataUrl) {
-        onCoverSelect(dataUrl);
-      } else {
-        toast.error('Failed to download cover (no available sizes)');
-      }
-    } catch {
-      toast.error('Failed to download cover');
-    } finally {
-      setDownloading(null);
-    }
+    const imageId = result.coverImageId;
+    await run(imageId, (signal) => downloadIgdbCover(imageId, signal), {
+      onSuccess: (dataUrl) => {
+        if (dataUrl) onCoverSelect(dataUrl);
+        else toast.error('Failed to download cover (no available sizes)');
+      },
+      onError: () => toast.error('Failed to download cover'),
+    });
   };
 
   const formatYear = (timestamp: number | null) => {

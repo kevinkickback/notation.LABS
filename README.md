@@ -110,6 +110,22 @@ npm run dev:web
 The repository includes an `.nvmrc`; run `nvm use` before installing
 dependencies when using a compatible Node version manager.
 
+### Code structure
+
+Application commands in `src/lib/application/` coordinate persisted changes through the storage
+repositories. Parsing, notation profiles, provider responses, and presentation stay in their own
+modules. The notebook keeps drafts in `useNotebookEditor`, renders notes and resources in separate
+components, and uses one native panel within the page's interaction boundary. Docking and floating
+change its geometry without replacing its editor. `WorkspaceFrame` supplies explicit main and
+footer references for notebook measurements; placement and resize controls persist preferences
+through the settings actions.
+
+Media validation lives in `src/lib/media/`: local and downloaded images share raster-signature,
+MIME, and 2 MB checks; YouTube URLs use exact hosts and valid video IDs. `useMediaRequest` owns
+loading for the current editor session, cancels superseded work, and disposes outdated video URLs.
+New resource links require HTTPS, matching desktop external-link handling. Existing HTTP links
+remain in backups and can be edited, with an explanation when opening is blocked.
+
 ## 🕹️ Notation Reference
 
 | Notation | Meaning |

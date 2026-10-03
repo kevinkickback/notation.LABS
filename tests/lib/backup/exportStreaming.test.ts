@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { createBackupTo } from '@/lib/application/backupCommands';
 import JSZip from 'jszip';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BACKUP_CHUNK_BYTES, type BackupSink } from '@/lib/backup/exportContract';
@@ -44,7 +45,7 @@ describe('streamed video backups', () => {
       writing = false;
     }, close, abort };
     const progress = vi.fn();
-    await indexedDbStorage.exportTo(sink, { gameIds: [gameId] }, progress);
+    await createBackupTo(sink, 'zip', { gameIds: [gameId] }, progress);
     expect(maxChunk).toBeLessThanOrEqual(BACKUP_CHUNK_BYTES);
     expect(readVideo).toHaveBeenCalledTimes(3);
     expect(readAll).not.toHaveBeenCalled();
@@ -66,11 +67,11 @@ describe('streamed video backups', () => {
     const controller = new AbortController();
     const abort = vi.fn(() => Promise.resolve());
     const close = vi.fn(() => Promise.resolve());
-    await expect(indexedDbStorage.exportTo({ write: () => { controller.abort(); return Promise.resolve(); }, abort, close }, undefined, undefined, controller.signal)).rejects.toThrow();
+    await expect(createBackupTo({ write: () => { controller.abort(); return Promise.resolve(); }, abort, close }, 'zip', undefined, undefined, controller.signal)).rejects.toThrow();
     expect(abort).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
     abort.mockClear();
-    await expect(indexedDbStorage.exportTo({ write: () => Promise.reject(new Error('disk full')), abort, close })).rejects.toThrow('disk full');
+    await expect(createBackupTo({ write: () => Promise.reject(new Error('disk full')), abort, close }, 'zip')).rejects.toThrow('disk full');
     expect(abort).toHaveBeenCalledOnce();
   });
 
@@ -81,7 +82,7 @@ describe('streamed video backups', () => {
     const abort = vi.fn(async () => undefined);
     let finishCommit!: () => void;
     const close = vi.fn(() => new Promise<void>(resolve => { finishCommit = resolve; }));
-    const exporting = indexedDbStorage.exportTo({ write: async () => undefined, close, abort }, undefined, progress => { phases.push(progress.phase); }, controller.signal);
+    const exporting = createBackupTo({ write: async () => undefined, close, abort }, 'zip', undefined, progress => { phases.push(progress.phase); }, controller.signal);
     await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect(phases[phases.length - 1]).toBe('committing');
     // Close has already reached the point where a commit cannot be undone.
@@ -89,5 +90,56 @@ describe('streamed video backups', () => {
     finishCommit();
     await exporting;
     expect(abort).not.toHaveBeenCalled();
+  });
+
+  it('streams restorable JSON in bounded chunks without reading video data', async () => {
+    const gameId = await seed();
+    const game = await db.games.get(gameId);
+    await db.games.put({ ...game!, notes: '日本語'.repeat(BACKUP_CHUNK_BYTES) });
+    const parts: Uint8Array[] = [];
+    const close = vi.fn(async () => undefined);
+    const abort = vi.fn(async () => undefined);
+    const readVideo = vi.spyOn(db.demoVideos, 'get');
+    const phases: string[] = [];
+    await createBackupTo({ write: async chunk => { expect(chunk.byteLength).toBeLessThanOrEqual(BACKUP_CHUNK_BYTES); parts.push(new Uint8Array(chunk)); }, close, abort }, 'json', undefined, value => phases.push(value.phase));
+    expect(parts.length).toBeGreaterThan(1);
+    const blob = new Blob(parts.map(part => new Uint8Array(part)));
+    const json = await blob.text();
+    const backup = JSON.parse(json);
+    expect(backup.version).toBe(1);
+    expect(backup.games[0].notes).toBe('日本語'.repeat(BACKUP_CHUNK_BYTES));
+    expect(backup.combos.every((combo: { demoUrl?: string }) => !combo.demoUrl)).toBe(true);
+    expect(readVideo).not.toHaveBeenCalled();
+    expect(phases[phases.length - 1]).toBe('committing');
+    expect(close).toHaveBeenCalledOnce();
+    expect(abort).not.toHaveBeenCalled();
+    await db.games.clear();
+    await db.characters.clear();
+    await db.combos.clear();
+    await indexedDbStorage.import(json, false);
+    expect((await db.games.get(gameId))?.notes).toBe('日本語'.repeat(BACKUP_CHUNK_BYTES));
+  });
+
+  it('aborts JSON on cancellation and preserves the original write failure if cleanup also fails', async () => {
+    await seed();
+    const controller = new AbortController();
+    const abort = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    await expect(createBackupTo({ write: async () => { controller.abort(); }, abort, close }, 'json', undefined, undefined, controller.signal)).rejects.toThrow();
+    expect(abort).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    await expect(createBackupTo({ write: async () => { throw new Error('disk full'); }, abort: async () => { throw new Error('cleanup failed'); }, close }, 'json')).rejects.toThrow('disk full');
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('aborts the chosen destination if reading a snapshot fails', async () => {
+    const abort = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    const write = vi.fn(async () => undefined);
+    vi.spyOn(db.games, 'toArray').mockRejectedValueOnce(new Error('unavailable database'));
+    await expect(createBackupTo({ write, abort, close }, 'json')).rejects.toThrow('unavailable database');
+    expect(abort).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 });

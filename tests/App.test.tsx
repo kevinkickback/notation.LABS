@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { useAppStore } from '@/lib/store';
+import { INITIAL_UPDATE_STATUS } from '@/lib/updater/ipcContract';
+import { updateDetails, updateSnapshot } from './helpers/updater';
 
 const mocks = vi.hoisted(() => ({
   useLiveQuery: vi.fn(),
@@ -151,18 +153,12 @@ function installElectronApi(overrides: Partial<Window['electronAPI']> = {}) {
     downloadUpdate: vi.fn(),
     cancelUpdate: vi.fn(),
     installUpdate: vi.fn(),
+    onUpdateStatus: vi.fn(() => () => {}),
     getUpdateStatus: vi.fn(),
     setAutoCheck: vi.fn().mockResolvedValue(undefined),
     getAppVersion: vi.fn().mockResolvedValue('1.8.0'),
     getCurrentChangelog: vi.fn(),
-    onUpdateChecking: vi.fn(() => () => {}),
-    onUpdateAvailable: vi.fn(() => () => {}),
-    onUpdateNotAvailable: vi.fn(() => () => {}),
-    onUpdateError: vi.fn(() => () => {}),
-    onDownloadProgress: vi.fn(() => () => {}),
-    onUpdateDownloaded: vi.fn(() => () => {}),
-    onUpdateCancelled: vi.fn(() => () => {}),
-    saveFile: vi.fn(),
+
     beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     ...overrides,
   };
@@ -178,7 +174,7 @@ describe('App', () => {
     mocks.useSettings.mockReturnValue(DEFAULT_SETTINGS);
     mocks.useSettingsInitialization.mockReturnValue({ initialized: true, isReparsing: false, error: null, retry: vi.fn() });
     mocks.useUpdater.mockReturnValue({
-      status: { status: 'idle' },
+      status: INITIAL_UPDATE_STATUS,
       availabilityEventId: 0,
       downloadUpdate: vi.fn(),
       showAvailableUpdate: vi.fn(),
@@ -317,12 +313,7 @@ describe('App', () => {
   it('delegates an available update to the updater controller', () => {
     const showAvailableUpdate = vi.fn();
     mocks.useUpdater.mockReturnValue({
-      status: {
-        status: 'available',
-        version: '2.0.0',
-        changelog: 'Important fixes',
-        isPortable: false,
-      },
+      status: updateSnapshot({ status: 'available', update: updateDetails({ version: '2.0.0', changelog: 'Important fixes' }) }),
       availabilityEventId: 1,
       showAvailableUpdate,
     });
@@ -346,17 +337,16 @@ describe('App', () => {
   it('delegates portable update presentation to the same controller', () => {
     const showAvailableUpdate = vi.fn();
     mocks.useUpdater.mockReturnValue({
-      status: {
-        status: 'available',
-        version: '2.0.0',
-        changelog: 'Portable fixes',
-        isPortable: true,
-      },
+      status: updateSnapshot({ status: 'available', update: updateDetails({ version: '2.0.0', changelog: 'Portable fixes', isPortable: true }) }),
       availabilityEventId: 1,
       showAvailableUpdate,
     });
     render(<App />);
 
+    expect(mocks.toastInfo).toHaveBeenCalledWith(
+      'Update v2.0.0 available',
+      expect.objectContaining({ action: expect.objectContaining({ label: 'View' }) }),
+    );
     const toastOptions = mocks.toastInfo.mock.calls[0][1] as {
       action: { onClick: () => void };
     };

@@ -1,3 +1,20 @@
+import type { Character, Combo, Game, UserSettings } from '@/lib/types';
+
+export const BACKUP_FORMATS = {
+  json: { mimeType: 'application/json', extension: '.json' },
+  zip: { mimeType: 'application/zip', extension: '.zip' },
+} as const;
+export type BackupFormat = keyof typeof BACKUP_FORMATS;
+export interface BackupSnapshot {
+  records: {
+    games: Game[];
+    characters: Character[];
+    combos: Combo[];
+    settings?: UserSettings;
+  };
+  videoIds: string[];
+}
+
 export interface BackupSink {
   write: (chunk: Uint8Array) => Promise<void>;
   close: () => Promise<void>;

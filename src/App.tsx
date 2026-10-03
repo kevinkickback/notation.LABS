@@ -8,6 +8,7 @@ import { Header } from '@/components/header/Header';
 import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoadingOverlay } from '@/components/workbench/AppLoadingOverlay';
+import { WorkspaceFrame } from '@/components/workbench/WorkspaceFrame';
 import {
   useSettings,
   useSettingsInitialization,
@@ -33,7 +34,7 @@ function App() {
   useEffect(() => {
     if (availabilityEventId === 0 || updateStatus.status !== 'available')
       return;
-    toast.info(`Update v${updateStatus.version} available`, {
+    toast.info(`Update v${updateStatus.update?.version} available`, {
       action: {
         label: 'View',
         onClick: () => showAvailableUpdate(),
@@ -44,7 +45,7 @@ function App() {
     availabilityEventId,
     showAvailableUpdate,
     updateStatus.status,
-    updateStatus.version,
+    updateStatus.update?.version,
   ]);
 
   const { data: requestedPage, error: pageError } = useRecoverableLiveQuery(
@@ -122,8 +123,8 @@ function App() {
               selectedCharacter={selectedCharacter}
             />
 
-            <main
-              className="container mx-auto px-4 py-8 flex-1"
+            <WorkspaceFrame
+              footer={<WorkspaceStatus />}
               aria-busy={!pageIsCurrent}
               inert={!pageIsCurrent}
             >
@@ -143,11 +144,7 @@ function App() {
                   combos={page.combos}
                 />
               )}
-            </main>
-
-            <footer className="workspace-footer">
-              <WorkspaceStatus />
-            </footer>
+            </WorkspaceFrame>
             <Toaster />
           </>
         )}

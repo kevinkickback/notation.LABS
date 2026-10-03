@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const writeFileMock = vi.fn();
 const mkdirSyncMock = vi.fn();
 
 type LoadMainModuleOptions = {
@@ -128,11 +127,6 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
     shell: shellMock,
   }));
 
-  vi.doMock('node:fs/promises', () => ({
-    __esModule: true,
-    default: { writeFile: writeFileMock },
-    writeFile: writeFileMock,
-  }));
   vi.doMock('node:fs', () => ({ __esModule: true, default: { mkdirSync: mkdirSyncMock }, mkdirSync: mkdirSyncMock }));
 
   vi.doMock('../../electron/updateManager', () => updateManagerMock);
@@ -159,7 +153,6 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
   vi.unstubAllEnvs();
-  writeFileMock.mockReset();
 });
 
 describe('electron main process wiring', () => {
@@ -193,7 +186,7 @@ describe('electron main process wiring', () => {
     expect(context.updateManagerMock.initAutoUpdater).toHaveBeenCalled();
     expect(Object.keys(context.ipcHandlers)).toEqual(
       expect.arrayContaining([
-        'file:save',
+        'backup:begin',
         'update:check',
         'update:download',
         'update:cancel',
@@ -229,26 +222,9 @@ describe('electron main process wiring', () => {
       changelog: 'Current changelog',
     });
 
-    await expect(
-      context.ipcHandlers['file:save'](
-        new Uint8Array([1, 2, 3]),
-        'backup.json',
-        'application/json',
-      ),
-    ).resolves.toEqual({
-      success: true,
-      path: 'C:/Exports/backup.json',
-    });
-    expect(context.dialogMock.showSaveDialog).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        defaultPath: 'backup.json',
-      }),
-    );
-    expect(writeFileMock).toHaveBeenCalledWith(
-      'C:/Exports/backup.json',
-      expect.any(Buffer),
-    );
+    await expect(context.ipcHandlers['backup:begin']('backup.json', 'application/json')).resolves.toBe('backup-session');
+    expect(context.dialogMock.showSaveDialog).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ defaultPath: 'backup.json', filters: [{ name: 'Notation Labs Backup', extensions: ['json'] }] }));
+    expect(context.ipcHandlers['file:save']).toBeUndefined();
   });
 
   it('loads current renderer styles without the HTTP cache in development', async () => {
@@ -447,25 +423,11 @@ describe('electron main process wiring', () => {
     );
   });
 
-  it('returns a cancelled result when the user dismisses the save dialog', async () => {
+  it('returns cancellation without beginning a session when the save dialog is dismissed', async () => {
     const context = await loadMainModule();
-    context.dialogMock.showSaveDialog.mockResolvedValueOnce({
-      filePath: undefined,
-      canceled: true,
-    });
-
+    context.dialogMock.showSaveDialog.mockResolvedValueOnce({ filePath: undefined, canceled: true });
     await context.appEvents.ready();
-
-    await expect(
-      context.ipcHandlers['file:save'](
-        new Uint8Array([1]),
-        'backup.zip',
-        'application/zip',
-      ),
-    ).resolves.toEqual({
-      success: false,
-      error: 'User cancelled',
-    });
-    expect(writeFileMock).not.toHaveBeenCalled();
+    await expect(context.ipcHandlers['backup:begin']('backup.zip', 'application/zip')).resolves.toBeNull();
+    expect(context.backupWriterMock.begin).not.toHaveBeenCalled();
   });
 });

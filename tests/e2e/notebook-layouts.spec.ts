@@ -98,6 +98,32 @@ async function notebookPlacement(page: Page) {
   });
 }
 
+test('keeps the same editor and caret through snapping and responsive layouts', async ({ page }) => {
+  await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
+  const floating = page.getByRole('dialog', { name: 'Ryu Notebook' });
+  await floating.getByRole('button', { name: 'Edit note', exact: true }).click();
+  const note = floating.getByRole('textbox', { name: 'Note', exact: true });
+  await note.fill('Keep the same editor and selection');
+  await note.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(5, 14));
+  const editor = await note.elementHandle();
+  if (!editor) throw new Error('The note editor is missing');
+  await beginNotebookDrag(page, floating);
+  await page.mouse.move(24, 180, { steps: 8 });
+  await page.mouse.up();
+  const docked = page.getByRole('complementary', { name: 'Ryu Notebook' });
+  await expect(docked).toBeVisible();
+  for (const width of [800, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(width === 800 ? floating : docked).toBeVisible();
+    expect(await editor.evaluate(element => element.isConnected && document.activeElement === element)).toBe(true);
+    expect(await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd])).toEqual([5, 14]);
+  }
+  await chooseNotebookLayout(page, 'Floating');
+  await expect(floating).toBeVisible();
+  expect(await editor.evaluate(element => element.isConnected)).toBe(true);
+  expect(await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd])).toEqual([5, 14]);
+});
+
 async function beginNotebookDrag(page: Page, panel: Locator) {
   const grip = await panel.getByRole('button', { name: 'Move notebook', exact: true }).boundingBox();
   if (!grip) throw new Error('Missing notebook movement handle');
@@ -161,6 +187,13 @@ test('resizes the floating notebook within bounds and remembers its size across 
   const gamePanel = page.getByRole('dialog', { name: 'Street Fighter 6 Notebook' });
   await expect(gamePanel).toHaveCSS('width', '620px');
   await expect(gamePanel).toHaveCSS('height', '720px');
+  // Opening is optimistic; let the preference commit before testing a restart.
+  await expect.poll(() => page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const game = (await indexedDbStorage.games.getAll()).find(game => game.name === 'Street Fighter 6');
+    return !!game && (await indexedDbStorage.settings.get()).notebookOpenPages?.includes(game.id);
+  })).toBe(true);
   await page.reload();
   await page.locator('h3', { hasText: 'Street Fighter 6' }).click();
   await expect(gamePanel).toHaveCSS('width', '620px');
@@ -692,7 +725,7 @@ test('accepts resource hosts with ports while rejecting explicit non-HTTP scheme
   const url = drawer.getByRole('textbox', { name: 'URL', exact: true });
   await url.fill('ftp://example.com/guide');
   await drawer.getByRole('button', { name: 'Add resource', exact: true }).click();
-  await expect(drawer.getByRole('alert')).toContainText('HTTP or HTTPS');
+  await expect(drawer.getByRole('alert')).toContainText('HTTPS');
   for (const [host, label] of [['localhost:3000/guide', ''], ['example.com:8080/guide', 'Port guide']]) {
     await url.fill(host);
     await drawer.getByRole('textbox', { name: /Label/ }).fill(label);

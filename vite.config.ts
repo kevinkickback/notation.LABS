@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react-swc';
 import { defineConfig, loadEnv } from 'vite';
 import electron from 'vite-plugin-electron/simple';
 import packageJson from './package.json';
+import { bundleLicenseNotices } from './scripts/bundle-license-notices.mjs';
 import { DEPLOYED_ENDPOINTS } from './src/lib/providers/endpoints';
 
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname;
@@ -22,11 +23,13 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      bundleLicenseNotices(),
       ...(process.env.ELECTRON === 'true'
         ? [
             electron({
               main: {
                 entry: 'electron/main.ts',
+                vite: { plugins: [bundleLicenseNotices()] },
               },
               preload: {
                 input: 'electron/preload.ts',

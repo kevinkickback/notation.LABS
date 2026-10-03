@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getProviderBase } from '@/lib/providers/endpoints';
-import { cn, fetchImageAsBase64 } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { fetchImageAsBase64 } from '@/lib/media/images';
 
 describe('cn (className utility)', () => {
   it('merges class names', () => {
@@ -68,7 +69,7 @@ describe('fetchImageAsBase64', () => {
   it('posts the image URL to the worker and returns the data URL', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ dataUrl: 'data:image/png;base64,abc123' }),
+      json: async () => ({ dataUrl: 'data:image/png;base64,iVBORw0KGgo=' }),
     });
 
     const result = await fetchImageAsBase64(
@@ -76,11 +77,12 @@ describe('fetchImageAsBase64', () => {
       'https://images.example/cover.png',
     );
 
-    expect(result).toBe('data:image/png;base64,abc123');
+    expect(result).toBe('data:image/png;base64,iVBORw0KGgo=');
     expect(fetchMock).toHaveBeenCalledWith('https://worker.example/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: 'https://images.example/cover.png' }),
+      signal: undefined,
     });
   });
 

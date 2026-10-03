@@ -11,12 +11,6 @@ declare global {
           chrome: string;
           node: string;
         };
-
-        saveFile: (
-          buffer: Uint8Array,
-          filename: string,
-          mimeType: string,
-        ) => Promise<{ success: boolean; error?: string; path?: string }>;
       };
   }
 }

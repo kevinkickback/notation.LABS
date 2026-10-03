@@ -1,4 +1,121 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { createBackupZip, forgeZipSize } from '../helpers/zip';
+
+test('updates retained combo icons immediately when an import changes its game profile', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const storagePath = '/src/lib/storage/indexedDbStorage.ts';
+    const parserPath = '/src/lib/parser.ts';
+    const { db } = await import(/* @vite-ignore */ storagePath) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const { parseComboNotation } = await import(/* @vite-ignore */ parserPath) as typeof import('../../src/lib/parser');
+    await db.transaction('rw', [db.games, db.characters, db.combos], async () => {
+      await db.games.put({ id: 'retained-game', name: 'Retained game', buttonLayout: ['LP'], notationProfile: 'standard', createdAt: 1, updatedAt: 1 });
+      await db.characters.put({ id: 'retained-character', gameId: 'retained-game', name: 'Retained fighter', createdAt: 1, updatedAt: 1 });
+      await db.combos.put({ id: 'retained-combo', characterId: 'retained-character', name: 'Retained combo', notation: '1 B F MB', parsedNotation: parseComboNotation('1 B F MB', ['LP']), tags: [], sortOrder: 0, createdAt: 1, updatedAt: 1 });
+    });
+  });
+  await page.getByRole('heading', { name: 'Retained game', exact: true }).click();
+  await page.getByRole('heading', { name: 'Retained fighter', exact: true }).click();
+  await page.getByTitle('Icons', { exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Button 1, Attack 1', exact: true })).toHaveCount(0);
+  const backup = { version: 1, exported: '2026-10-03', games: [{ id: 'retained-game', name: 'Retained game', buttonLayout: ['1', '2', '3', '4'], notationProfile: 'nrs', createdAt: 1, updatedAt: 1 }], characters: [], combos: [] };
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  const choosing = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose backup file', exact: true }).click();
+  await (await choosing).setFiles({ name: 'profile.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+  await expect(page.getByText('Data imported. Current settings were preserved.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Retained combo', exact: true })).toBeVisible();
+  for (const label of ['Button 1, Attack 1', 'Back', 'Forward', 'MB, Meter Burn'])
+    await expect(page.getByRole('img', { name: label, exact: true }).first()).toBeVisible();
+  await page.reload();
+  await page.getByRole('heading', { name: 'Retained game', exact: true }).click();
+  await page.getByRole('heading', { name: 'Retained fighter', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Retained combo', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Button 1, Attack 1', exact: true }).first()).toBeVisible();
+});
+
+test('exports JSON through the browser download fallback and restores the library', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }));
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const gameId = await indexedDbStorage.games.add({ name: 'JSON 日本語', buttonLayout: ['A'] });
+    const characterId = await indexedDbStorage.characters.add({ gameId, name: 'JSON character' });
+    await indexedDbStorage.combos.add({ characterId, name: 'JSON combo', notation: 'A', tags: ['日本語'], parsedNotation: [] });
+  });
+  await page.getByRole('button', { name: 'Export data', exact: true }).click();
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toMatch(/\.json$/);
+  const data = await readFile((await download.path())!);
+  const backup = JSON.parse(data.toString('utf8'));
+  expect(backup.version).toBe(1);
+  expect(backup.games[0].name).toBe('JSON 日本語');
+  expect(backup.combos[0].tags).toEqual(['日本語']);
+  await expect(page.getByRole('heading', { name: 'Exporting library', exact: true })).toBeHidden();
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { db } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    await db.transaction('rw', [db.games, db.characters, db.combos], async () => { await db.combos.clear(); await db.characters.clear(); await db.games.clear(); });
+  });
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  const choosing = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose backup file', exact: true }).click();
+  await (await choosing).setFiles({ name: 'backup.json', mimeType: 'application/json', buffer: data });
+  await expect(page.getByText('Data imported. Current settings were preserved.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'JSON 日本語', exact: true })).toBeVisible();
+  await page.getByRole('heading', { name: 'JSON 日本語', exact: true }).click();
+  await page.getByRole('heading', { name: 'JSON character', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'JSON combo', exact: true })).toBeVisible();
+});
+
+test('shows a JSON save failure, aborts the destination, and allows retry', async ({ page }) => {
+  await page.addInitScript(() => {
+    let aborted = false;
+    let attempts = 0;
+    Object.assign(window, { backupFailure: () => ({ aborted, attempts }), showSaveFilePicker: async () => {
+      attempts++;
+      return { createWritable: async () => ({ write: async () => { if (attempts === 1) throw new Error('disk full'); }, close: async () => undefined, abort: async () => { aborted = true; } }) };
+    } });
+  });
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    await indexedDbStorage.games.add({ name: 'Save retry', buttonLayout: ['A'] });
+  });
+  const start = async () => {
+    await page.getByRole('button', { name: 'Export data', exact: true }).click();
+    await page.getByRole('button', { name: 'Export', exact: true }).click();
+  };
+  await start();
+  await expect(page.getByText('disk full', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { backupFailure: () => { aborted: boolean } }).backupFailure().aborted)).toBe(true);
+  await start();
+  await expect(page.getByText('Data exported', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Export data', exact: true })).toBeEnabled();
+});
+
+test('rejects a forged expanding backup and preserves the existing library', async ({ page }) => {
+  const bytes = await createBackupZip({ version: 3, exported: '2026-10-03', games: [], padding: 'x'.repeat(1024 * 1024) });
+  forgeZipSize(bytes, 'backup.json', 1);
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    await indexedDbStorage.games.add({ name: 'Preserved library', buttonLayout: ['A'] });
+  });
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose backup file', exact: true }).click();
+  await (await chooser).setFiles({ name: 'invalid-backup.zip', mimeType: 'application/zip', buffer: Buffer.from(bytes) });
+  await expect(page.getByText(/Failed to import data:/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Importing…', exact: true })).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Preserved library', exact: true })).toBeVisible();
+});
 
 test('streams a 384 MB video library with responsive progress and cancellation', async ({ page }) => {
   test.setTimeout(120000);

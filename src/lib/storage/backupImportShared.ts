@@ -1,7 +1,12 @@
 import type { BackupImportPlan } from '@/lib/backup/importPipeline';
+import { haveSameGameNotation } from '@/lib/comboParsing';
+import { COMBO_NOTATION_PARSER_VERSION } from '@/lib/parser';
 import { db } from './database';
 import {
-  markImportedCombosForReparse,
+  ensureCurrentNotation,
+  reparseCombosForCharacters,
+} from './notationMaintenance';
+import {
   normalizeNotebookSettings,
   settingsRepository,
 } from './settingsRepository';
@@ -13,20 +18,59 @@ export async function applyBackupImportPlan(
     'rw',
     [db.games, db.characters, db.combos, db.settings, db.demoVideos],
     async () => {
+      const [savedSettings, previousGames, previousCharacters] =
+        await Promise.all([
+          db.settings.get(1),
+          db.games.bulkGet(plan.games.map((game) => game.id)),
+          db.characters.bulkGet(
+            plan.characters.map((character) => character.id),
+          ),
+        ]);
+      const changedGameIds = plan.games
+        .filter(
+          (game, index) =>
+            !previousGames[index] ||
+            !haveSameGameNotation(previousGames[index], game),
+        )
+        .map((game) => game.id);
+      const changedCharacterIds = plan.characters
+        .filter(
+          (character, index) =>
+            previousCharacters[index]?.gameId !== character.gameId,
+        )
+        .map((character) => character.id);
       await db.games.bulkPut(plan.games);
       await db.characters.bulkPut(plan.characters);
-      await db.combos.bulkPut(plan.combos);
+      if (plan.combos.length > 0) await db.combos.bulkPut(plan.combos);
       if (plan.settings)
         await db.settings.put({
           ...(await normalizeNotebookSettings(plan.settings)),
           id: 1,
+          // This is a local maintenance marker, not a preference supplied by a backup.
+          parsedNotationVersion: savedSettings?.parsedNotationVersion ?? 0,
         });
       await db.demoVideos.bulkPut(plan.videos);
-      if (plan.combos.length > 0) await markImportedCombosForReparse();
+      await settingsRepository.init();
+      if (
+        savedSettings?.parsedNotationVersion === COMBO_NOTATION_PARSER_VERSION
+      ) {
+        const affectedCharacters =
+          changedGameIds.length > 0
+            ? await db.characters
+                .where('gameId')
+                .anyOf(changedGameIds)
+                .primaryKeys()
+            : [];
+        await reparseCombosForCharacters(
+          [...new Set([...changedCharacterIds, ...affectedCharacters])],
+          new Set(plan.combos.map((combo) => combo.id)),
+        );
+      } else {
+        // Older libraries still need one complete migration, inside the import transaction.
+        await ensureCurrentNotation();
+      }
     },
   );
-
-  if (plan.combos.length > 0) await settingsRepository.init();
 }
 
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {

@@ -91,21 +91,15 @@ describe('GeneralSettings accent color', () => {
       downloadUpdate: vi.fn(),
       cancelUpdate: vi.fn(),
       installUpdate: vi.fn(),
-      getUpdateStatus: vi.fn().mockResolvedValue({ status: 'idle' }),
+      onUpdateStatus: vi.fn(() => () => {}),
+      getUpdateStatus: vi.fn().mockResolvedValue({ status: 'idle', update: null, revision: 0, availabilityEventId: 0 }),
       setAutoCheck: vi.fn().mockResolvedValue(undefined),
       getAppVersion: vi.fn().mockResolvedValue('1.3.0'),
       getCurrentChangelog: getCurrentChangelogMock.mockResolvedValue({
         version: '1.3.0',
         changelog: 'Notes',
       }),
-      onUpdateChecking: vi.fn(() => () => { }),
-      onUpdateAvailable: vi.fn(() => () => { }),
-      onUpdateNotAvailable: vi.fn(() => () => { }),
-      onUpdateError: vi.fn(() => () => { }),
-      onDownloadProgress: vi.fn(() => () => { }),
-      onUpdateDownloaded: vi.fn(() => () => { }),
-      onUpdateCancelled: vi.fn(() => () => { }),
-      saveFile: vi.fn(),
+
     beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     };
   });

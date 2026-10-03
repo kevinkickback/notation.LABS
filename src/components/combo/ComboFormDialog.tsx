@@ -33,9 +33,12 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
+import { useSubmission } from '@/hooks/useSubmission';
 import { createCombo, updateCombo } from '@/lib/application/comboCommands';
 import { MAX_VIDEO_SIZE_BYTES } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
+import { extractYouTubeVideoId, fetchYouTubeTitle } from '@/lib/media/youtube';
 import { parseComboNotation } from '@/lib/parser';
 import {
   type DemoVideo,
@@ -43,7 +46,11 @@ import {
   getLocalVideoId,
 } from '@/lib/storage/indexedDbStorage';
 import type { Character, Combo, Game } from '@/lib/types';
-import { extractYouTubeVideoId } from '@/lib/utils';
+import {
+  buildComboPayload,
+  type ComboDraft,
+  createComboDraft,
+} from './comboDraft';
 
 const SOFT_WARN_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_VIDEO_MIME_TYPES = [
@@ -70,22 +77,36 @@ export function ComboFormDialog({
   editingCombo,
   allTags,
 }: ComboFormDialogProps) {
-  const [name, setName] = useState('');
-  const [notation, setNotation] = useState('');
-  const [description, setDescription] = useState('');
-  const [difficulty, setDifficulty] = useState('');
-  const [damage, setDamage] = useState('');
-  const [meterCost, setMeterCost] = useState('');
-  const [tags, setTags] = useState('');
+  const [draft, setDraft] = useState(() => createComboDraft());
+  const {
+    name,
+    notation,
+    description,
+    difficulty,
+    damage,
+    meterCost,
+    tags,
+    demoUrl,
+    demoFileName,
+    demoVideoTitle,
+    outdated,
+  } = draft;
+  const updateDraft = useCallback((updates: Partial<ComboDraft>) => {
+    setDraft((current) => ({ ...current, ...updates }));
+  }, []);
   const [tagInput, setTagInput] = useState('');
-  const [demoUrl, setDemoUrl] = useState('');
-  const [demoFileName, setDemoFileName] = useState('');
-  const [demoVideoTitle, setDemoVideoTitle] = useState('');
   const [pendingVideo, setPendingVideo] = useState<DemoVideo | undefined>();
-  const [outdated, setOutdated] = useState(false);
+  const { pending, submit } = useSubmission(
+    open,
+    `${character.id}:${editingCombo?.id ?? 'new'}`,
+  );
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const outdatedToggleId = useId();
   const isDesktop = !!window.electronAPI;
+  const { run: loadVideo, cancel: cancelVideo } = useMediaRequest(
+    open,
+    `${character.id}:${editingCombo?.id ?? 'new'}`,
+  );
 
   const comboNameId = useId();
   const comboNotationId = useId();
@@ -106,103 +127,43 @@ export function ComboFormDialog({
     [notation, game],
   );
 
-  const resetForm = useCallback(() => {
-    setName('');
-    setNotation('');
-    setDescription('');
-    setDifficulty('');
-    setDamage('');
-    setMeterCost('');
-    setTags('');
-    setTagInput('');
-    setDemoUrl('');
-    setDemoFileName('');
-    setDemoVideoTitle('');
-    setPendingVideo(undefined);
-    setOutdated(false);
-  }, []);
-
-  const handleDialogOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) {
-        resetForm();
-      }
-      onOpenChange(nextOpen);
-    },
-    [onOpenChange, resetForm],
-  );
-
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A different character starts a new unsaved combo draft.
   useEffect(() => {
-    if (editingCombo) {
-      setName(editingCombo.name);
-      setNotation(editingCombo.notation);
-      setDescription(editingCombo.description || '');
-      setDifficulty(
-        editingCombo.difficulty ? editingCombo.difficulty.toString() : '',
-      );
-      setDamage(editingCombo.damage || '');
-      setMeterCost(editingCombo.meterCost || '');
-      setTags(editingCombo.tags.join(', '));
-      setDemoUrl(editingCombo.demoUrl || '');
-      setDemoFileName(editingCombo.demoFileName || '');
-      setDemoVideoTitle(editingCombo.demoVideoTitle || '');
-      setPendingVideo(undefined);
-      setOutdated(editingCombo.outdated || false);
-    } else {
-      resetForm();
-    }
-  }, [editingCombo, resetForm]);
+    setDraft(createComboDraft(open ? editingCombo : null));
+    setTagInput('');
+    setPendingVideo(undefined);
+  }, [open, character.id, editingCombo]);
 
   // Fetch YouTube video title when URL changes
   useEffect(() => {
-    if (!demoUrl || getLocalVideoId(demoUrl)) {
-      setDemoVideoTitle('');
+    if (!open || !demoUrl || getLocalVideoId(demoUrl)) {
+      updateDraft({ demoVideoTitle: '' });
       return;
     }
     const videoId = extractYouTubeVideoId(demoUrl);
     if (!videoId) {
-      setDemoVideoTitle('');
+      updateDraft({ demoVideoTitle: '' });
       return;
     }
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
-      fetch(`https://noembed.com/embed?url=${encodeURIComponent(demoUrl)}`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.title) setDemoVideoTitle(data.title);
-          else setDemoVideoTitle('');
+      fetchYouTubeTitle(demoUrl, controller.signal)
+        .then((title) => {
+          if (!controller.signal.aborted)
+            updateDraft({ demoVideoTitle: title });
         })
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === 'AbortError') {
             return;
           }
-          setDemoVideoTitle('');
+          if (!controller.signal.aborted) updateDraft({ demoVideoTitle: '' });
         });
     }, 350);
     return () => {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [demoUrl]);
-
-  const buildComboPayload = () => ({
-    name: name.trim(),
-    notation: notation.trim(),
-    description: description.trim(),
-    difficulty: difficulty ? parseInt(difficulty, 10) : undefined,
-    damage: damage.trim(),
-    meterCost: meterCost.trim(),
-    tags: tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean),
-    demoUrl: demoUrl.trim() || undefined,
-    demoFileName: demoFileName || undefined,
-    demoVideoTitle: demoVideoTitle || undefined,
-    outdated: outdated || undefined,
-  });
+  }, [demoUrl, open, updateDraft]);
 
   const handleSubmit = async () => {
     if (!name.trim() || !notation.trim()) {
@@ -210,27 +171,34 @@ export function ComboFormDialog({
       return;
     }
 
-    try {
-      const payload = buildComboPayload();
-      if (editingCombo) {
-        await updateCombo(editingCombo.id, payload, pendingVideo);
-      } else {
-        await createCombo(
-          {
-            characterId: character.id,
-            ...payload,
-          },
-          pendingVideo,
-        );
-      }
-      toast.success(editingCombo ? 'Combo updated' : 'Combo added');
-      handleDialogOpenChange(false);
-    } catch (err) {
-      reportError('ComboFormDialog.handleSubmit', err);
-      toast.error(
-        editingCombo ? 'Failed to update combo' : 'Failed to add combo',
-      );
-    }
+    await submit(
+      async () => {
+        const payload = buildComboPayload(draft);
+        if (editingCombo) {
+          await updateCombo(editingCombo.id, payload, pendingVideo);
+        } else {
+          await createCombo(
+            {
+              characterId: character.id,
+              ...payload,
+            },
+            pendingVideo,
+          );
+        }
+      },
+      {
+        onSuccess: () => {
+          toast.success(editingCombo ? 'Combo updated' : 'Combo added');
+          onOpenChange(false);
+        },
+        onError: (error) => {
+          reportError('ComboFormDialog.handleSubmit', error);
+          toast.error(
+            editingCombo ? 'Failed to update combo' : 'Failed to add combo',
+          );
+        },
+      },
+    );
   };
 
   const handleVideoFileSelect = () => videoFileInputRef.current?.click();
@@ -239,13 +207,13 @@ export function ComboFormDialog({
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
       toast.error(
         'Video exceeds 50 MB limit. Please compress the file and try again.',
       );
-      e.target.value = '';
       return;
     }
 
@@ -255,50 +223,49 @@ export function ComboFormDialog({
 
     if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
       toast.error('Unsupported video format');
-      e.target.value = '';
       return;
     }
 
-    try {
-      const buffer = await file.arrayBuffer();
-      const videoId = generateId();
-      setPendingVideo({
-        id: videoId,
-        data: buffer,
-        mimeType: file.type,
-        fileName: file.name,
-      });
-      setDemoUrl(`local:${videoId}`);
-      setDemoFileName(file.name);
-    } catch (err) {
-      reportError('ComboFormDialog.handleVideoFileChange', err);
-      toast.error('Failed to save video file');
-    }
-    e.target.value = '';
+    await loadVideo(file.name, () => file.arrayBuffer(), {
+      onSuccess: (buffer) => {
+        const videoId = generateId();
+        setPendingVideo({
+          id: videoId,
+          data: buffer,
+          mimeType: file.type,
+          fileName: file.name,
+        });
+        updateDraft({
+          demoUrl: `local:${videoId}`,
+          demoFileName: file.name,
+          demoVideoTitle: '',
+        });
+      },
+      onError: (err) => {
+        reportError('ComboFormDialog.handleVideoFileChange', err);
+        toast.error('Failed to read video file');
+      },
+    });
   };
 
-  const currentTags = tags
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
   const localDemoVideoId = getLocalVideoId(demoUrl);
   const tagSuggestions = useMemo(
-    () => allTags.filter((t) => !currentTags.includes(t)),
-    [allTags, currentTags],
+    () => allTags.filter((t) => !tags.includes(t)),
+    [allTags, tags],
   );
 
   const commitTag = (value: string) => {
     const val = value.trim();
-    if (val && !currentTags.includes(val)) {
-      const updated = [...currentTags, val];
-      setTags(updated.join(', '));
+    if (val && !tags.includes(val)) {
+      const updated = [...tags, val];
+      updateDraft({ tags: updated });
     }
     setTagInput('');
   };
 
   const removeTag = (tag: string) => {
-    const updated = currentTags.filter((t) => t !== tag);
-    setTags(updated.join(', '));
+    const updated = tags.filter((t) => t !== tag);
+    updateDraft({ tags: updated });
   };
 
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -313,19 +280,16 @@ export function ComboFormDialog({
     } else if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       commitTag(tagInput);
-    } else if (
-      e.key === 'Backspace' &&
-      tagInput === '' &&
-      currentTags.length > 0
-    ) {
-      removeTag(currentTags[currentTags.length - 1]);
+    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[792px] dialog-form combo-form-dialog flex flex-col overflow-hidden">
         <form
+          aria-busy={pending}
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
@@ -340,272 +304,291 @@ export function ComboFormDialog({
               Enter the combo notation, details, and optional demo video.
             </DialogDescription>
           </DialogHeader>
-          <DialogBody className="dialog-editor-grid">
-            <FormSection>
-              <div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={comboNameId}>Combo Name</Label>
-                  <RequiredBadge />
+          <fieldset disabled={pending} inert={pending} className="contents">
+            <DialogBody className="dialog-editor-grid">
+              <FormSection>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={comboNameId}>Combo Name</Label>
+                    <RequiredBadge />
+                  </div>
+                  <Input
+                    id={comboNameId}
+                    required
+                    value={name}
+                    onChange={(e) => updateDraft({ name: e.target.value })}
+                    placeholder="BnB Corner Combo"
+                  />
                 </div>
-                <Input
-                  id={comboNameId}
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="BnB Corner Combo"
-                />
-              </div>
 
-              <div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={comboNotationId}>Notation</Label>
-                  <RequiredBadge />
-                </div>
-                <Textarea
-                  id={comboNotationId}
-                  required
-                  value={notation}
-                  onChange={(e) => setNotation(e.target.value)}
-                  placeholder="5L > 5L > 236H > 623M"
-                  rows={3}
-                  className="font-mono"
-                />
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    Available buttons:
-                  </span>
-                  {game.buttonLayout.map((btn) => (
-                    <span
-                      key={btn}
-                      className="rounded bg-muted px-2 py-0.5 font-mono text-xs"
-                    >
-                      {btn}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={comboNotationId}>Notation</Label>
+                    <RequiredBadge />
+                  </div>
+                  <Textarea
+                    id={comboNotationId}
+                    required
+                    value={notation}
+                    onChange={(e) => updateDraft({ notation: e.target.value })}
+                    placeholder="5L > 5L > 236H > 623M"
+                    rows={3}
+                    className="font-mono"
+                  />
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      Available buttons:
                     </span>
-                  ))}
-                </div>
-              </div>
-
-              {notation && (
-                <div className="rounded-lg bg-muted p-4">
-                  <Label className="mb-2 block">Preview</Label>
-                  <ComboDisplay tokens={parsedNotationTokens} game={game} />
-                </div>
-              )}
-            </FormSection>
-
-            <FormSection>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-                <div className="min-w-0">
-                  <Label htmlFor={comboDifficultyId}>Difficulty</Label>
-                  <Select value={difficulty} onValueChange={setDifficulty}>
-                    <SelectTrigger id={comboDifficultyId} className="w-full">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 / 5</SelectItem>
-                      <SelectItem value="2">2 / 5</SelectItem>
-                      <SelectItem value="3">3 / 5</SelectItem>
-                      <SelectItem value="4">4 / 5</SelectItem>
-                      <SelectItem value="5">5 / 5</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="min-w-0">
-                  <Label htmlFor={comboDamageId}>Damage</Label>
-                  <Input
-                    id={comboDamageId}
-                    value={damage}
-                    onChange={(e) => setDamage(e.target.value)}
-                    placeholder="4200"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <Label htmlFor={comboMeterId}>Meter Cost</Label>
-                  <Input
-                    id={comboMeterId}
-                    value={meterCost}
-                    onChange={(e) => setMeterCost(e.target.value)}
-                    placeholder="1 bar"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor={comboTagsId}>Tags</Label>
-                <div className="flex min-h-[40px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
-                  {currentTags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      className="gap-1 cursor-pointer shrink-0"
-                      onClick={() => removeTag(tag)}
-                      onKeyDown={(e) => {
-                        if (
-                          e.key === 'Delete' ||
-                          e.key === 'Backspace' ||
-                          e.key === 'Enter'
-                        ) {
-                          e.preventDefault();
-                          removeTag(tag);
-                        }
-                      }}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Remove tag: ${tag}`}
-                    >
-                      {tag}
-                      <XIcon className="w-3 h-3" />
-                    </Badge>
-                  ))}
-                  <input
-                    id={comboTagsId}
-                    list={tagSuggestionsId}
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleTagKeyDown}
-                    onBlur={() => {
-                      if (tagInput.trim()) commitTag(tagInput);
-                    }}
-                    placeholder={
-                      currentTags.length > 0
-                        ? 'Add tag...'
-                        : 'BnB, Corner, Meterless'
-                    }
-                    className="flex-1 min-w-[100px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
-                  />
-                  <datalist id={tagSuggestionsId}>
-                    {tagSuggestions.map((tag) => (
-                      <option key={tag} value={tag} />
+                    {game.buttonLayout.map((btn) => (
+                      <span
+                        key={btn}
+                        className="rounded bg-muted px-2 py-0.5 font-mono text-xs"
+                      >
+                        {btn}
+                      </span>
                     ))}
-                  </datalist>
+                  </div>
                 </div>
-              </div>
-            </FormSection>
 
-            <FormSection>
-              <Label htmlFor={comboDemoUrlId}>YouTube demo URL</Label>
-              <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_auto] sm:gap-3">
-                <Input
-                  id={comboDemoUrlId}
-                  value={localDemoVideoId ? '' : demoUrl}
-                  onChange={(e) => {
-                    setDemoUrl(e.target.value);
-                    setDemoFileName('');
-                    setPendingVideo(undefined);
-                  }}
-                  placeholder="Paste a YouTube URL"
-                  disabled={!!localDemoVideoId}
-                />
-                <span className="text-center text-xs font-medium text-muted-foreground">
-                  OR
-                </span>
-                {isDesktop ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleVideoFileSelect}
-                    className="gap-2"
-                  >
-                    <VideoCameraIcon className="w-4 h-4" />
-                    Upload File
-                  </Button>
-                ) : (
-                  <span
-                    title="Only available in the desktop app"
-                    className="cursor-not-allowed"
-                  >
+                {notation && (
+                  <div className="rounded-lg bg-muted p-4">
+                    <Label className="mb-2 block">Preview</Label>
+                    <ComboDisplay tokens={parsedNotationTokens} game={game} />
+                  </div>
+                )}
+              </FormSection>
+
+              <FormSection>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+                  <div className="min-w-0">
+                    <Label htmlFor={comboDifficultyId}>Difficulty</Label>
+                    <Select
+                      value={difficulty}
+                      onValueChange={(value) =>
+                        updateDraft({ difficulty: value })
+                      }
+                    >
+                      <SelectTrigger id={comboDifficultyId} className="w-full">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 / 5</SelectItem>
+                        <SelectItem value="2">2 / 5</SelectItem>
+                        <SelectItem value="3">3 / 5</SelectItem>
+                        <SelectItem value="4">4 / 5</SelectItem>
+                        <SelectItem value="5">5 / 5</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="min-w-0">
+                    <Label htmlFor={comboDamageId}>Damage</Label>
+                    <Input
+                      id={comboDamageId}
+                      value={damage}
+                      onChange={(e) => updateDraft({ damage: e.target.value })}
+                      placeholder="4200"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <Label htmlFor={comboMeterId}>Meter Cost</Label>
+                    <Input
+                      id={comboMeterId}
+                      value={meterCost}
+                      onChange={(e) =>
+                        updateDraft({ meterCost: e.target.value })
+                      }
+                      placeholder="1 bar"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor={comboTagsId}>Tags</Label>
+                  <div className="flex min-h-[40px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background p-2 focus-within:ring-2 focus-within:ring-ring">
+                    {tags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className="gap-1 cursor-pointer shrink-0"
+                        onClick={() => removeTag(tag)}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === 'Delete' ||
+                            e.key === 'Backspace' ||
+                            e.key === 'Enter'
+                          ) {
+                            e.preventDefault();
+                            removeTag(tag);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Remove tag: ${tag}`}
+                      >
+                        {tag}
+                        <XIcon className="w-3 h-3" />
+                      </Badge>
+                    ))}
+                    <input
+                      id={comboTagsId}
+                      list={tagSuggestionsId}
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={handleTagKeyDown}
+                      onBlur={() => {
+                        if (tagInput.trim()) commitTag(tagInput);
+                      }}
+                      placeholder={
+                        tags.length > 0
+                          ? 'Add tag...'
+                          : 'BnB, Corner, Meterless'
+                      }
+                      className="flex-1 min-w-[100px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                    <datalist id={tagSuggestionsId}>
+                      {tagSuggestions.map((tag) => (
+                        <option key={tag} value={tag} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+              </FormSection>
+
+              <FormSection>
+                <Label htmlFor={comboDemoUrlId}>YouTube demo URL</Label>
+                <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_auto] sm:gap-3">
+                  <Input
+                    id={comboDemoUrlId}
+                    value={localDemoVideoId ? '' : demoUrl}
+                    onChange={(e) => {
+                      cancelVideo();
+                      updateDraft({ demoUrl: e.target.value });
+                      updateDraft({ demoVideoTitle: '' });
+                      updateDraft({ demoFileName: '' });
+                      setPendingVideo(undefined);
+                    }}
+                    placeholder="Paste a YouTube URL"
+                    disabled={!!localDemoVideoId}
+                  />
+                  <span className="text-center text-xs font-medium text-muted-foreground">
+                    OR
+                  </span>
+                  {isDesktop ? (
                     <Button
                       type="button"
                       variant="outline"
-                      disabled
-                      className="gap-2 pointer-events-none opacity-50"
+                      onClick={handleVideoFileSelect}
+                      className="gap-2"
                     >
                       <VideoCameraIcon className="w-4 h-4" />
                       Upload File
                     </Button>
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Max file size: 50 MB.
-              </p>
-              {demoUrl && (
-                <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
-                  <PlayIcon
-                    className="w-4 h-4 text-primary shrink-0"
-                    weight="fill"
-                  />
-                  <span className="text-xs text-muted-foreground truncate min-w-0">
-                    {localDemoVideoId
-                      ? demoFileName || 'Local video'
-                      : demoVideoTitle || demoUrl}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 shrink-0"
-                    onClick={() => {
-                      setDemoUrl('');
-                      setDemoFileName('');
-                      setDemoVideoTitle('');
-                      setPendingVideo(undefined);
-                    }}
-                  >
-                    <XIcon className="w-3 h-3" />
-                  </Button>
+                  ) : (
+                    <span
+                      title="Only available in the desktop app"
+                      className="cursor-not-allowed"
+                    >
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled
+                        className="gap-2 pointer-events-none opacity-50"
+                      >
+                        <VideoCameraIcon className="w-4 h-4" />
+                        Upload File
+                      </Button>
+                    </span>
+                  )}
                 </div>
-              )}
-            </FormSection>
-
-            <FormSection>
-              <div>
-                <Label htmlFor={comboDescriptionId}>Description</Label>
-                <Textarea
-                  id={comboDescriptionId}
-                  aria-describedby={comboDescriptionHelpId}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Works in the corner after any starter..."
-                />
-                <p
-                  id={comboDescriptionHelpId}
-                  className="mt-1.5 text-xs text-muted-foreground"
-                >
-                  Multiple lines and Markdown are supported.
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Max file size: 50 MB.
                 </p>
-              </div>
+                {demoUrl && (
+                  <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
+                    <PlayIcon
+                      className="w-4 h-4 text-primary shrink-0"
+                      weight="fill"
+                    />
+                    <span className="text-xs text-muted-foreground truncate min-w-0">
+                      {localDemoVideoId
+                        ? demoFileName || 'Local video'
+                        : demoVideoTitle || demoUrl}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 shrink-0"
+                      onClick={() => {
+                        cancelVideo();
+                        updateDraft({
+                          demoUrl: '',
+                          demoFileName: '',
+                          demoVideoTitle: '',
+                        });
+                        setPendingVideo(undefined);
+                      }}
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </FormSection>
 
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div className="space-y-0.5">
-                  <Label
-                    htmlFor={outdatedToggleId}
-                    className="text-sm font-medium"
+              <FormSection>
+                <div>
+                  <Label htmlFor={comboDescriptionId}>Description</Label>
+                  <Textarea
+                    id={comboDescriptionId}
+                    aria-describedby={comboDescriptionHelpId}
+                    value={description}
+                    onChange={(e) =>
+                      updateDraft({ description: e.target.value })
+                    }
+                    rows={3}
+                    placeholder="Works in the corner after any starter..."
+                  />
+                  <p
+                    id={comboDescriptionHelpId}
+                    className="mt-1.5 text-xs text-muted-foreground"
                   >
-                    Mark as outdated
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Flag this combo as potentially outdated due to a game patch
+                    Multiple lines and Markdown are supported.
                   </p>
                 </div>
-                <Switch
-                  id={outdatedToggleId}
-                  checked={outdated}
-                  onCheckedChange={setOutdated}
-                />
-              </div>
-            </FormSection>
-          </DialogBody>
+
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5">
+                    <Label
+                      htmlFor={outdatedToggleId}
+                      className="text-sm font-medium"
+                    >
+                      Mark as outdated
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Flag this combo as potentially outdated due to a game
+                      patch
+                    </p>
+                  </div>
+                  <Switch
+                    id={outdatedToggleId}
+                    checked={outdated}
+                    onCheckedChange={(value) =>
+                      updateDraft({ outdated: value })
+                    }
+                  />
+                </div>
+              </FormSection>
+            </DialogBody>
+          </fieldset>
           <DialogFooter className="shrink-0 border-t border-border pt-4">
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleDialogOpenChange(false)}
+              onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={pending}>
               {editingCombo ? 'Update' : 'Add'} Combo
             </Button>
           </DialogFooter>

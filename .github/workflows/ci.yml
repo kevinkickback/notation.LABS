@@ -26,14 +26,16 @@ jobs:
         run: npm run version:check
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Audit shipped Electron runtime
+        run: npm run audit:electron
       - name: Lint
         run: npm run lint
       - name: Type-check
         run: npx tsc -b
       - name: Test with coverage
         run: npm run test:coverage
-      - name: Build web app
-        run: npm run build:web
+      - name: Build and validate desktop bundles
+        run: npm run build:desktop
 
   e2e:
     name: Browser tests

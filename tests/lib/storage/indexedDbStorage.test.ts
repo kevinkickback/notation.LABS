@@ -1,4 +1,6 @@
 import 'fake-indexeddb/auto';
+import { captureBackup } from '../../helpers/backup';
+import { initializeApplication } from '@/lib/application/initializeApplication';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
@@ -36,7 +38,6 @@ describe('indexedDbStorage facade contract', () => {
     expect(indexedDbStorage.settings).toBe(settingsRepository);
     expect(indexedDbStorage.gameStats).toBe(gameStatsRepository);
     expect(indexedDbStorage.demoVideos).toBe(videoRepository);
-    expect(indexedDbStorage.export).toEqual(expect.any(Function));
     expect(indexedDbStorage.import).toEqual(expect.any(Function));
     expect(indexedDbStorage.importZip).toEqual(expect.any(Function));
   });
@@ -807,7 +808,7 @@ describe('indexedDbStorage.settings', () => {
     expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([gameId]);
     const later = await indexedDbStorage.games.add({ name: 'Later game', buttonLayout: [] });
     expect((await indexedDbStorage.settings.get()).notebookOpenPages).not.toContain(later);
-    const exported = JSON.parse(await (await indexedDbStorage.export()).text());
+    const exported = JSON.parse(await (await captureBackup()).text());
     expect(exported.settings.notebookOpenPages).toEqual([gameId]);
     expect(exported.settings).not.toHaveProperty('notesDefaultOpen');
     expect(exported.settings).not.toHaveProperty('notesOverrides');
@@ -843,7 +844,7 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.notationColors.separator).toBe('#6c727e');
   });
 
-  it('reparses stored combos when parser version is behind', async () => {
+  it('reparses stored combos during startup when parser version is behind', async () => {
     const gameId = await indexedDbStorage.games.add({
       name: 'Parser Migration Game',
       buttonLayout: ['LP', 'MP'],
@@ -866,7 +867,7 @@ describe('indexedDbStorage.settings', () => {
       parsedNotationVersion: Math.max(0, COMBO_NOTATION_PARSER_VERSION - 1),
     });
 
-    await indexedDbStorage.settings.init();
+    await initializeApplication();
 
     const combo = await indexedDbStorage.combos.get(comboId);
     assertDefined(combo);
@@ -931,7 +932,7 @@ describe('indexedDbStorage.demoVideos', () => {
   });
 });
 
-describe('indexedDbStorage.export', () => {
+describe('backup export command', () => {
   it('exports all data as JSON string', async () => {
     const gameId = await indexedDbStorage.games.add({
       name: 'Test Game',
@@ -949,7 +950,7 @@ describe('indexedDbStorage.export', () => {
       tags: ['test'],
     });
 
-    const blob = await indexedDbStorage.export();
+    const blob = await captureBackup();
     const parsed = JSON.parse(await blob.text());
     expect(parsed.version).toBe(1);
     expect(parsed.exported).toBeDefined();
@@ -965,7 +966,7 @@ describe('indexedDbStorage.export', () => {
     });
     await indexedDbStorage.games.add({ name: 'Game 2', buttonLayout: [] });
 
-    const blob = await indexedDbStorage.export(false, { gameIds: [g1] });
+    const blob = await captureBackup(false, { gameIds: [g1] });
     const parsed = JSON.parse(await blob.text());
     expect(parsed.games).toHaveLength(1);
     expect(parsed.games[0].name).toBe('Game 1');
@@ -982,7 +983,7 @@ describe('indexedDbStorage.export', () => {
     });
     await indexedDbStorage.characters.add({ gameId, name: 'Char 2' });
 
-    const blob = await indexedDbStorage.export(false, { characterIds: [c1] });
+    const blob = await captureBackup(false, { characterIds: [c1] });
     const parsed = JSON.parse(await blob.text());
     expect(parsed.characters).toHaveLength(1);
     expect(parsed.characters[0].name).toBe('Char 1');
@@ -1012,7 +1013,7 @@ describe('indexedDbStorage.export', () => {
       tags: [],
     });
 
-    const blob = await indexedDbStorage.export(false, { comboIds: [combo1] });
+    const blob = await captureBackup(false, { comboIds: [combo1] });
     const parsed = JSON.parse(await blob.text());
     expect(parsed.combos).toHaveLength(1);
     expect(parsed.combos[0].name).toBe('Keep');
@@ -1043,7 +1044,7 @@ describe('indexedDbStorage.export', () => {
       demoUrl: `local:${videoId}`,
     });
 
-    const blob = await indexedDbStorage.export(true);
+    const blob = await captureBackup(true);
     expect(blob.type).toBe('application/zip');
 
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());
@@ -1088,8 +1089,8 @@ describe('indexedDbStorage.export', () => {
     }
 
     const calls: [number, number][] = [];
-    await indexedDbStorage.export(true, undefined, (current, total) => {
-      calls.push([current, total]);
+    await captureBackup(true, undefined, ({ current, total, phase }) => {
+      if (phase === 'videos' && calls[calls.length - 1]?.[0] !== current) calls.push([current, total]);
     });
 
     // onProgress(0, 3) then (1,3), (2,3), (3,3)
@@ -1127,7 +1128,7 @@ describe('indexedDbStorage.export', () => {
       demoVideoTitle: 'Export demo',
     });
 
-    const blob = await indexedDbStorage.export(false);
+    const blob = await captureBackup(false);
     const parsed = JSON.parse(await blob.text());
 
     expect(parsed.version).toBe(1);
@@ -1284,7 +1285,7 @@ describe('indexedDbStorage.import', () => {
     expect(raw).not.toHaveProperty('showChangelogBeforeUpdate');
 
     const exported = JSON.parse(
-      await (await indexedDbStorage.export()).text(),
+      await (await captureBackup()).text(),
     );
     expect(exported.settings).not.toHaveProperty('uiTheme');
     expect(exported.settings).not.toHaveProperty('showChangelogBeforeUpdate');
@@ -1488,7 +1489,7 @@ describe('indexedDbStorage.import', () => {
       },
     });
 
-    const exportedBlob = await indexedDbStorage.export(true);
+    const exportedBlob = await captureBackup(true);
 
     await db.games.clear();
     await db.characters.clear();
@@ -1543,7 +1544,7 @@ describe('indexedDbStorage.import', () => {
       tags: [],
     });
 
-    const exportedBlob = await indexedDbStorage.export(true);
+    const exportedBlob = await captureBackup(true);
 
     await db.games.clear();
     await db.characters.clear();
@@ -1599,7 +1600,7 @@ describe('indexedDbStorage.import', () => {
       demoFileName: 'two.mp4',
     });
 
-    const exportedBlob = await indexedDbStorage.export(true);
+    const exportedBlob = await captureBackup(true);
     const progressEvents: Array<{
       phase: 'loading' | 'videos' | 'finalizing';
       current: number;

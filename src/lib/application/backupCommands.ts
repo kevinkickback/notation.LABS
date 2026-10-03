@@ -1,8 +1,11 @@
 import type {
   BackupExportProgress,
+  BackupFormat,
   BackupSink,
 } from '@/lib/backup/exportContract';
+import { writeJsonBackup, writeZipBackup } from '@/lib/backup/exportPipeline';
 import type { BackupFilter } from '@/lib/backup/selectionClosure';
+import { loadBackupSnapshot } from '@/lib/storage/backupSnapshot';
 import {
   indexedDbStorage,
   type ZipImportProgress,
@@ -17,21 +20,41 @@ export function loadBackupSelectionData() {
   ]);
 }
 
-export function createBackupTo(
+export async function createBackupTo(
   sink: BackupSink,
-  filter: BackupFilter,
+  format: BackupFormat,
+  filter?: BackupFilter,
   onProgress?: (progress: BackupExportProgress) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  return indexedDbStorage.exportTo(sink, filter, onProgress, signal);
-}
-
-export function createBackup(
-  includeVideos: boolean,
-  filter: BackupFilter,
-  onProgress?: (current: number, total: number) => void,
-): Promise<Blob> {
-  return indexedDbStorage.export(includeVideos, filter, onProgress);
+  try {
+    signal?.throwIfAborted();
+    const snapshot = await loadBackupSnapshot(filter);
+    const progress =
+      format === 'zip'
+        ? await writeZipBackup(
+            snapshot,
+            indexedDbStorage.demoVideos.get,
+            sink.write,
+            onProgress,
+            signal,
+          )
+        : await writeJsonBackup(
+            snapshot.records,
+            sink.write,
+            onProgress,
+            signal,
+          );
+    signal?.throwIfAborted();
+    // Once closing starts the file-system commit cannot safely be cancelled.
+    onProgress?.({ ...progress, phase: 'committing' });
+    await sink.close();
+  } catch (error) {
+    await sink.abort().catch(() => {
+      // Preserve the transfer failure when destination cleanup also fails.
+    });
+    throw error;
+  }
 }
 
 export function importJsonBackup(

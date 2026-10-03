@@ -1,10 +1,5 @@
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
-import { resolveNotationProfile } from '@/lib/notationProfiles';
-import {
-  COMBO_NOTATION_PARSER_VERSION,
-  parseComboNotation,
-} from '@/lib/parser';
-import type { Game, NotationColors, UserSettings } from '@/lib/types';
+import type { NotationColors, UserSettings } from '@/lib/types';
 import { db } from './database';
 import { toUniqueIds } from './repositoryUtils';
 
@@ -75,80 +70,6 @@ function migrateNotationColors(colors: Record<string, string>): {
   return { colors: migrated, changed };
 }
 
-export async function reparseCombosForGame(
-  gameId: string,
-  buttonLayout: string[],
-  notationProfile: Game['notationProfile'],
-): Promise<void> {
-  const characters = await db.characters
-    .where('gameId')
-    .equals(gameId)
-    .toArray();
-  const characterIds = characters.map((character) => character.id);
-  if (characterIds.length === 0) return;
-
-  const combos = await db.combos
-    .where('characterId')
-    .anyOf(characterIds)
-    .toArray();
-  if (combos.length === 0) return;
-
-  await db.combos.bulkPut(
-    combos.map((combo) => ({
-      ...combo,
-      parsedNotation: parseComboNotation(combo.notation, buttonLayout, {
-        profile: notationProfile,
-      }),
-    })),
-  );
-}
-
-async function reparseStoredCombos(): Promise<void> {
-  const [games, characters, combos] = await Promise.all([
-    db.games.toArray(),
-    db.characters.toArray(),
-    db.combos.toArray(),
-  ]);
-  if (combos.length === 0) return;
-
-  const gameButtonsById = new Map(
-    games.map((game) => [game.id, game.buttonLayout]),
-  );
-  const gameProfileById = new Map(
-    games.map((game) => [game.id, resolveNotationProfile(game)]),
-  );
-  const characterGameById = new Map(
-    characters.map((character) => [character.id, character.gameId]),
-  );
-
-  await db.combos.bulkPut(
-    combos.map((combo) => {
-      const gameId = characterGameById.get(combo.characterId);
-      return {
-        ...combo,
-        parsedNotation: parseComboNotation(
-          combo.notation,
-          gameId ? gameButtonsById.get(gameId) : undefined,
-          { profile: gameId ? gameProfileById.get(gameId) : undefined },
-        ),
-      };
-    }),
-  );
-}
-
-export async function markImportedCombosForReparse(): Promise<void> {
-  const settings = await db.settings.get(1);
-  if (!settings) {
-    await db.settings.put({
-      id: 1,
-      ...DEFAULT_SETTINGS,
-      parsedNotationVersion: 0,
-    });
-    return;
-  }
-  await db.settings.update(1, { parsedNotationVersion: 0 });
-}
-
 export const settingsRepository = {
   get: async (): Promise<UserSettings> => {
     const settings = await db.settings.get(1);
@@ -158,45 +79,32 @@ export const settingsRepository = {
     // preferences without requiring a schema-version migration.
     return { ...DEFAULT_SETTINGS, ...(await normalizeNotebookSettings(rest)) };
   },
-  init: async (options?: {
-    onReparseStart?: () => void;
-    onReparseEnd?: () => void;
-  }): Promise<void> => {
-    let settings = await db.settings.get(1);
-    if (!settings) {
-      await db.settings.add({ id: 1, ...DEFAULT_SETTINGS });
-      settings = { id: 1, ...DEFAULT_SETTINGS };
-    }
-
-    if (
-      settings.notebookOpenPages === undefined ||
-      settings.notesDefaultOpen !== undefined ||
-      settings.notesOverrides !== undefined
-    ) {
-      settings = { ...(await normalizeNotebookSettings(settings)), id: 1 };
-      await db.settings.put(settings);
-    }
-
-    const pendingSettingsUpdates: Partial<UserSettings> = {};
-    const { colors, changed } = migrateNotationColors(settings.notationColors);
-    if (changed)
-      pendingSettingsUpdates.notationColors = colors as NotationColors;
-
-    const storedParserVersion = settings.parsedNotationVersion ?? 0;
-    if (storedParserVersion < COMBO_NOTATION_PARSER_VERSION) {
-      options?.onReparseStart?.();
-      try {
-        await reparseStoredCombos();
-      } finally {
-        options?.onReparseEnd?.();
-      }
-      pendingSettingsUpdates.parsedNotationVersion =
-        COMBO_NOTATION_PARSER_VERSION;
-    }
-
-    if (Object.keys(pendingSettingsUpdates).length > 0) {
-      await db.settings.update(1, pendingSettingsUpdates);
-    }
+  init: async (): Promise<void> => {
+    await db.transaction(
+      'rw',
+      [db.settings, db.games, db.characters],
+      async () => {
+        let settings = await db.settings.get(1);
+        if (!settings) {
+          await db.settings.add({ id: 1, ...DEFAULT_SETTINGS });
+          settings = { id: 1, ...DEFAULT_SETTINGS };
+        }
+        const needsNotebookMigration =
+          settings.notebookOpenPages === undefined ||
+          settings.notesDefaultOpen !== undefined ||
+          settings.notesOverrides !== undefined;
+        const { colors, changed } = migrateNotationColors(
+          settings.notationColors,
+        );
+        if (needsNotebookMigration || changed) {
+          await db.settings.put({
+            ...(await normalizeNotebookSettings(settings)),
+            id: 1,
+            ...(changed ? { notationColors: colors as NotationColors } : {}),
+          });
+        }
+      },
+    );
   },
   update: async (updates: Partial<UserSettings>) => {
     const current = await db.settings.get(1);

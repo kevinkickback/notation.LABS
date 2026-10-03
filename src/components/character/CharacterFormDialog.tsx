@@ -18,13 +18,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import { useCoverEditor } from '@/hooks/useCoverEditor';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
+import { useSubmission } from '@/hooks/useSubmission';
 import {
   createCharacter,
   updateCharacter,
 } from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
+import { readImageFile } from '@/lib/media/images';
 import type { Character, Game } from '@/lib/types';
-import { isAllowedImageUpload } from '@/lib/utils';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
 
 interface CharacterFormDialogProps {
@@ -40,6 +42,10 @@ export function CharacterFormDialog({
   editingCharacter,
   game,
 }: CharacterFormDialogProps) {
+  const { pending, submit } = useSubmission(
+    open,
+    `${game.id}:${editingCharacter?.id ?? 'new'}`,
+  );
   const settings = useSettings();
   const orientation = settings.characterCardOrientation ?? 'landscape';
   const [name, setName] = useState('');
@@ -63,10 +69,15 @@ export function CharacterFormDialog({
   } = useCoverEditor();
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const { run: loadImage, cancel: cancelImage } = useMediaRequest(
+    open,
+    `${game.id}:${editingCharacter?.id ?? 'new'}`,
+  );
   const charNameId = useId();
   const charNotesId = useId();
   const charNotesHelpId = useId();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A different parent starts a new unsaved character draft.
   useEffect(() => {
     if (open && editingCharacter) {
       setName(editingCharacter.name);
@@ -78,13 +89,13 @@ export function CharacterFormDialog({
         panY: editingCharacter.portraitPanY,
         fit: editingCharacter.portraitFit,
       });
-    } else if (!open) {
+    } else {
       setName('');
       setNotes('');
       resetPortrait();
       setImageSearchOpen(false);
     }
-  }, [open, editingCharacter, initializePortrait, resetPortrait]);
+  }, [open, game.id, editingCharacter, initializePortrait, resetPortrait]);
 
   const buildCharacterPayload = () => {
     const portrait = serializePortrait();
@@ -104,44 +115,47 @@ export function CharacterFormDialog({
       toast.error('Character name is required');
       return;
     }
-    try {
-      const payload = buildCharacterPayload();
-      if (editingCharacter) {
-        await updateCharacter(editingCharacter.id, payload);
-      } else {
-        await createCharacter({ gameId: game.id, ...payload });
-      }
-      toast.success(editingCharacter ? 'Character updated' : 'Character added');
-      onOpenChange(false);
-    } catch (error) {
-      reportError('CharacterFormDialog.handleSubmit', error);
-      toast.error(
-        editingCharacter
-          ? 'Failed to update character'
-          : 'Failed to add character',
-      );
-    }
+    await submit(
+      async () => {
+        const payload = buildCharacterPayload();
+        if (editingCharacter) {
+          await updateCharacter(editingCharacter.id, payload);
+        } else {
+          await createCharacter({ gameId: game.id, ...payload });
+        }
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            editingCharacter ? 'Character updated' : 'Character added',
+          );
+          onOpenChange(false);
+        },
+        onError: (error) => {
+          reportError('CharacterFormDialog.handleSubmit', error);
+          toast.error(
+            editingCharacter
+              ? 'Failed to update character'
+              : 'Failed to add character',
+          );
+        },
+      },
+    );
   };
 
   const handleImageSelect = () => imageInputRef.current?.click();
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be under 2MB');
-      e.target.value = '';
-      return;
-    }
-    if (!(await isAllowedImageUpload(file))) {
-      toast.error('Unsupported or invalid image file');
-      e.target.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => applyPortraitImage(reader.result as string);
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+    void loadImage(file.name, (signal) => readImageFile(file, signal), {
+      onSuccess: applyPortraitImage,
+      onError: (error) =>
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to read image file',
+        ),
+    });
   };
 
   return (
@@ -157,11 +171,13 @@ export function CharacterFormDialog({
         <DialogContent
           className="dialog-form entity-form-dialog character-form-dialog flex flex-col overflow-hidden"
           onOpenAutoFocus={(event) => {
+            if (pending) return;
             event.preventDefault();
             document.getElementById(charNameId)?.focus();
           }}
         >
           <form
+            aria-busy={pending}
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
@@ -183,56 +199,64 @@ export function CharacterFormDialog({
                   : 'Add a character with an optional portrait and notes.'}
               </DialogDescription>
             </DialogHeader>
-            <DialogBody className="entity-editor">
-              <div className="entity-identity">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={charNameId}>Character Name</Label>
-                  <RequiredBadge />
-                </div>
-                <Input
-                  id={charNameId}
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ryu"
-                />
-              </div>
-              <EntityArtworkEditor
-                label="Character Image"
-                image={portraitImage}
-                orientation={orientation}
-                fit={portraitFit}
-                zoom={portraitZoom}
-                focalX={portraitPanX}
-                focalY={portraitPanY}
-                onUpload={handleImageSelect}
-                onSearch={() => setImageSearchOpen(true)}
-                onRemove={() => setPortraitImage('')}
-                onFitChange={setPortraitFit}
-                onZoomChange={setPortraitZoom}
-                onFocalXChange={setPortraitPanX}
-                onFocalYChange={setPortraitPanY}
-                onReset={resetPortraitTransform}
-              />
-              <FormSection className="entity-notes">
-                <div>
-                  <Label htmlFor={charNotesId}>Notes (optional)</Label>
-                  <Textarea
-                    id={charNotesId}
-                    aria-describedby={charNotesHelpId}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
+            <fieldset disabled={pending} inert={pending} className="contents">
+              <DialogBody className="entity-editor">
+                <div className="entity-identity">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={charNameId}>Character Name</Label>
+                    <RequiredBadge />
+                  </div>
+                  <Input
+                    id={charNameId}
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ryu"
                   />
-                  <p
-                    id={charNotesHelpId}
-                    className="mt-1.5 text-xs text-muted-foreground"
-                  >
-                    Multiple lines and Markdown are supported.
-                  </p>
                 </div>
-              </FormSection>
-            </DialogBody>
+                <EntityArtworkEditor
+                  label="Character Image"
+                  image={portraitImage}
+                  orientation={orientation}
+                  fit={portraitFit}
+                  zoom={portraitZoom}
+                  focalX={portraitPanX}
+                  focalY={portraitPanY}
+                  onUpload={handleImageSelect}
+                  onSearch={() => {
+                    cancelImage();
+                    setImageSearchOpen(true);
+                  }}
+                  onRemove={() => {
+                    cancelImage();
+                    setPortraitImage('');
+                  }}
+                  onFitChange={setPortraitFit}
+                  onZoomChange={setPortraitZoom}
+                  onFocalXChange={setPortraitPanX}
+                  onFocalYChange={setPortraitPanY}
+                  onReset={resetPortraitTransform}
+                />
+                <FormSection className="entity-notes">
+                  <div>
+                    <Label htmlFor={charNotesId}>Notes (optional)</Label>
+                    <Textarea
+                      id={charNotesId}
+                      aria-describedby={charNotesHelpId}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                    />
+                    <p
+                      id={charNotesHelpId}
+                      className="mt-1.5 text-xs text-muted-foreground"
+                    >
+                      Multiple lines and Markdown are supported.
+                    </p>
+                  </div>
+                </FormSection>
+              </DialogBody>
+            </fieldset>
             <DialogFooter className="shrink-0 border-t border-border pt-4">
               <Button
                 type="button"
@@ -241,7 +265,7 @@ export function CharacterFormDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={pending}>
                 {editingCharacter ? 'Save Changes' : 'Add Character'}
               </Button>
             </DialogFooter>
@@ -249,7 +273,8 @@ export function CharacterFormDialog({
         </DialogContent>
       </Dialog>
       <CharacterSearchDialog
-        open={imageSearchOpen}
+        key={`${game.id}:${editingCharacter?.id ?? 'new'}`}
+        open={open && imageSearchOpen}
         onOpenChange={setImageSearchOpen}
         searchQuery={`${game.name} ${name}`.trim()}
         onImageSelect={(base64) => {
