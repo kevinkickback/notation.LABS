@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { useAppStore } from '@/lib/store';
+import { INITIAL_UPDATE_STATUS } from '@/lib/updater/ipcContract';
+import { updateDetails, updateSnapshot } from './helpers/updater';
 
 const mocks = vi.hoisted(() => ({
   useLiveQuery: vi.fn(),
@@ -172,7 +174,7 @@ describe('App', () => {
     mocks.useSettings.mockReturnValue(DEFAULT_SETTINGS);
     mocks.useSettingsInitialization.mockReturnValue({ initialized: true, isReparsing: false, error: null, retry: vi.fn() });
     mocks.useUpdater.mockReturnValue({
-      status: { status: 'idle' },
+      status: INITIAL_UPDATE_STATUS,
       availabilityEventId: 0,
       downloadUpdate: vi.fn(),
       showAvailableUpdate: vi.fn(),
@@ -311,10 +313,7 @@ describe('App', () => {
   it('delegates an available update to the updater controller', () => {
     const showAvailableUpdate = vi.fn();
     mocks.useUpdater.mockReturnValue({
-      status: {
-        status: 'available',
-        update: { status: 'available', version: '2.0.0', changelog: 'Important fixes', changelogLoading: false, isPortable: false },
-      },
+      status: updateSnapshot({ status: 'available', update: updateDetails({ version: '2.0.0', changelog: 'Important fixes' }) }),
       availabilityEventId: 1,
       showAvailableUpdate,
     });
@@ -338,17 +337,16 @@ describe('App', () => {
   it('delegates portable update presentation to the same controller', () => {
     const showAvailableUpdate = vi.fn();
     mocks.useUpdater.mockReturnValue({
-      status: {
-        status: 'available',
-        version: '2.0.0',
-        changelog: 'Portable fixes',
-        isPortable: true,
-      },
+      status: updateSnapshot({ status: 'available', update: updateDetails({ version: '2.0.0', changelog: 'Portable fixes', isPortable: true }) }),
       availabilityEventId: 1,
       showAvailableUpdate,
     });
     render(<App />);
 
+    expect(mocks.toastInfo).toHaveBeenCalledWith(
+      'Update v2.0.0 available',
+      expect.objectContaining({ action: expect.objectContaining({ label: 'View' }) }),
+    );
     const toastOptions = mocks.toastInfo.mock.calls[0][1] as {
       action: { onClick: () => void };
     };
