@@ -9,12 +9,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useUpdater } from '@/context/UpdaterContext';
+import type { UpdateStatus } from '@/lib/updater/ipcContract';
 
 interface UpdateProgressModalProps {
   open: boolean;
   version: string;
   onOpenChange: (open: boolean) => void;
+  status: UpdateStatus;
+  starting?: boolean;
+  error?: string | null;
+  onCancel: () => Promise<unknown>;
+  onRetry: () => Promise<unknown>;
+  onInstall: () => Promise<void>;
 }
 
 function formatBytes(bytes: number): string {
@@ -31,27 +37,32 @@ export function UpdateProgressModal({
   open,
   version,
   onOpenChange,
+  status,
+  starting = false,
+  error,
+  onCancel: cancelUpdate,
+  onRetry: downloadUpdate,
+  onInstall: installUpdate,
 }: UpdateProgressModalProps) {
-  const { status, cancelUpdate, downloadUpdate, installUpdate } = useUpdater();
   const [restartCountdown, setRestartCountdown] = useState<number | null>(null);
   const phase: UpdatePhase =
-    status.status === 'downloaded' ||
-    status.status === 'error' ||
-    status.status === 'cancelled'
-      ? status.status
-      : 'downloading';
+    status.update?.status === 'downloaded'
+      ? 'downloaded'
+      : status.status === 'cancelled'
+        ? 'cancelled'
+        : starting
+          ? 'downloading'
+          : error || status.status === 'error'
+            ? 'error'
+            : 'downloading';
   const percentage = status.progress?.percentage ?? 0;
   const bytesPerSecond = status.progress?.bytesPerSecond ?? 0;
   const total = status.progress?.total ?? 0;
   const transferred = status.progress?.transferred ?? 0;
 
   useEffect(() => {
-    if (!open) {
-      setRestartCountdown(null);
-      return;
-    }
-    if (status.status === 'downloaded') setRestartCountdown(3);
-  }, [open, status.status]);
+    setRestartCountdown(open && phase === 'downloaded' ? 3 : null);
+  }, [open, phase]);
 
   // Restart countdown
   useEffect(() => {
@@ -100,7 +111,7 @@ export function UpdateProgressModal({
               'Please wait while the update is being downloaded.'}
             {phase === 'downloaded' && `Restarting in ${restartCountdown}s...`}
             {phase === 'error' &&
-              (status.error ?? 'An error occurred during download.')}
+              (error ?? status.error ?? 'An error occurred during download.')}
             {phase === 'cancelled' && 'The download was cancelled.'}
           </DialogDescription>
         </DialogHeader>

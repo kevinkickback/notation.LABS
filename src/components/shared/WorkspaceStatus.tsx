@@ -3,15 +3,18 @@ import { useUpdater } from '@/context/UpdaterContext';
 import { reportError } from '@/lib/errors';
 import type { UpdateStatus } from '@/lib/updater/ipcContract';
 
-function updateLabel(update: UpdateStatus): string | null {
-  switch (update.status) {
+function updateLabel(
+  update: UpdateStatus,
+  displayedStatus = update.status,
+): string | null {
+  switch (displayedStatus) {
     case 'checking':
       return 'Checking for updates…';
     case 'not-available':
       return 'Up to date';
     case 'available':
-      return update.version
-        ? `Update v${update.version} available`
+      return update.update?.version
+        ? `Update v${update.update?.version} available`
         : 'New update available';
     case 'downloading':
       return `Downloading update · ${Math.round(update.progress?.percentage ?? 0)}%`;
@@ -56,18 +59,22 @@ export function WorkspaceStatus() {
   const checkUnavailable =
     !online &&
     ['idle', 'checking', 'not-available', 'error'].includes(status.status);
-  const displayedUpdate =
-    checkUnavailable && knownUpdate ? knownUpdate : status;
+  const displayedStatus =
+    status.update?.status === 'downloaded'
+      ? 'downloaded'
+      : checkUnavailable && knownUpdate
+        ? knownUpdate.status
+        : status.status;
   const updateState =
-    displayedUpdate.status === 'not-available'
+    displayedStatus === 'not-available'
       ? 'current'
-      : displayedUpdate.status === 'error'
+      : displayedStatus === 'error'
         ? 'error'
         : 'active';
   const offlineMessage = checkUnavailable && !knownUpdate;
   const updateMessage = offlineMessage
     ? 'Offline · updates unavailable'
-    : updateLabel(displayedUpdate);
+    : updateLabel(status, displayedStatus);
   const detail =
     status.error ||
     (checkUnavailable
@@ -79,10 +86,10 @@ export function WorkspaceStatus() {
       <span className="workspace-version" title="App version">
         v{version}
       </span>
-      {displayedUpdate.status === 'available' ? (
+      {displayedStatus === 'available' || displayedStatus === 'downloaded' ? (
         <button
           type="button"
-          onClick={() => showAvailableUpdate(displayedUpdate)}
+          onClick={() => showAvailableUpdate(status.update)}
           className="update-status"
           data-attention="true"
           data-state={updateState}

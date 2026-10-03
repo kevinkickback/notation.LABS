@@ -1,53 +1,31 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { describe, expect, it, vi } from 'vitest';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
-
-const { useUpdaterMock } = vi.hoisted(() => ({
-  useUpdaterMock: vi.fn(),
-}));
-
-vi.mock('@/context/UpdaterContext', () => ({
-  useUpdater: () => useUpdaterMock(),
-}));
+import { updateDetails, updateSnapshot } from '../helpers/updater';
 
 describe('UpdateProgressModal', () => {
-  beforeEach(() => {
-    useUpdaterMock.mockReturnValue({
-      status: { status: 'downloading' },
-      downloadUpdate: vi.fn(),
-      cancelUpdate: vi.fn(),
-      installUpdate: vi.fn(),
-    });
+  it('keeps a retained installer ready after a transient error', () => {
+    render(<UpdateProgressModal open version="2.0.0" starting error="Request failed"
+      status={updateSnapshot({ status: 'error', update: updateDetails({ status: 'downloaded' }), error: 'Transient error' })}
+      onOpenChange={vi.fn()} onCancel={vi.fn()} onRetry={vi.fn()} onInstall={vi.fn()} />);
+    expect(screen.getByText('Update Ready')).toBeTruthy();
+    expect(screen.queryByText('Update Failed')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
   });
-
-  it('allows cancelled downloads to close the modal', () => {
+  it('allows cancelled downloads to close without resetting updater state', () => {
     const onOpenChange = vi.fn();
-
-    const { rerender } = render(
-      <UpdateProgressModal
-        open={true}
-        version="1.4.2"
-        onOpenChange={onOpenChange}
-      />,
-    );
-
-    useUpdaterMock.mockReturnValue({
-      status: { status: 'cancelled' },
-      downloadUpdate: vi.fn(),
-      cancelUpdate: vi.fn(),
-      installUpdate: vi.fn(),
-    });
-    rerender(
-      <UpdateProgressModal
-        open={true}
-        version="1.4.2"
-        onOpenChange={onOpenChange}
-      />,
-    );
-
+    const props = { open: true, version: '1.4.2', onOpenChange, onCancel: vi.fn(), onRetry: vi.fn(), onInstall: vi.fn() };
+    const { rerender } = render(<UpdateProgressModal {...props} status={updateSnapshot({ status: 'downloading', update: updateDetails() })} />);
+    rerender(<UpdateProgressModal {...props} status={updateSnapshot({ status: 'cancelled', update: updateDetails() }, 2)} />);
     expect(screen.getByText(/download cancelled/i)).not.toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: /^close$/i })[0]);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it('shows request progress while retrying an earlier error', () => {
+    render(<UpdateProgressModal open version="2.0.0" starting
+      status={updateSnapshot({ status: 'error', update: updateDetails(), error: 'Old error' })}
+      onOpenChange={vi.fn()} onCancel={vi.fn()} onRetry={vi.fn()} onInstall={vi.fn()} />);
+    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+    expect(screen.queryByText('Old error')).toBeNull();
   });
 });
