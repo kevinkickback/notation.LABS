@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
+import { getRepeatParenIndices } from '@/components/combo/comboDisplayUtils';
 import { MotionIcon } from '@/components/combo/icons/MotionIcon';
 import { parseComboNotation } from '@/lib/parser';
 import type { ComboToken, Game } from '@/lib/types';
@@ -24,6 +25,50 @@ vi.mock('@/context/SettingsContext', () => ({
 }));
 
 describe('ComboDisplay', () => {
+    for (const mode of ['colored-text', 'visual-icons'] as const) {
+        it.each([
+            { notation: '((2L > 5M)x2 > 5H)x3', opens: 2, repeat2: ')×2', repeat3: ')×3' },
+            { notation: '((L)x2)x3', opens: 1, repeat2: '×2', repeat3: ')×3' },
+            { notation: '(L > M)x2 > (H)x3', opens: 1, repeat2: ')×2', repeat3: '×3' },
+        ])(`pairs repeat boundaries in ${mode} for $notation`, ({ notation, opens, repeat2, repeat3 }) => {
+            const tokens = parseComboNotation(notation, ['L', 'M', 'H']);
+            const { container } = render(<ComboDisplay tokens={tokens} mode={mode} />);
+            expect(screen.getAllByText('(', { exact: true })).toHaveLength(opens);
+            expect(screen.getAllByText(')', { exact: true })).toHaveLength(opens);
+            const labels = [...container.querySelectorAll('sup')];
+            expect(labels.map(label => label.textContent)).toEqual(['×2', '×3']);
+            expect(labels[0].parentElement?.textContent).toBe(repeat2);
+            expect(labels[1].parentElement?.textContent).toBe(repeat3);
+        });
+
+        it(`keeps symbolic nested repeat labels in ${mode}`, () => {
+            const tokens = parseComboNotation('((L > M)xN > H)x3', ['L', 'M', 'H']);
+            const { container } = render(<ComboDisplay tokens={tokens} mode={mode} />);
+            expect(screen.getAllByText('(', { exact: true })).toHaveLength(2);
+            expect(screen.getAllByText(')', { exact: true })).toHaveLength(2);
+            expect([...container.querySelectorAll('sup')].map(label => label.parentElement?.textContent)).toEqual([')×N', ')×3']);
+        });
+
+        it(`keeps collapsed single-button repeats without parentheses in ${mode}`, () => {
+            const tokens = parseComboNotation('LLL', ['L']);
+            render(<ComboDisplay tokens={tokens} mode={mode} />);
+            expect(screen.queryByText('(', { exact: true })).toBeNull();
+            expect(screen.queryByText(')', { exact: true })).toBeNull();
+            expect(screen.getByText('×3')).toBeTruthy();
+        });
+    }
+
+    it('ignores unmatched repeat markers while pairing complete nested groups', () => {
+        const tokens = parseComboNotation('(L > M)x2', ['L', 'M']);
+        const incomplete: ComboToken[] = [
+            { type: 'repeat-end', value: ')', rawValue: ')', repeatCount: 3 },
+            { type: 'repeat-start', value: '(', rawValue: '(' },
+            ...tokens,
+        ];
+        const indices = getRepeatParenIndices(incomplete);
+        expect([...indices].sort((a, b) => a - b)).toEqual([2, incomplete.length - 1]);
+    });
+
     it.each([
         ['360', 1],
         ['720', 2],
