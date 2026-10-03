@@ -1,23 +1,86 @@
-@import "tailwindcss";
+/** biome-ignore-all lint/suspicious/noUnknownAtRules: Tailwind CSS v4 theme directives */
 
-@import "tailwindcss/theme" layer(theme);
+:root {
+  --background: oklch(0.93 0.01 265);
+  --foreground: oklch(0.13 0.03 265);
 
-@import "tailwindcss/preflight" layer(base);
+  --card: oklch(0.96 0.005 265);
+  --card-foreground: oklch(0.13 0.03 265);
 
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+  --popover: oklch(0.96 0.005 265);
+  --popover-foreground: oklch(0.13 0.03 265);
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
-  }
+  --secondary: oklch(0.88 0.015 265);
+  --secondary-foreground: oklch(0.18 0.03 265);
+
+  --muted: oklch(0.88 0.015 265);
+  --muted-foreground: oklch(0.38 0.03 265);
+
+  --destructive: oklch(0.45 0.24 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.78 0.02 265);
+  --input: oklch(0.82 0.02 265);
+  --ring: oklch(0.48 0.26 285);
+
+  --combo-hold: oklch(0.55 0.17 75);
+  --combo-hold-outline: oklch(0.16 0.03 265);
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: oklch(0.15 0.02 265);
+  --foreground: oklch(0.98 0 0);
+
+  --card: oklch(0.22 0.015 265);
+  --card-foreground: oklch(0.95 0 0);
+
+  --popover: oklch(0.2 0.015 265);
+  --popover-foreground: oklch(0.95 0 0);
+
+  --secondary: oklch(0.28 0.02 265);
+  --secondary-foreground: oklch(0.95 0 0);
+
+  --muted: oklch(0.25 0.015 265);
+  --muted-foreground: oklch(0.65 0.02 265);
+
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+
+  --border: oklch(0.3 0.02 265);
+  --input: oklch(0.35 0.025 265);
+  --ring: oklch(0.65 0.24 285);
+
+  --combo-hold: oklch(0.82 0.16 85);
+  --combo-hold-outline: oklch(0.16 0.03 265);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.5);
+  --radius-xl: calc(var(--radius) * 2);
+  --radius-2xl: calc(var(--radius) * 3);
+  --radius-full: 9999px;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  /* Accent color customization */
+  --color-primary: var(--accent-color, #3b82f6);
+  --color-primary-foreground: #fff;
+  --color-accent: var(--accent-color, #3b82f6);
+  --color-accent-foreground: #fff;
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
