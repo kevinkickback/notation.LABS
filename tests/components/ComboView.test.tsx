@@ -21,9 +21,9 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
     },
     settings: {
       update: vi.fn().mockResolvedValue(undefined),
-      getNotesOverrides: vi.fn().mockResolvedValue([]),
-      setNotesOverride: vi.fn().mockResolvedValue(undefined),
-      setNotesOverrides: vi.fn().mockResolvedValue(undefined),
+      getNotebookOpenPages: vi.fn().mockResolvedValue([]),
+      setNotebookOpen: vi.fn().mockResolvedValue(undefined),
+      removeNotebookOpenPages: vi.fn().mockResolvedValue(undefined),
     },
     demoVideos: {
       delete: vi.fn().mockResolvedValue(undefined),
@@ -128,14 +128,19 @@ describe('ComboView', () => {
     expect(screen.getByText('Ryu')).not.toBeNull();
     expect(screen.getByText(/no combos yet/i)).not.toBeNull();
     expect(screen.getByRole('button', { name: /add combo/i })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Notes & Resources' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Edit Note' })).toHaveLength(1);
   });
 
   it('opens edit note dialog from empty combo view', async () => {
     const user = userEvent.setup();
     render(<ComboView game={mockGame} character={mockCharacter} combos={[]} />);
 
-    await user.click(screen.getByRole('button', { name: /edit note/i }));
-    expect(screen.getByRole('heading', { name: 'Edit Note' })).not.toBeNull();
+    const editNote = screen.getByRole('button', { name: /edit note/i });
+    await user.click(editNote);
+    expect(screen.getByRole('textbox', { name: 'Note' })).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(document.activeElement).toBe(editNote);
   });
 
   it('renders character name and game info', () => {
@@ -227,9 +232,19 @@ describe('ComboView', () => {
     );
 
     // Card is collapsed by default — expand it to reveal the Edit note button
-    await user.click(screen.getByRole('button', { name: /character info/i }));
-    await user.click(screen.getByTitle('Edit note'));
-    expect(screen.getByRole('heading', { name: 'Edit Note' })).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Notes & Resources' }));
+    await user.click(screen.getByRole('button', { name: 'Edit note' }));
+    expect((screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe(characterWithNotes.notes);
+  });
+
+  it('keeps notes and resource actions out of the overflow menu', async () => {
+    const user = userEvent.setup();
+    render(<ComboView game={mockGame} character={mockCharacter} combos={mockCombos} />);
+    await user.click(screen.getByRole('button', { name: 'More options' }));
+    expect(screen.queryByRole('menuitem', { name: 'Add Note' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Add Resource Link' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Select Combos' })).not.toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Edit Game Buttons' })).not.toBeNull();
   });
 
   it('shows empty filter result message', async () => {

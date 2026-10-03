@@ -1,7 +1,9 @@
 import { TrashIcon, WarningIcon } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface ComboSelectionToolbarProps {
+  leadingAction?: ReactNode;
   selectedCount: number;
   onSelectAll: () => void;
   onDeselectAll: () => void;
@@ -11,6 +13,7 @@ interface ComboSelectionToolbarProps {
 }
 
 export function ComboSelectionToolbar({
+  leadingAction,
   selectedCount,
   onSelectAll,
   onDeselectAll,
@@ -20,6 +23,7 @@ export function ComboSelectionToolbar({
 }: ComboSelectionToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
+      {leadingAction}
       <span className="text-sm font-medium text-muted-foreground">
         {selectedCount} selected
       </span>

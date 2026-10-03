@@ -1,7 +1,9 @@
 import { TrashIcon } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface SelectionToolbarProps {
+  leadingAction?: ReactNode;
   selectedCount: number;
   onSelectAll: () => void;
   onDeselectAll: () => void;
@@ -10,6 +12,7 @@ interface SelectionToolbarProps {
 }
 
 export function SelectionToolbar({
+  leadingAction,
   selectedCount,
   onSelectAll,
   onDeselectAll,
@@ -18,6 +21,7 @@ export function SelectionToolbar({
 }: SelectionToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto">
+      {leadingAction}
       <span className="text-sm font-medium text-muted-foreground">
         {selectedCount} selected
       </span>

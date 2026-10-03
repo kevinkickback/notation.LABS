@@ -53,9 +53,18 @@ on a contrasting surface without changing the icons' colors.
 
 Controlled dialogs restore focus to the invoking control when it remains present,
 including returning from image search to its parent editor. Motion stays brief and
-respects reduced-motion preferences. Existing notes behavior and settings remain
-available because main's notes panels are retained. Export commit-phase protections
-are preserved.
+respects reduced-motion preferences. Notes and resources use a shared floating or
+docked notebook. Export commit-phase protections are preserved.
+The floating drawer portals inside its page workspace so pending navigation also
+blocks its editing controls. Resource entry accepts HTTP/S URLs and schemeless
+hosts, including ports, by adding HTTPS when needed.
+Opening, docking, and editing explicitly move focus to the panel or editor;
+restored panels and responsive layout changes preserve focus outside the notebook.
+If an open preference rolls back, either layout returns lost focus to its opener.
+Editor save/cancel returns focus to the initiating Add/Edit action. Removing a
+focused resource returns it to Add; a failed dock choice restores its layout control.
+The dock stays at the workspace's measured top while scrolling, below the sticky
+header and breadcrumb. That same offset sets its available height above the footer.
 
 ## Collection cards and notes
 
@@ -64,18 +73,20 @@ grids. Every 10-pixel step changes that width, with cards wrapping rather than
 stretching to fill a row. Portrait and landscape artwork retain their proportions;
 cards shrink to fit containers narrower than the chosen width.
 
-Notes Open by Default controls game notes and the Character Info panel containing
-character notes and resources. Changing it resets saved manual panel choices in
-the same settings write. Subsequent manual choices are remembered per entity.
-Panels read those overrides from the live settings snapshot so navigation and
-preference changes do not wait on a separate read.
-Settings writes and manual panel choices save in invocation order. A panel choice
-records the desired open/closed state and resolves its relative override against
-the saved default when its queued write executes, including after a failed default
-change. Failed writes do not prevent later queued settings from saving.
+Each game and character remembers whether its notebook is open or closed. New
+pages start closed; there is no global default-open setting. Existing preferences
+and older backups migrate to explicit page choices, preserving their prior state.
+Floating or docked layout is one saved preference throughout the app. Narrow
+windows temporarily float the notebook without replacing the docking preference.
+The adjusted dock width is also shared across pages and restarts. Dragging saves
+on release; keyboard adjustments and double-click reset save immediately. Smaller
+windows constrain the displayed width without overwriting the saved choice.
+Settings writes and manual panel choices save in invocation order. Failed writes
+do not prevent later queued settings from saving. Deleting a game or character
+also removes its remembered page choice.
 The latest panel toggle stays visible through unrelated settings refreshes and
 earlier queued writes until its own save is acknowledged. Changing the selected
-entity or global default discards the previous optimistic choice.
+entity discards the previous optimistic choice.
 Each settings request has an increasing token. Live snapshots identify the queued
 writes completed before their read, so an earlier save with the same value cannot
 clear a later pending choice. Failure rollback also checks the latest token per

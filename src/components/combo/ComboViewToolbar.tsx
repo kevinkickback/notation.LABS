@@ -2,11 +2,10 @@ import {
   CheckSquareIcon,
   DotsThreeIcon,
   FunnelIcon,
-  LinkSimpleIcon,
-  NotePencilIcon,
   PaletteIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 import { DisplayModeToggle } from '@/components/combo/DisplayModeToggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +17,7 @@ import {
 import type { DisplayMode } from '@/lib/types';
 
 interface ComboViewToolbarProps {
+  leadingAction?: ReactNode;
   displayMode: DisplayMode;
   onDisplayModeChange: (mode: DisplayMode) => Promise<void>;
   showFilters: boolean;
@@ -27,12 +27,10 @@ interface ComboViewToolbarProps {
   onToggleSelect: () => void;
   onAddCombo: () => void;
   onOpenColorDialog: () => void;
-  onAddResourceLink: () => void;
-  onEditNote: () => void;
-  showInfoCard: boolean;
 }
 
 export function ComboViewToolbar({
+  leadingAction,
   displayMode,
   onDisplayModeChange,
   showFilters,
@@ -42,12 +40,10 @@ export function ComboViewToolbar({
   onToggleSelect,
   onAddCombo,
   onOpenColorDialog,
-  onAddResourceLink,
-  onEditNote,
-  showInfoCard,
 }: ComboViewToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 min-w-0">
+      {leadingAction}
       <div className="bg-muted rounded-md">
         <DisplayModeToggle mode={displayMode} onChange={onDisplayModeChange} />
       </div>
@@ -80,25 +76,6 @@ export function ComboViewToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {!showInfoCard && (
-            <>
-              <DropdownMenuItem
-                onClick={onEditNote}
-                className="flex items-center gap-2"
-              >
-                <NotePencilIcon className="w-4 h-4" />
-                Add Note
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={onAddResourceLink}
-                className="flex items-center gap-2"
-              >
-                <LinkSimpleIcon className="w-4 h-4" />
-                Add Resource Link
-              </DropdownMenuItem>
-              <div className="my-1 h-px bg-border" />
-            </>
-          )}
           <DropdownMenuItem
             onClick={onToggleSelect}
             className="flex items-center gap-2"

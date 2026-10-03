@@ -759,19 +759,70 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.colorTheme).toBe('dark'); // default preserved
   });
 
-  it('atomically adds and removes a notes override', async () => {
-    await indexedDbStorage.settings.setNotesOverride('game-1', true);
-    await indexedDbStorage.settings.setNotesOverride('game-1', true);
+  it('atomically remembers page choices without duplicates or overwriting other pages', async () => {
+    await Promise.all([
+      indexedDbStorage.settings.setNotebookOpen('game-1', true),
+      indexedDbStorage.settings.setNotebookOpen('char-1', true),
+    ]);
+    await indexedDbStorage.settings.setNotebookOpen('game-1', true);
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual(['game-1', 'char-1']);
+    await indexedDbStorage.settings.setNotebookOpen('game-1', false);
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual(['char-1']);
+  });
 
-    await expect(
-      indexedDbStorage.settings.getNotesOverrides(),
-    ).resolves.toEqual(['game-1']);
+  it('migrates explicitly opened pages from the old closed default and retires the old settings', async () => {
+    const { notebookOpenPages: _pages, ...legacy } = DEFAULT_SETTINGS;
+    await db.settings.put({ id: 1, ...legacy, notesDefaultOpen: false, notesOverrides: ['char-1', 'char-1'], notebookDocked: true });
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual(['char-1']);
+    await indexedDbStorage.settings.init();
+    const saved = await db.settings.get(1);
+    expect(saved?.notebookOpenPages).toEqual(['char-1']);
+    expect(saved?.notebookDocked).toBe(true);
+    expect(saved).not.toHaveProperty('notesDefaultOpen');
+    expect(saved).not.toHaveProperty('notesOverrides');
+  });
 
-    await indexedDbStorage.settings.setNotesOverride('game-1', false);
+  it('preserves old default-open states for existing pages and starts later pages closed', async () => {
+    const gameId = await indexedDbStorage.games.add({ name: 'Game', buttonLayout: [] });
+    const characterId = await indexedDbStorage.characters.add({ gameId, name: 'Character' });
+    const { notebookOpenPages: _pages, ...legacy } = DEFAULT_SETTINGS;
+    await db.settings.put({ id: 1, ...legacy, notesDefaultOpen: true, notesOverrides: [characterId] });
+    await indexedDbStorage.settings.init();
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([gameId]);
+    const later = await indexedDbStorage.characters.add({ gameId, name: 'New character' });
+    await indexedDbStorage.settings.init();
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).not.toContain(later);
+  });
 
-    await expect(
-      indexedDbStorage.settings.getNotesOverrides(),
-    ).resolves.toEqual([]);
+  it('uses current page choices in preference to retired defaults', async () => {
+    await db.settings.put({ id: 1, ...DEFAULT_SETTINGS, notebookOpenPages: [], notesDefaultOpen: true, notesOverrides: ['char-1'] });
+    await indexedDbStorage.settings.init();
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([]);
+  });
+
+  it('migrates preferences from older backups even when there are no combos to reparse', async () => {
+    const gameId = await indexedDbStorage.games.add({ name: 'Game', buttonLayout: [] });
+    const { notebookOpenPages: _pages, ...legacy } = DEFAULT_SETTINGS;
+    await indexedDbStorage.import(JSON.stringify({ version: 2, exported: '2026-10-02T00:00:00Z', settings: { ...legacy, notesDefaultOpen: true, notesOverrides: [] } }), false, true);
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([gameId]);
+    const later = await indexedDbStorage.games.add({ name: 'Later game', buttonLayout: [] });
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).not.toContain(later);
+    const exported = JSON.parse(await (await indexedDbStorage.export()).text());
+    expect(exported.settings.notebookOpenPages).toEqual([gameId]);
+    expect(exported.settings).not.toHaveProperty('notesDefaultOpen');
+    expect(exported.settings).not.toHaveProperty('notesOverrides');
+  });
+
+  it('removes deleted game and character choices while preserving other pages', async () => {
+    const gameId = await indexedDbStorage.games.add({ name: 'Game', buttonLayout: [] });
+    const otherGameId = await indexedDbStorage.games.add({ name: 'Other', buttonLayout: [] });
+    const first = await indexedDbStorage.characters.add({ gameId, name: 'First' });
+    const second = await indexedDbStorage.characters.add({ gameId, name: 'Second' });
+    await indexedDbStorage.settings.update({ notebookOpenPages: [gameId, otherGameId, first, second] });
+    await indexedDbStorage.characters.delete(first);
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([gameId, otherGameId, second]);
+    await indexedDbStorage.games.delete(gameId);
+    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([otherGameId]);
   });
 
   it('migrates legacy oklch notation colors during init', async () => {

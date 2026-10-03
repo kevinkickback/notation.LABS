@@ -175,11 +175,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       key: K,
       value: UserSettings[K],
     ): Promise<boolean> => {
-      // Choosing a new global notes default resets earlier manual choices.
-      const updates: Partial<UserSettings> = {
-        [key]: value,
-        ...(key === 'notesDefaultOpen' ? { notesOverrides: [] } : {}),
-      };
+      const updates: Partial<UserSettings> = { [key]: value };
       const { request, result } = queueSettingsWrite(() =>
         indexedDbStorage.settings.update(updates),
       );
@@ -215,14 +211,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const setNotesPanelOpen = useCallback(
     (entityId: string, isOpen: boolean) =>
-      queueSettingsWrite(async () => {
-        const persisted = await indexedDbStorage.settings.get();
-        // Preserve the user's absolute choice even if an earlier default write failed.
-        await indexedDbStorage.settings.setNotesOverride(
-          entityId,
-          isOpen !== (persisted.notesDefaultOpen ?? false),
-        );
-      }).result,
+      queueSettingsWrite(() =>
+        indexedDbStorage.settings.setNotebookOpen(entityId, isOpen),
+      ).result,
     [queueSettingsWrite],
   );
 

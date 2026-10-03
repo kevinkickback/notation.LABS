@@ -5,9 +5,32 @@ import {
   externalHttpUrlSchema,
   gameSchema,
   legacyGameSchema,
+  settingsSchema,
 } from '@/lib/schemas';
+import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
 const timestamps = { createdAt: 1, updatedAt: 1 };
+
+describe('notebook preference validation', () => {
+  it('keeps older settings compatible and accepts either docking choice', () => {
+    const { notebookDocked: _dock, notebookDockWidth: _width, ...legacy } = DEFAULT_SETTINGS;
+    expect(settingsSchema.safeParse(legacy).success).toBe(true);
+    for (const notebookDocked of [true, false]) {
+      expect(settingsSchema.parse({ ...legacy, notebookDocked }).notebookDocked).toBe(notebookDocked);
+    }
+  });
+  it('rejects invalid docking choices', () => {
+    expect(settingsSchema.safeParse({ ...DEFAULT_SETTINGS, notebookDocked: 'docked' }).success).toBe(false);
+  });
+  it('accepts bounded whole-pixel dock widths and rejects malformed imported preferences', () => {
+    for (const notebookDockWidth of [320, 400, 600]) {
+      expect(settingsSchema.parse({ ...DEFAULT_SETTINGS, notebookDockWidth }).notebookDockWidth).toBe(notebookDockWidth);
+    }
+    for (const notebookDockWidth of [319, 601, 400.5, '400', null, Infinity]) {
+      expect(settingsSchema.safeParse({ ...DEFAULT_SETTINGS, notebookDockWidth }).success).toBe(false);
+    }
+  });
+});
 
 describe('external resource URL validation', () => {
   it.each(['https://dustloop.com', 'http://localhost:3000/guide'])(

@@ -130,8 +130,12 @@ export const settingsSchema = z.object({
   videoPlayerSize: z.enum(['sm', 'md', 'lg', 'xl']),
   gameCardSize: z.number(),
   characterCardSize: z.number(),
-  notesDefaultOpen: z.boolean().default(false),
+  // Retained at ingestion so saved preferences from earlier versions can migrate.
+  notesDefaultOpen: z.boolean().optional(),
   notesOverrides: z.array(z.string()).optional(),
+  notebookOpenPages: z.array(z.string()).optional(),
+  notebookDocked: z.boolean().optional(),
+  notebookDockWidth: z.number().int().min(320).max(600).optional(),
   parsedNotationVersion: z.number().int().nonnegative().default(0),
   accentColor: z.string().optional(),
   characterCardOrientation: z
