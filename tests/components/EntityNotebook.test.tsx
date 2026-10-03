@@ -194,7 +194,7 @@ describe('EntityNotebook', () => {
       await user.click(screen.getByRole('button', { name: 'Edit note' }));
       expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Note' }));
       await user.clear(screen.getByRole('textbox', { name: 'Note' }));
-      await user.type(screen.getByRole('textbox', { name: 'Note' }), 'Docked draft');
+      await user.paste('Docked draft');
       await chooseLayout('Dock right');
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' }));
       const dock = screen.getByRole('complementary', { name: 'Ryu Notebook' });
@@ -202,7 +202,8 @@ describe('EntityNotebook', () => {
       expect((within(dock).getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Docked draft');
       await user.click(within(dock).getByRole('tab', { name: 'Resources (0)' }));
       await user.click(within(dock).getByRole('button', { name: 'Add resource link' }));
-      await user.type(screen.getByRole('textbox', { name: 'URL' }), 'https://example.com/draft');
+      await user.click(screen.getByRole('textbox', { name: 'URL' }));
+      await user.paste('https://example.com/draft');
       await chooseLayout('Floating');
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' }));
       expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe('https://example.com/draft');

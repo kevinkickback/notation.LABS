@@ -68,13 +68,13 @@ describe('bounded ZIP imports', () => {
   });
 
   it('rejects duplicate filenames rather than choosing an arbitrary payload', async () => {
-    const bytes = await createBackupZip(metadata, { 'copyxx.json': new TextEncoder().encode('{}') });
+    const bytes = await createBackupZip(metadata, { 'copyxx.json': new TextEncoder().encode(JSON.stringify(metadata)) });
     const source = new TextEncoder().encode('copyxx.json');
     const replacement = new TextEncoder().encode('backup.json');
     for (let offset = 0; offset + source.length <= bytes.length; offset++) {
       if (source.every((byte, index) => bytes[offset + index] === byte)) bytes.set(replacement, offset);
     }
-    await expect(importZipBackup(new Blob([bytes]))).rejects.toThrow();
+    await expect(importZipBackup(new Blob([bytes]))).rejects.toThrow('Ambiguous archive');
     await expectUnchanged();
   });
 
