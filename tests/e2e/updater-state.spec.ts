@@ -53,6 +53,7 @@ test('keeps newer update state through delayed replies and closing update detail
   await probe('resolveCheck', available);
   await expect(page.getByText('Up to date', { exact: true })).toHaveCount(0);
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
+  await probe('send', updateSnapshot({ status: 'error', update: ready.update, error: 'Transient failure' }, 6, 1));
   await page.getByRole('button', { name: 'Update ready to install', exact: true }).click();
   const progress = page.getByRole('dialog', { name: 'Update Ready', exact: true });
   await expect(progress).toBeVisible();

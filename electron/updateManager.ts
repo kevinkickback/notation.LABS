@@ -119,7 +119,7 @@ function announceUpdate(version: string) {
 function isDownloadingOrReady() {
   return (
     currentStatus.status === 'downloading' ||
-    currentStatus.status === 'downloaded'
+    currentStatus.update?.status === 'downloaded'
   );
 }
 
@@ -265,7 +265,7 @@ export function downloadUpdate(): Promise<void> {
 async function performDownload(): Promise<void> {
   if (checkPromise) await checkPromise;
   if (
-    currentStatus.status === 'downloaded' ||
+    currentStatus.update?.status === 'downloaded' ||
     cancellationToken ||
     devSimInterval
   )
@@ -341,7 +341,7 @@ export function cancelDownload(): boolean {
 }
 
 export function installUpdate(): void {
-  if (!app.isPackaged || currentStatus.status !== 'downloaded') return;
+  if (!app.isPackaged || currentStatus.update?.status !== 'downloaded') return;
   autoUpdater.quitAndInstall(true, true);
 }
 

@@ -4,6 +4,14 @@ import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { updateDetails, updateSnapshot } from '../helpers/updater';
 
 describe('UpdateProgressModal', () => {
+  it('keeps a retained installer ready after a transient error', () => {
+    render(<UpdateProgressModal open version="2.0.0" starting error="Request failed"
+      status={updateSnapshot({ status: 'error', update: updateDetails({ status: 'downloaded' }), error: 'Transient error' })}
+      onOpenChange={vi.fn()} onCancel={vi.fn()} onRetry={vi.fn()} onInstall={vi.fn()} />);
+    expect(screen.getByText('Update Ready')).toBeTruthy();
+    expect(screen.queryByText('Update Failed')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
   it('allows cancelled downloads to close without resetting updater state', () => {
     const onOpenChange = vi.fn();
     const props = { open: true, version: '1.4.2', onOpenChange, onCancel: vi.fn(), onRetry: vi.fn(), onInstall: vi.fn() };

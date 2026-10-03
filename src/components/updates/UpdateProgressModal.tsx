@@ -46,13 +46,15 @@ export function UpdateProgressModal({
 }: UpdateProgressModalProps) {
   const [restartCountdown, setRestartCountdown] = useState<number | null>(null);
   const phase: UpdatePhase =
-    status.status === 'downloaded' || status.status === 'cancelled'
-      ? status.status
-      : starting
-        ? 'downloading'
-        : error || status.status === 'error'
-          ? 'error'
-          : 'downloading';
+    status.update?.status === 'downloaded'
+      ? 'downloaded'
+      : status.status === 'cancelled'
+        ? 'cancelled'
+        : starting
+          ? 'downloading'
+          : error || status.status === 'error'
+            ? 'error'
+            : 'downloading';
   const percentage = status.progress?.percentage ?? 0;
   const bytesPerSecond = status.progress?.bytesPerSecond ?? 0;
   const total = status.progress?.total ?? 0;

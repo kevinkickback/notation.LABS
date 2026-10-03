@@ -60,7 +60,11 @@ export function WorkspaceStatus() {
     !online &&
     ['idle', 'checking', 'not-available', 'error'].includes(status.status);
   const displayedStatus =
-    checkUnavailable && knownUpdate ? knownUpdate.status : status.status;
+    status.update?.status === 'downloaded'
+      ? 'downloaded'
+      : checkUnavailable && knownUpdate
+        ? knownUpdate.status
+        : status.status;
   const updateState =
     displayedStatus === 'not-available'
       ? 'current'

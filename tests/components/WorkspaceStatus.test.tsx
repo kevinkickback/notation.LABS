@@ -50,6 +50,18 @@ describe('Workspace status', () => {
     expect(Array.from(status.children).map(element => element.textContent)).toEqual([`v${__APP_VERSION__}`, 'Up to date']);
   });
 
+  it.each([false, true])('opens a retained ready installer after an error with online=%s', async online => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(online);
+    const update = updateDetails({ status: 'downloaded' });
+    updater.status = updateSnapshot({ status: 'error', update, error: 'Transient failure' });
+    updater.knownUpdate = update;
+    render(<WorkspaceStatus />);
+    const ready = screen.getByRole('button', { name: 'Update ready to install' });
+    expect(ready.title).toBe('Transient failure');
+    await userEvent.setup().click(ready);
+    expect(updater.showAvailableUpdate).toHaveBeenCalledWith(update);
+  });
+
   it('reacts to network loss and recovery without disabling search', () => {
     const network = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
     render(<WorkspaceStatus />);

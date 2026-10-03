@@ -196,7 +196,7 @@ describe('updateManager', () => {
     expect(context.module.getUpdateStatus()).toMatchObject({ status: 'cancelled', update: { version: '2.0.0' } });
   });
 
-  it('checks and cancels cannot discard a ready installer, and install is gated on readiness', async () => {
+  it.each([false, true])('checks and cancels preserve a ready installer, including transient error=%s', async transientError => {
     const download = deferred<void>();
     const context = await loadUpdateManager();
     context.module.installUpdate();
@@ -207,10 +207,16 @@ describe('updateManager', () => {
     context.emit('update-downloaded', { version: '2.0.0' });
     download.resolve();
     await request;
+    if (transientError) context.emit('error', new Error('Transient update failure'));
     const ready = context.module.getUpdateStatus();
     expect(context.module.cancelDownload()).toBe(false);
     expect(await context.module.checkForUpdate()).toBe(ready);
+    context.emit('checking-for-update');
+    context.emit('update-not-available');
+    expect(context.module.getUpdateStatus()).toBe(ready);
     expect(context.autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled();
+    await context.module.downloadUpdate();
+    expect(context.autoUpdaterMock.downloadUpdate).toHaveBeenCalledOnce();
     context.module.installUpdate();
     expect(context.autoUpdaterMock.quitAndInstall).toHaveBeenCalledWith(true, true);
   });
