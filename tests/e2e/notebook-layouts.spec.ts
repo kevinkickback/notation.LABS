@@ -161,6 +161,13 @@ test('resizes the floating notebook within bounds and remembers its size across 
   const gamePanel = page.getByRole('dialog', { name: 'Street Fighter 6 Notebook' });
   await expect(gamePanel).toHaveCSS('width', '620px');
   await expect(gamePanel).toHaveCSS('height', '720px');
+  // Opening is optimistic; let the preference commit before testing a restart.
+  await expect.poll(() => page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const game = (await indexedDbStorage.games.getAll()).find(game => game.name === 'Street Fighter 6');
+    return !!game && (await indexedDbStorage.settings.get()).notebookOpenPages?.includes(game.id);
+  })).toBe(true);
   await page.reload();
   await page.locator('h3', { hasText: 'Street Fighter 6' }).click();
   await expect(gamePanel).toHaveCSS('width', '620px');
