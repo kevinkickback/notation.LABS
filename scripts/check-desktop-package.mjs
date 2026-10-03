@@ -127,7 +127,9 @@ try {
     }
   }
   if (!browser) throw new Error(`Packaged app did not start: ${output}`);
-  const page = browser.contexts()[0].pages()[0];
+  const context = browser.contexts()[0];
+  assert(context, 'Packaged app did not expose its Chromium context');
+  const page = context.pages()[0] ?? (await context.waitForEvent('page'));
   await page.getByRole('button', { name: /add your first game/i }).waitFor();
   const runtime = await page.evaluate(async () => {
     await window.electronAPI.setAutoCheck(false);
