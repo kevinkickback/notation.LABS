@@ -1,5 +1,6 @@
 import { CheckCircleIcon } from '@phosphor-icons/react';
 import { useEffect, useId, useRef, useState } from 'react';
+import { AppLogo } from '@/components/shared/AppLogo';
 import { Button } from '@/components/ui/button';
 
 export type StartupStage = 'settings' | 'parsing' | 'library' | 'ready';
@@ -58,10 +59,10 @@ export function AppLoadingOverlay({
       tabIndex={-1}
     >
       <div className="startup-brand">
+        <AppLogo className="startup-logo" variant="splash" />
         <h1 id={titleId}>
           notation<span>.LABS</span>
         </h1>
-        <p>Fighting game combo notebook</p>
       </div>
       <div className="startup-progress">
         <progress max={100} value={progress} aria-label="Startup progress" />

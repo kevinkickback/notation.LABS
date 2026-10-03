@@ -324,7 +324,7 @@ export function ComboFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-5xl dialog-form combo-form-dialog flex flex-col overflow-hidden">
+      <DialogContent className="max-w-[792px] dialog-form combo-form-dialog flex flex-col overflow-hidden">
         <form
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => {

@@ -18,6 +18,7 @@ import {
 } from '@/components/header/ImportDialog';
 import { NotationGuide } from '@/components/header/NotationGuide';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { AppLogo } from '@/components/shared/AppLogo';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -194,11 +195,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50 w-full">
       <div className="container mx-auto px-2 py-3 flex flex-wrap items-center justify-between min-w-0 w-full gap-y-2">
         <div className="flex items-center gap-2 min-w-0 flex-shrink-1">
-          <NotebookIcon
-            className="size-7 sm:size-8 flex-shrink-0"
-            weight="duotone"
-            style={{ color: 'var(--accent-color, #3b82f6)' }}
-          />
+          <AppLogo className="size-10 object-contain flex-shrink-0" />
           <h1
             className="text-lg sm:text-2xl font-bold tracking-tight truncate"
             style={{ fontFamily: '"JetBrains Mono", "Courier New", monospace' }}

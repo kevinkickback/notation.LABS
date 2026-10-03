@@ -31,7 +31,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const isMobile = useIsMobile();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="settings-dialog max-w-4xl flex flex-col overflow-hidden">
+      <DialogContent className="settings-dialog max-w-[691px] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-2xl">Settings</DialogTitle>
           <DialogDescription className="sr-only">

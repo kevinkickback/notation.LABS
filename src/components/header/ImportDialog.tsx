@@ -89,7 +89,7 @@ export function ImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[518px]">
         <DialogHeader>
           <DialogTitle>Import Data</DialogTitle>
           <DialogDescription className="sr-only">

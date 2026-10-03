@@ -42,7 +42,7 @@ export function ExportProgressModal({
   return (
     <Dialog open>
       <DialogContent
-        className="max-w-md"
+        className="max-w-[400px]"
         hideCloseButton
         onPointerDownOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => event.preventDefault()}
@@ -351,7 +351,7 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[518px]">
         <DialogHeader>
           <DialogTitle>Export Data</DialogTitle>
           <DialogDescription className="sr-only">
