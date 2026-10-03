@@ -427,7 +427,7 @@ describe('EntityNotebook', () => {
     await user.click(screen.getByRole('button', { name: 'Add resource link' }));
     await user.type(screen.getByRole('textbox', { name: 'URL' }), url);
     await user.click(screen.getByRole('button', { name: 'Add resource' }));
-    expect(updateCharacter).toHaveBeenCalledWith('ryu', { links: [expect.objectContaining({ url: `https://${url}` })] });
+    expect(updateCharacter).toHaveBeenCalledWith('ryu', { links: [expect.objectContaining({ url: `https://${url}`, label: new URL(`https://${url}`).host })] });
     expect(screen.queryByRole('alert')).toBeNull();
   });
 

@@ -200,12 +200,15 @@ test('accepts resource hosts with ports while rejecting explicit non-HTTP scheme
   await url.fill('ftp://example.com/guide');
   await drawer.getByRole('button', { name: 'Add resource', exact: true }).click();
   await expect(drawer.getByRole('alert')).toContainText('HTTP or HTTPS');
-  for (const [host, label] of [['localhost:3000/guide', 'Local guide'], ['example.com:8080/guide', 'Port guide']]) {
+  for (const [host, label] of [['localhost:3000/guide', ''], ['example.com:8080/guide', 'Port guide']]) {
     await url.fill(host);
     await drawer.getByRole('textbox', { name: /Label/ }).fill(label);
     await drawer.getByRole('button', { name: 'Add resource', exact: true }).click();
-    await expect(drawer.getByRole('link', { name: `Open ${label} in a new tab`, exact: true })).toHaveAttribute('href', `https://${host}`);
-    if (label === 'Local guide') await drawer.getByRole('button', { name: 'Add resource link', exact: true }).click();
+    const domain = new URL(`https://${host}`).host;
+    const resource = drawer.getByRole('link', { name: `Open ${label || domain} in a new tab`, exact: true });
+    await expect(resource).toHaveAttribute('href', `https://${host}`);
+    await expect(resource.locator('small')).toHaveText(domain);
+    if (!label) await drawer.getByRole('button', { name: 'Add resource link', exact: true }).click();
   }
 });
 
