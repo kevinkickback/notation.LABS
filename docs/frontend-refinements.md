@@ -9,6 +9,8 @@ migrations, and the game library initialize. Stage descriptions and progress
 reflect those tasks. Startup errors keep the overlay visible with a retry action.
 The workspace stays inert until initialization completes, then the overlay fades.
 The overlay inherits the application theme and respects reduced motion.
+The splash and header share the existing application icon from `build/icon.png`.
+The splash displays a larger mark above the title, with a smaller size in short windows.
 Rejected settings and library reads stay in startup state rather than escaping to
 the global error page. Retry restarts initialization and the reactive reads; cached
 results from an earlier retry cannot mark the new attempt ready. Detailed errors
