@@ -100,6 +100,14 @@ character's parent game. Up-to-date libraries do not reparse unrelated combos. A
 version cannot replace the local maintenance marker. Older libraries receive one complete parser
 update in the same import transaction. Existing database migration history is preserved.
 
+Persisted editors share a synchronous submission guard. One write stays pending per mounted editor
+until it settles, even if the editor closes or changes entity. Successful completion may only close
+or reset the original session; failures are still reported after closing. Native form fields are
+disabled while saving, while closing remains available. Editors stay mounted across empty and
+populated collection states so a live read cannot interrupt a pending save. Combo editing keeps one typed draft and
+retains tags as an array rather than serializing them through comma-separated text. Media requests
+continue to use their separate cancellable lifecycle.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch

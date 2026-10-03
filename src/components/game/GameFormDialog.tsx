@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCoverEditor } from '@/hooks/useCoverEditor';
 import { useMediaRequest } from '@/hooks/useMediaRequest';
+import { useSubmission } from '@/hooks/useSubmission';
 import { createGame, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
@@ -41,6 +42,7 @@ export function GameFormDialog({
   onOpenChange,
   editingGame,
 }: GameFormDialogProps) {
+  const { pending, submit } = useSubmission(open, editingGame?.id ?? 'new');
   const [name, setName] = useState('');
   const [buttonLayout, setButtonLayout] = useState('L, M, H, S');
   const [notes, setNotes] = useState('');
@@ -110,7 +112,7 @@ export function GameFormDialog({
           DEFAULT_BUTTON_PALETTE[i % DEFAULT_BUTTON_PALETTE.length];
       }
       setDialogButtonColors(initialColors);
-    } else if (!open) {
+    } else {
       setName('');
       setButtonLayout('L, M, H, S');
       setNotes('');
@@ -153,11 +155,14 @@ export function GameFormDialog({
     const cover = serializeCover();
     return {
       name: name.trim(),
-      buttonLayout: buttonLayout
-        .split(',')
-        .map((button) => button.trim())
-        .filter(Boolean),
-      buttonColors: { ...dialogButtonColors },
+      buttonLayout: parsedButtons,
+      buttonColors: Object.fromEntries(
+        parsedButtons.map((button, index) => [
+          button,
+          dialogButtonColors[button] ??
+            DEFAULT_BUTTON_PALETTE[index % DEFAULT_BUTTON_PALETTE.length],
+        ]),
+      ),
       notes: notes.trim(),
       notationProfile,
       logoImage: cover.image,
@@ -173,19 +178,28 @@ export function GameFormDialog({
       toast.error('Game name is required');
       return;
     }
-    try {
-      const payload = buildGamePayload();
-      if (editingGame) {
-        await updateGame(editingGame.id, payload);
-      } else {
-        await createGame(payload);
-      }
-      toast.success(editingGame ? 'Game updated' : 'Game added');
-      closeDialog();
-    } catch (error) {
-      reportError('GameFormDialog.handleSubmit', error);
-      toast.error(editingGame ? 'Failed to update game' : 'Failed to add game');
-    }
+    await submit(
+      async () => {
+        const payload = buildGamePayload();
+        if (editingGame) {
+          await updateGame(editingGame.id, payload);
+        } else {
+          await createGame(payload);
+        }
+      },
+      {
+        onSuccess: () => {
+          toast.success(editingGame ? 'Game updated' : 'Game added');
+          closeDialog();
+        },
+        onError: (error) => {
+          reportError('GameFormDialog.handleSubmit', error);
+          toast.error(
+            editingGame ? 'Failed to update game' : 'Failed to add game',
+          );
+        },
+      },
+    );
   };
 
   const handleImageSelect = () => imageInputRef.current?.click();
@@ -221,11 +235,13 @@ export function GameFormDialog({
         <DialogContent
           className="dialog-form entity-form-dialog game-form-dialog flex flex-col overflow-hidden"
           onOpenAutoFocus={(event) => {
+            if (pending) return;
             event.preventDefault();
             document.getElementById(nameInputId)?.focus();
           }}
         >
           <form
+            aria-busy={pending}
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
@@ -240,142 +256,147 @@ export function GameFormDialog({
                 Configure the game profile, notation, and optional notes.
               </DialogDescription>
             </DialogHeader>
-            <DialogBody className="entity-editor">
-              <div className="entity-identity">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={nameInputId}>Game Name</Label>
-                  <RequiredBadge />
-                </div>
-                <Input
-                  id={nameInputId}
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Street Fighter 6"
-                />
-              </div>
-              <EntityArtworkEditor
-                label="Cover Artwork"
-                image={logoImage}
-                orientation="portrait"
-                fit={coverFit}
-                zoom={coverZoom}
-                focalX={coverPanX}
-                focalY={coverPanY}
-                onUpload={handleImageSelect}
-                onSearch={() => {
-                  cancelImage();
-                  setCoverSearchOpen(true);
-                }}
-                onRemove={() => {
-                  cancelImage();
-                  setLogoImage('');
-                }}
-                onFitChange={setCoverFit}
-                onZoomChange={setCoverZoom}
-                onFocalXChange={setCoverPanX}
-                onFocalYChange={setCoverPanY}
-                onReset={resetCoverTransform}
-              />
-
-              <FormSection className="entity-notation">
-                <fieldset>
-                  <legend className="text-sm leading-none font-medium">
-                    Notation Style
-                  </legend>
-                  <div className="entity-notation-options mt-1.5 grid gap-2">
-                    {NOTATION_PROFILES.map((profile) => (
-                      <button
-                        key={profile.id}
-                        type="button"
-                        aria-label={profile.label}
-                        aria-pressed={notationProfile === profile.id}
-                        onClick={() => handleProfileChange(profile.id)}
-                        className={`rounded-md border px-3 py-2 text-center transition-colors ${
-                          notationProfile === profile.id
-                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                            : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                        }`}
-                      >
-                        <span className="block text-sm font-medium">
-                          {profile.label}
-                        </span>
-                      </button>
-                    ))}
+            <fieldset disabled={pending} inert={pending} className="contents">
+              <DialogBody className="entity-editor">
+                <div className="entity-identity">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={nameInputId}>Game Name</Label>
+                    <RequiredBadge />
                   </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    {getNotationProfileDefinition(notationProfile).description}
-                  </p>
-                </fieldset>
-
-                <div>
-                  <Label htmlFor={buttonsInputId}>
-                    Button Layout (comma-separated)
-                  </Label>
                   <Input
-                    id={buttonsInputId}
-                    value={buttonLayout}
-                    onChange={(e) => setButtonLayout(e.target.value)}
-                    placeholder={getNotationProfileDefinition(
-                      notationProfile,
-                    ).defaultButtons.join(', ')}
+                    id={nameInputId}
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Street Fighter 6"
                   />
                 </div>
+                <EntityArtworkEditor
+                  label="Cover Artwork"
+                  image={logoImage}
+                  orientation="portrait"
+                  fit={coverFit}
+                  zoom={coverZoom}
+                  focalX={coverPanX}
+                  focalY={coverPanY}
+                  onUpload={handleImageSelect}
+                  onSearch={() => {
+                    cancelImage();
+                    setCoverSearchOpen(true);
+                  }}
+                  onRemove={() => {
+                    cancelImage();
+                    setLogoImage('');
+                  }}
+                  onFitChange={setCoverFit}
+                  onZoomChange={setCoverZoom}
+                  onFocalXChange={setCoverPanX}
+                  onFocalYChange={setCoverPanY}
+                  onReset={resetCoverTransform}
+                />
 
-                {parsedButtons.length > 0 && (
-                  <div className="border-t border-border pt-3">
-                    <Label className="mb-2 block text-sm font-medium">
-                      Button Colors
-                    </Label>
-                    <div className="entity-button-colors grid grid-cols-2 gap-x-4 gap-y-2">
-                      {parsedButtons.map((btn, i) => (
-                        <ColorPickerRow
-                          key={btn}
-                          label={btn}
-                          value={
-                            dialogButtonColors[btn] ||
-                            DEFAULT_BUTTON_PALETTE[
-                              i % DEFAULT_BUTTON_PALETTE.length
-                            ]
-                          }
-                          onChange={(hex) =>
-                            setDialogButtonColors((prev) => ({
-                              ...prev,
-                              [btn]: hex,
-                            }))
-                          }
-                        />
+                <FormSection className="entity-notation">
+                  <fieldset>
+                    <legend className="text-sm leading-none font-medium">
+                      Notation Style
+                    </legend>
+                    <div className="entity-notation-options mt-1.5 grid gap-2">
+                      {NOTATION_PROFILES.map((profile) => (
+                        <button
+                          key={profile.id}
+                          type="button"
+                          aria-label={profile.label}
+                          aria-pressed={notationProfile === profile.id}
+                          onClick={() => handleProfileChange(profile.id)}
+                          className={`rounded-md border px-3 py-2 text-center transition-colors ${
+                            notationProfile === profile.id
+                              ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                              : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                          }`}
+                        >
+                          <span className="block text-sm font-medium">
+                            {profile.label}
+                          </span>
+                        </button>
                       ))}
                     </div>
-                  </div>
-                )}
-              </FormSection>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {
+                        getNotationProfileDefinition(notationProfile)
+                          .description
+                      }
+                    </p>
+                  </fieldset>
 
-              <FormSection className="entity-notes">
-                <div>
-                  <Label htmlFor={notesInputId}>Game notes (optional)</Label>
-                  <Textarea
-                    id={notesInputId}
-                    aria-describedby={notesHelpId}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Optional notes about the game..."
-                  />
-                  <p
-                    id={notesHelpId}
-                    className="mt-1.5 text-xs text-muted-foreground"
-                  >
-                    Markdown is supported.
-                  </p>
-                </div>
-              </FormSection>
-            </DialogBody>
+                  <div>
+                    <Label htmlFor={buttonsInputId}>
+                      Button Layout (comma-separated)
+                    </Label>
+                    <Input
+                      id={buttonsInputId}
+                      value={buttonLayout}
+                      onChange={(e) => setButtonLayout(e.target.value)}
+                      placeholder={getNotationProfileDefinition(
+                        notationProfile,
+                      ).defaultButtons.join(', ')}
+                    />
+                  </div>
+
+                  {parsedButtons.length > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <Label className="mb-2 block text-sm font-medium">
+                        Button Colors
+                      </Label>
+                      <div className="entity-button-colors grid grid-cols-2 gap-x-4 gap-y-2">
+                        {parsedButtons.map((btn, i) => (
+                          <ColorPickerRow
+                            key={btn}
+                            label={btn}
+                            value={
+                              dialogButtonColors[btn] ||
+                              DEFAULT_BUTTON_PALETTE[
+                                i % DEFAULT_BUTTON_PALETTE.length
+                              ]
+                            }
+                            onChange={(hex) =>
+                              setDialogButtonColors((prev) => ({
+                                ...prev,
+                                [btn]: hex,
+                              }))
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </FormSection>
+
+                <FormSection className="entity-notes">
+                  <div>
+                    <Label htmlFor={notesInputId}>Game notes (optional)</Label>
+                    <Textarea
+                      id={notesInputId}
+                      aria-describedby={notesHelpId}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                      placeholder="Optional notes about the game..."
+                    />
+                    <p
+                      id={notesHelpId}
+                      className="mt-1.5 text-xs text-muted-foreground"
+                    >
+                      Markdown is supported.
+                    </p>
+                  </div>
+                </FormSection>
+              </DialogBody>
+            </fieldset>
             <DialogFooter className="shrink-0 border-t border-border pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={pending}>
                 {editingGame ? 'Save Changes' : 'Add Game'}
               </Button>
             </DialogFooter>

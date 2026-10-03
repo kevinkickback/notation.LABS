@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GameLibrary } from '@/components/game/GameLibrary';
 import type { Game } from '@/lib/types';
@@ -116,6 +116,23 @@ describe('GameLibrary', () => {
     expect(screen.getByText('Street Fighter 6')).not.toBeNull();
     expect(screen.getByText('Guilty Gear Strive')).not.toBeNull();
     expect(screen.getByText('Tekken 8')).not.toBeNull();
+  });
+
+  it('finishes the first save when the library read updates before the write resolves', async () => {
+    let finish!: (id: string) => void;
+    const saved = new Promise<string>(resolve => { finish = resolve; });
+    vi.mocked(indexedDbStorage.games.add).mockReturnValueOnce(saved);
+    const user = userEvent.setup();
+    const { rerender } = render(<GameLibrary games={[]} />);
+    await user.click(screen.getByRole('button', { name: /add your first game/i }));
+    const name = screen.getByLabelText('Game Name');
+    fireEvent.change(name, { target: { value: mockGames[0].name } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Add Game' }).closest('form')!);
+    rerender(<GameLibrary games={[mockGames[0]]} />);
+    expect(screen.getByLabelText('Game Name')).toBe(name);
+    expect(name.matches(':disabled')).toBe(true);
+    await act(async () => { finish(mockGames[0].id); await saved; });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('pins favorite games ahead of the selected alphabetical sort', () => {

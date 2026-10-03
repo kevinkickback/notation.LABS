@@ -176,104 +176,99 @@ export function GameLibrary({ games }: GameLibraryProps) {
     return { characterCount, comboCount };
   }, [selectedIds, stats.charCountByGame, stats.comboCountByGame]);
 
-  if (games.length === 0) {
-    return (
-      <>
-        <GameLibraryEmptyState onAddGame={() => operations.openAddDialog()} />
-        <GameFormDialog
-          open={operations.gameDialogOpen}
-          onOpenChange={operations.setGameDialogOpen}
-          editingGame={operations.editingGame}
-        />
-      </>
-    );
-  }
-
   return (
     <div>
-      {/* Header + Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
-        <GameLibraryHeader gameCount={games.length} />
-        {isSelecting ? (
-          <SelectionToolbar
-            selectedCount={selectedIds.size}
-            onSelectAll={() =>
-              setSelectedIds(new Set(filteredAndSorted.map((g) => g.id)))
+      {games.length === 0 ? (
+        <GameLibraryEmptyState onAddGame={operations.openAddDialog} />
+      ) : (
+        <>
+          {/* Header + Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
+            <GameLibraryHeader gameCount={games.length} />
+            {isSelecting ? (
+              <SelectionToolbar
+                selectedCount={selectedIds.size}
+                onSelectAll={() =>
+                  setSelectedIds(new Set(filteredAndSorted.map((g) => g.id)))
+                }
+                onDeselectAll={() => setSelectedIds(new Set())}
+                onDelete={() => {
+                  void handleBulkDelete();
+                }}
+                onCancel={() => {
+                  setIsSelecting(false);
+                  setSelectedIds(new Set());
+                }}
+              />
+            ) : (
+              <GameLibraryToolbar
+                filterSearch={filters.filterSearch}
+                onFilterSearchChange={filters.setFilterSearch}
+                sortBy={filters.sortBy}
+                onSortByChange={filters.setSortBy}
+                viewMode={viewMode.viewMode}
+                onViewModeChange={viewMode.setViewMode}
+                cardSize={viewMode.cardSize}
+                onCardSizeChange={viewMode.handleCardSizeChange}
+                onToggleSelect={() => setIsSelecting(true)}
+                onAddGame={() => operations.openAddDialog()}
+              />
+            )}
+          </div>
+
+          {/* Games Grid/List */}
+          <div
+            className={
+              viewMode.viewMode === 'list'
+                ? 'flex flex-col gap-3'
+                : 'grid items-start gap-4'
             }
-            onDeselectAll={() => setSelectedIds(new Set())}
-            onDelete={() => {
-              void handleBulkDelete();
-            }}
-            onCancel={() => {
-              setIsSelecting(false);
-              setSelectedIds(new Set());
-            }}
-          />
-        ) : (
-          <GameLibraryToolbar
-            filterSearch={filters.filterSearch}
-            onFilterSearchChange={filters.setFilterSearch}
-            sortBy={filters.sortBy}
-            onSortByChange={filters.setSortBy}
-            viewMode={viewMode.viewMode}
-            onViewModeChange={viewMode.setViewMode}
-            cardSize={viewMode.cardSize}
-            onCardSizeChange={viewMode.handleCardSizeChange}
-            onToggleSelect={() => setIsSelecting(true)}
-            onAddGame={() => operations.openAddDialog()}
-          />
-        )}
-      </div>
+            style={
+              viewMode.viewMode === 'grid'
+                ? {
+                    gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
+                  }
+                : undefined
+            }
+          >
+            {filteredAndSorted.map((game) =>
+              viewMode.viewMode === 'grid' ? (
+                <GameGridCard
+                  key={game.id}
+                  game={game}
+                  charCount={stats.charCountByGame[game.id] || 0}
+                  isMobile={isMobile}
+                  isSelecting={isSelecting}
+                  isSelected={selectedIds.has(game.id)}
+                  onSelect={() => handleGameSelect(game.id)}
+                  onEdit={() => operations.openEditDialog(game)}
+                  onDelete={() => handleDelete(game)}
+                  onToggleFavorite={() => void handleToggleFavorite(game)}
+                />
+              ) : (
+                <GameListCard
+                  key={game.id}
+                  game={game}
+                  charCount={stats.charCountByGame[game.id] || 0}
+                  comboCount={stats.comboCountByGame[game.id] || 0}
+                  lastModified={
+                    stats.lastModifiedByGame[game.id] || game.updatedAt
+                  }
+                  isMobile={isMobile}
+                  isSelecting={isSelecting}
+                  isSelected={selectedIds.has(game.id)}
+                  onSelect={() => handleGameSelect(game.id)}
+                  onEdit={() => operations.openEditDialog(game)}
+                  onDelete={() => handleDelete(game)}
+                  onToggleFavorite={() => void handleToggleFavorite(game)}
+                />
+              ),
+            )}
+          </div>
+        </>
+      )}
 
-      {/* Games Grid/List */}
-      <div
-        className={
-          viewMode.viewMode === 'list'
-            ? 'flex flex-col gap-3'
-            : 'grid items-start gap-4'
-        }
-        style={
-          viewMode.viewMode === 'grid'
-            ? {
-                gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
-              }
-            : undefined
-        }
-      >
-        {filteredAndSorted.map((game) =>
-          viewMode.viewMode === 'grid' ? (
-            <GameGridCard
-              key={game.id}
-              game={game}
-              charCount={stats.charCountByGame[game.id] || 0}
-              isMobile={isMobile}
-              isSelecting={isSelecting}
-              isSelected={selectedIds.has(game.id)}
-              onSelect={() => handleGameSelect(game.id)}
-              onEdit={() => operations.openEditDialog(game)}
-              onDelete={() => handleDelete(game)}
-              onToggleFavorite={() => void handleToggleFavorite(game)}
-            />
-          ) : (
-            <GameListCard
-              key={game.id}
-              game={game}
-              charCount={stats.charCountByGame[game.id] || 0}
-              comboCount={stats.comboCountByGame[game.id] || 0}
-              lastModified={stats.lastModifiedByGame[game.id] || game.updatedAt}
-              isMobile={isMobile}
-              isSelecting={isSelecting}
-              isSelected={selectedIds.has(game.id)}
-              onSelect={() => handleGameSelect(game.id)}
-              onEdit={() => operations.openEditDialog(game)}
-              onDelete={() => handleDelete(game)}
-              onToggleFavorite={() => void handleToggleFavorite(game)}
-            />
-          ),
-        )}
-      </div>
-
-      {/* Dialogs */}
+      {/* Keep the editor mounted when the first saved record appears. */}
       <GameFormDialog
         open={operations.gameDialogOpen}
         onOpenChange={operations.setGameDialogOpen}

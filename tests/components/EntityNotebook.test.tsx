@@ -57,6 +57,29 @@ async function chooseLayout(name: string) {
 }
 
 describe('EntityNotebook', () => {
+  it.each(['note', 'resource'] as const)('blocks repeated %s submissions before the saving state renders', async kind => {
+    const user = userEvent.setup();
+    let finish!: () => void;
+    const saved = new Promise<void>(resolve => { finish = resolve; });
+    vi.mocked(updateCharacter).mockReturnValueOnce(saved);
+    render(<CharacterNotebook notes="Saved note" resources={[]} />);
+    if (kind === 'note') {
+      await user.click(screen.getByRole('button', { name: 'Edit note' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: 'New note' } });
+    } else {
+      await user.click(screen.getByRole('tab', { name: /^Resources/ }));
+      await user.click(screen.getByRole('button', { name: 'Add resource link' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), { target: { value: 'https://example.com' } });
+    }
+    const button = screen.getByRole('button', { name: kind === 'note' ? 'Save Note' : 'Add resource' }) as HTMLButtonElement;
+    const form = button.closest('form')!;
+    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
+    expect(updateCharacter).toHaveBeenCalledOnce();
+    expect(button.disabled).toBe(true);
+    await act(async () => { finish(); await saved; });
+    expect(screen.queryByRole('textbox', { name: kind === 'note' ? 'Note' : 'URL' })).toBeNull();
+  });
+
   it('retains a legacy HTTP resource and explains how to make it openable', async () => {
     const user = userEvent.setup();
     render(<CharacterNotebook resources={[{ id: 'old', url: 'http://example.com/guide', label: 'Old guide' }]} />);

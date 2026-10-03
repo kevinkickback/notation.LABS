@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useSubmission } from '@/hooks/useSubmission';
 import { updateCharacter } from '@/lib/application/characterCommands';
 import { updateGame } from '@/lib/application/gameCommands';
 import { reportError } from '@/lib/errors';
@@ -33,11 +34,17 @@ export function useNotebookEditor(
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState(notes);
   const [editorTab, setEditorTab] = useState('write');
-  const [savingNote, setSavingNote] = useState(false);
+  const { pending: savingNote, submit: submitNote } = useSubmission(
+    isOpen && editingNote,
+    `${props.kind}:${entityId}`,
+  );
   const [resourceDraft, setResourceDraft] = useState<ResourceDraft | null>(
     null,
   );
-  const [savingResource, setSavingResource] = useState(false);
+  const { pending: savingResource, submit: submitResource } = useSubmission(
+    isOpen && props.kind === 'character',
+    entityId,
+  );
   const [urlError, setUrlError] = useState<string | null>(null);
   const noteActionRef = useRef<HTMLButtonElement>(null);
   const resourceActionRef = useRef<HTMLButtonElement>(null);
@@ -162,27 +169,30 @@ export function useNotebookEditor(
   };
 
   const saveNote = async () => {
-    if (savingNote) return;
     const restoreFocus = Boolean(
       noteEditorRef.current?.contains(document.activeElement),
     );
-    setSavingNote(true);
-    try {
-      const updates = { notes: noteDraft.trim() };
-      if (props.kind === 'game') await updateGame(entityId, updates);
-      else await updateCharacter(entityId, updates);
-      finishNoteEditing(restoreFocus);
-      toast.success('Note updated');
-    } catch (error) {
-      reportError('EntityNotebook.saveNote', error);
-      toast.error('Failed to update note');
-    } finally {
-      setSavingNote(false);
-    }
+    await submitNote(
+      async () => {
+        const updates = { notes: noteDraft.trim() };
+        if (props.kind === 'game') await updateGame(entityId, updates);
+        else await updateCharacter(entityId, updates);
+      },
+      {
+        onSuccess: () => {
+          finishNoteEditing(restoreFocus);
+          toast.success('Note updated');
+        },
+        onError: (error) => {
+          reportError('EntityNotebook.saveNote', error);
+          toast.error('Failed to update note');
+        },
+      },
+    );
   };
 
   const saveResource = async () => {
-    if (!resourceDraft || savingResource || props.kind !== 'character') return;
+    if (!resourceDraft || props.kind !== 'character') return;
     const raw = resourceDraft.url.trim();
     const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(raw)
       ? raw
@@ -200,40 +210,46 @@ export function useNotebookEditor(
     const restoreFocus = Boolean(
       resourceEditorRef.current?.contains(document.activeElement),
     );
-    setSavingResource(true);
-    try {
-      await updateCharacter(entityId, {
-        links: resourceDraft.id
-          ? links.map((item) => (item.id === link.id ? link : item))
-          : [...links, link],
-      });
-      finishResourceEditing(restoreFocus);
-    } catch (error) {
-      reportError('EntityNotebook.saveResource', error);
-      toast.error('Failed to save resource');
-    } finally {
-      setSavingResource(false);
-    }
+    await submitResource(
+      async () => {
+        await updateCharacter(entityId, {
+          links: resourceDraft.id
+            ? links.map((item) => (item.id === link.id ? link : item))
+            : [...links, link],
+        });
+      },
+      {
+        onSuccess: () => finishResourceEditing(restoreFocus),
+        onError: (error) => {
+          reportError('EntityNotebook.saveResource', error);
+          toast.error('Failed to save resource');
+        },
+      },
+    );
   };
 
   const removeResource = async (id: string) => {
-    if (savingResource || props.kind !== 'character') return;
-    setSavingResource(true);
+    if (props.kind !== 'character') return;
     const opener =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    try {
-      await updateCharacter(entityId, {
-        links: links.filter((link) => link.id !== id),
-      });
-      if (opener) setRemovedResource({ id, opener });
-    } catch (error) {
-      reportError('EntityNotebook.removeResource', error);
-      toast.error('Failed to remove resource');
-    } finally {
-      setSavingResource(false);
-    }
+    await submitResource(
+      async () => {
+        await updateCharacter(entityId, {
+          links: links.filter((link) => link.id !== id),
+        });
+      },
+      {
+        onSuccess: () => {
+          if (opener) setRemovedResource({ id, opener });
+        },
+        onError: (error) => {
+          reportError('EntityNotebook.removeResource', error);
+          toast.error('Failed to remove resource');
+        },
+      },
+    );
   };
 
   return {
