@@ -71,9 +71,9 @@
   --color-popover-foreground: var(--popover-foreground);
   /* Accent color customization */
   --color-primary: var(--accent-color, #3b82f6);
-  --color-primary-foreground: #fff;
+  --color-primary-foreground: var(--accent-foreground, #000);
   --color-accent: var(--accent-color, #3b82f6);
-  --color-accent-foreground: #fff;
+  --color-accent-foreground: var(--accent-foreground, #000);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);

@@ -5,7 +5,7 @@ import {
   SpinnerGapIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,12 +20,17 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
+import { getAccentAppearance } from '@/lib/accentAppearance';
 import { FONT_OPTIONS } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
 import type { FontFamily } from '@/lib/types';
 
 export function GeneralSettings() {
   const settings = useSettings();
+  const accent = useMemo(
+    () => getAccentAppearance(settings.accentColor),
+    [settings.accentColor],
+  );
   const { setSetting } = useSettingsActions();
   const {
     status: updaterStatus,
@@ -167,7 +172,7 @@ export function GeneralSettings() {
             <div className="flex items-center gap-3">
               <input
                 type="color"
-                value={settings.accentColor || '#3b82f6'}
+                value={accent.background}
                 onChange={(e) => {
                   void setSetting('accentColor', e.target.value);
                 }}
