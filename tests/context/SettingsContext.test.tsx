@@ -37,12 +37,15 @@ vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
     settings: {
-      init: (...args: unknown[]) => initMock(...args),
       get: (...args: unknown[]) => getMock(...args),
       update: (...args: unknown[]) => settingsUpdateMock(...args),
       setNotebookOpen: (...args: unknown[]) => notebookOpenMock(...args),
     },
   },
+}));
+
+vi.mock('@/lib/application/initializeApplication', () => ({
+  initializeApplication: (...args: unknown[]) => initMock(...args),
 }));
 
 vi.mock('sonner', () => ({
@@ -140,7 +143,7 @@ describe('SettingsContext', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
-  it('passes reparse lifecycle callbacks to settings init', async () => {
+  it('passes reparse lifecycle callbacks to application initialization', async () => {
     await renderSettings(
       <SettingsProvider>
         <div>child</div>

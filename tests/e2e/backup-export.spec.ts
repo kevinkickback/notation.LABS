@@ -2,6 +2,39 @@ import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createBackupZip, forgeZipSize } from '../helpers/zip';
 
+test('updates retained combo icons immediately when an import changes its game profile', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const storagePath = '/src/lib/storage/indexedDbStorage.ts';
+    const parserPath = '/src/lib/parser.ts';
+    const { db } = await import(/* @vite-ignore */ storagePath) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const { parseComboNotation } = await import(/* @vite-ignore */ parserPath) as typeof import('../../src/lib/parser');
+    await db.transaction('rw', [db.games, db.characters, db.combos], async () => {
+      await db.games.put({ id: 'retained-game', name: 'Retained game', buttonLayout: ['LP'], notationProfile: 'standard', createdAt: 1, updatedAt: 1 });
+      await db.characters.put({ id: 'retained-character', gameId: 'retained-game', name: 'Retained fighter', createdAt: 1, updatedAt: 1 });
+      await db.combos.put({ id: 'retained-combo', characterId: 'retained-character', name: 'Retained combo', notation: '1 B F MB', parsedNotation: parseComboNotation('1 B F MB', ['LP']), tags: [], sortOrder: 0, createdAt: 1, updatedAt: 1 });
+    });
+  });
+  await page.getByRole('heading', { name: 'Retained game', exact: true }).click();
+  await page.getByRole('heading', { name: 'Retained fighter', exact: true }).click();
+  await page.getByTitle('Icons', { exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Button 1, Attack 1', exact: true })).toHaveCount(0);
+  const backup = { version: 1, exported: '2026-10-03', games: [{ id: 'retained-game', name: 'Retained game', buttonLayout: ['1', '2', '3', '4'], notationProfile: 'nrs', createdAt: 1, updatedAt: 1 }], characters: [], combos: [] };
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  const choosing = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose backup file', exact: true }).click();
+  await (await choosing).setFiles({ name: 'profile.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+  await expect(page.getByText('Data imported. Current settings were preserved.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Retained combo', exact: true })).toBeVisible();
+  for (const label of ['Button 1, Attack 1', 'Back', 'Forward', 'MB, Meter Burn'])
+    await expect(page.getByRole('img', { name: label, exact: true }).first()).toBeVisible();
+  await page.reload();
+  await page.getByRole('heading', { name: 'Retained game', exact: true }).click();
+  await page.getByRole('heading', { name: 'Retained fighter', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Retained combo', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Button 1, Attack 1', exact: true }).first()).toBeVisible();
+});
+
 test('exports JSON through the browser download fallback and restores the library', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }));
   await page.goto('/');

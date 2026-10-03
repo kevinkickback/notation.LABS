@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { captureBackup } from '../../helpers/backup';
+import { initializeApplication } from '@/lib/application/initializeApplication';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
@@ -843,7 +844,7 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.notationColors.separator).toBe('#6c727e');
   });
 
-  it('reparses stored combos when parser version is behind', async () => {
+  it('reparses stored combos during startup when parser version is behind', async () => {
     const gameId = await indexedDbStorage.games.add({
       name: 'Parser Migration Game',
       buttonLayout: ['LP', 'MP'],
@@ -866,7 +867,7 @@ describe('indexedDbStorage.settings', () => {
       parsedNotationVersion: Math.max(0, COMBO_NOTATION_PARSER_VERSION - 1),
     });
 
-    await indexedDbStorage.settings.init();
+    await initializeApplication();
 
     const combo = await indexedDbStorage.combos.get(comboId);
     assertDefined(combo);

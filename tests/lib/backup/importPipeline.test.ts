@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeBackupImport } from '@/lib/backup/importPipeline';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
+import { parseComboNotation } from '@/lib/parser';
 import type { BackupImportData, Combo } from '@/lib/types';
 
 const baseImport: BackupImportData = {
@@ -56,6 +57,7 @@ describe('normalizeBackupImport', () => {
     expect(plan.combos[0].demoUrl).toBeUndefined();
     expect(plan.combos[0].demoFileName).toBeUndefined();
     expect(plan.settings).toBeUndefined();
+    expect(plan.combos[0].parsedNotation).toEqual(parseComboNotation('1', ['1', '2'], { profile: 'tekken' }));
   });
 
   it('retains available video references and selected settings', () => {
