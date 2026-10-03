@@ -4,10 +4,7 @@ import {
   type CurrentChangelog,
   UPDATE_EVENT_CHANNELS,
   UPDATE_INVOKE_CHANNELS,
-  type UpdateAvailablePayload,
-  type UpdateDownloadedPayload,
-  type UpdateErrorPayload,
-  type UpdateProgress,
+  type UpdateStatus,
 } from '../src/lib/updater/ipcContract';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -37,89 +34,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       UPDATE_INVOKE_CHANNELS.getCurrentChangelog,
     ) as Promise<CurrentChangelog>,
 
-  onUpdateChecking: (callback: () => void) => {
-    const listener = () => callback();
-    ipcRenderer.on(UPDATE_EVENT_CHANNELS.checking, listener);
-    return () => {
-      ipcRenderer.removeListener(UPDATE_EVENT_CHANNELS.checking, listener);
-    };
-  },
-  onUpdateAvailable: (callback: (data: UpdateAvailablePayload) => void) => {
-    const listener = (_event: unknown, data: UpdateAvailablePayload) =>
-      callback(data);
-    ipcRenderer.on(
-      UPDATE_EVENT_CHANNELS.available,
-      listener as (...args: unknown[]) => void,
-    );
-    return () => {
-      ipcRenderer.removeListener(
-        UPDATE_EVENT_CHANNELS.available,
-        listener as (...args: unknown[]) => void,
-      );
-    };
-  },
-  onUpdateNotAvailable: (callback: () => void) => {
-    const listener = () => callback();
-    ipcRenderer.on(UPDATE_EVENT_CHANNELS.notAvailable, listener);
-    return () => {
-      ipcRenderer.removeListener(UPDATE_EVENT_CHANNELS.notAvailable, listener);
-    };
-  },
-  onUpdateError: (callback: (data: UpdateErrorPayload) => void) => {
-    const listener = (_event: unknown, data: UpdateErrorPayload) =>
-      callback(data);
-    ipcRenderer.on(
-      UPDATE_EVENT_CHANNELS.error,
-      listener as (...args: unknown[]) => void,
-    );
-    return () => {
-      ipcRenderer.removeListener(
-        UPDATE_EVENT_CHANNELS.error,
-        listener as (...args: unknown[]) => void,
-      );
-    };
-  },
-  onDownloadProgress: (callback: (data: UpdateProgress) => void) => {
-    const listener = (
-      _event: unknown,
-      data: {
-        percentage: number;
-        bytesPerSecond: number;
-        total: number;
-        transferred: number;
-      },
-    ) => callback(data);
-    ipcRenderer.on(
-      UPDATE_EVENT_CHANNELS.progress,
-      listener as (...args: unknown[]) => void,
-    );
-    return () => {
-      ipcRenderer.removeListener(
-        UPDATE_EVENT_CHANNELS.progress,
-        listener as (...args: unknown[]) => void,
-      );
-    };
-  },
-  onUpdateDownloaded: (callback: (data: UpdateDownloadedPayload) => void) => {
-    const listener = (_event: unknown, data: UpdateDownloadedPayload) =>
-      callback(data);
-    ipcRenderer.on(
-      UPDATE_EVENT_CHANNELS.downloaded,
-      listener as (...args: unknown[]) => void,
-    );
-    return () => {
-      ipcRenderer.removeListener(
-        UPDATE_EVENT_CHANNELS.downloaded,
-        listener as (...args: unknown[]) => void,
-      );
-    };
-  },
-  onUpdateCancelled: (callback: () => void) => {
-    const listener = () => callback();
-    ipcRenderer.on(UPDATE_EVENT_CHANNELS.cancelled, listener);
-    return () => {
-      ipcRenderer.removeListener(UPDATE_EVENT_CHANNELS.cancelled, listener);
-    };
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
+    const listener = (_event: unknown, status: UpdateStatus) =>
+      callback(status);
+    ipcRenderer.on(UPDATE_EVENT_CHANNELS.status, listener);
+    return () =>
+      ipcRenderer.removeListener(UPDATE_EVENT_CHANNELS.status, listener);
   },
   saveFile: (
     buffer: Uint8Array,

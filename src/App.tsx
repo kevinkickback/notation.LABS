@@ -33,7 +33,7 @@ function App() {
   useEffect(() => {
     if (availabilityEventId === 0 || updateStatus.status !== 'available')
       return;
-    toast.info(`Update v${updateStatus.version} available`, {
+    toast.info(`Update v${updateStatus.update?.version} available`, {
       action: {
         label: 'View',
         onClick: () => showAvailableUpdate(),
@@ -44,7 +44,7 @@ function App() {
     availabilityEventId,
     showAvailableUpdate,
     updateStatus.status,
-    updateStatus.version,
+    updateStatus.update?.version,
   ]);
 
   const { data: requestedPage, error: pageError } = useRecoverableLiveQuery(

@@ -3,312 +3,193 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import { UpdaterProvider, useUpdater } from '@/context/UpdaterContext';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
-import type { UpdateStatus } from '@/lib/updater/ipcContract';
+import { INITIAL_UPDATE_STATUS, type UpdateStatus } from '@/lib/updater/ipcContract';
+import { updateDetails, updateSnapshot } from '../helpers/updater';
 
-const { reportErrorMock } = vi.hoisted(() => ({
-  reportErrorMock: vi.fn(),
-}));
+const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
 const settings = { ...DEFAULT_SETTINGS };
-
-vi.mock('@/context/SettingsContext', () => ({
-  useSettings: () => settings,
-}));
-
-vi.mock('@/lib/errors', () => ({
-  reportError: reportErrorMock,
-}));
+vi.mock('@/context/SettingsContext', () => ({ useSettings: () => settings }));
+vi.mock('@/lib/errors', () => ({ reportError: reportErrorMock }));
 
 function StatusProbe() {
-  const { status, availabilityEventId, showAvailableUpdate } = useUpdater();
-  return (
-    <div>
-      <span>{status.status}</span>
-      <span>{status.version}</span>
-      <span>{availabilityEventId}</span>
-      <button type="button" onClick={() => showAvailableUpdate()}>
-        Show update
-      </button>
-    </div>
-  );
+  const { status, availabilityEventId, showAvailableUpdate, checkForUpdate } = useUpdater();
+  return <div>
+    <span data-testid="status">{status.status}</span>
+    <span>{status.update?.version}</span>
+    <span data-testid="availability">{availabilityEventId}</span>
+    <button onClick={() => showAvailableUpdate()}>Show update</button>
+    <button onClick={() => { void checkForUpdate(); }}>Check</button>
+  </div>;
 }
 
 describe('UpdaterProvider', () => {
-  const listeners = new Map<string, (data?: unknown) => void>();
-  const unsubscribers: Array<ReturnType<typeof vi.fn>> = [];
-  const setAutoCheck = vi.fn().mockResolvedValue(undefined);
-
+  let listener: ((status: UpdateStatus) => void) | null;
+  const unsubscribe = vi.fn();
+  const setAutoCheck = vi.fn();
+  const originalApi = window.electronAPI;
+  const available = updateDetails({ changelog: 'Saved release notes' });
   beforeEach(() => {
-    listeners.clear();
-    unsubscribers.length = 0;
-    setAutoCheck.mockClear();
-    reportErrorMock.mockClear();
+    vi.clearAllMocks();
+    listener = null;
     settings.autoUpdate = true;
-
-    const subscribe =
-      <T,>(name: string) =>
-      (callback: (data: T) => void) => {
-      listeners.set(name, (data) => callback(data as T));
-      const unsubscribe = vi.fn();
-      unsubscribers.push(unsubscribe);
-      return unsubscribe;
-    };
-
+    setAutoCheck.mockResolvedValue(undefined);
     window.electronAPI = {
-      platform: 'win32',
-      versions: { electron: '1', chrome: '1', node: '1' },
-      checkForUpdate: vi.fn(),
-      downloadUpdate: vi.fn(),
-      cancelUpdate: vi.fn(),
-      installUpdate: vi.fn(),
-      getUpdateStatus: vi.fn().mockResolvedValue({ status: 'idle' }),
-      setAutoCheck,
-      getAppVersion: vi.fn().mockResolvedValue('1.8.0'),
-      getCurrentChangelog: vi.fn(),
-      onUpdateChecking: subscribe('checking'),
-      onUpdateAvailable: subscribe('available'),
-      onUpdateNotAvailable: subscribe('not-available'),
-      onUpdateError: subscribe('error'),
-      onDownloadProgress: subscribe('progress'),
-      onUpdateDownloaded: subscribe('downloaded'),
-      onUpdateCancelled: subscribe('cancelled'),
-      saveFile: vi.fn(),
-    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
+      platform: 'win32', versions: { electron: '1', chrome: '1', node: '1' },
+      checkForUpdate: vi.fn(), downloadUpdate: vi.fn().mockResolvedValue({ success: true, data: null, error: null }),
+      cancelUpdate: vi.fn(), installUpdate: vi.fn(), getUpdateStatus: vi.fn().mockResolvedValue(INITIAL_UPDATE_STATUS),
+      setAutoCheck, getAppVersion: vi.fn().mockResolvedValue('1.8.0'), getCurrentChangelog: vi.fn(),
+      onUpdateStatus: callback => { listener = callback; return unsubscribe; },
+      saveFile: vi.fn(), beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     };
   });
+  afterEach(() => { vi.restoreAllMocks(); window.electronAPI = originalApi; });
 
-  afterEach(() => vi.restoreAllMocks());
+  function emit(status: UpdateStatus) { act(() => listener?.(status)); }
+  async function mountFooter() {
+    const view = render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    return view;
+  }
 
-  it('keeps known update details through an offline checking/error transition', async () => {
+  it('keeps the main-process update details through an offline check error', async () => {
     const network = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
-    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => {
-      listeners.get('available')?.({ version: '2.0.0', changelog: 'Saved release notes', isPortable: false });
-    });
-    act(() => {
-      network.mockReturnValue(false);
-      window.dispatchEvent(new Event('offline'));
-      listeners.get('checking')?.();
-    });
-    expect(screen.getByRole('button', { name: 'Update v2.0.0 available' })).toBeTruthy();
-    act(() => listeners.get('error')?.({ message: 'Network unreachable' }));
+    await mountFooter();
+    emit(updateSnapshot({ status: 'available', update: available }, 1, 1));
+    act(() => { network.mockReturnValue(false); window.dispatchEvent(new Event('offline')); });
+    emit(updateSnapshot({ status: 'checking', update: available }, 2, 1));
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Network unreachable' }, 3, 1));
     const details = screen.getByRole('button', { name: 'Update v2.0.0 available' });
     expect(details.title).toBe('Network unreachable');
     fireEvent.click(details);
-    expect(screen.getByText('Update Available — v2.0.0')).toBeTruthy();
     expect(screen.getByText('Saved release notes')).toBeTruthy();
   });
 
-  it('preserves downloaded metadata through batched events and clears it after a successful check', async () => {
+  it('clears confirmed metadata only when the main snapshot clears it', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
-    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => {
-      listeners.get('available')?.({ version: '2.0.0', changelog: 'Saved notes', isPortable: false });
-      listeners.get('downloaded')?.({ version: '2.0.0' });
-      listeners.get('checking')?.();
-      listeners.get('error')?.({ message: 'Check failed' });
-    });
+    await mountFooter();
+    emit(updateSnapshot({ status: 'error', update: updateDetails({ status: 'downloaded' }), error: 'Check failed' }, 2));
     expect(screen.getByText('Update ready to install').title).toBe('Check failed');
-    act(() => listeners.get('not-available')?.());
+    emit(updateSnapshot({ status: 'not-available', update: null }, 3));
     expect(screen.queryByText('Update ready to install')).toBeNull();
     expect(screen.getByText('Offline · updates unavailable')).toBeTruthy();
   });
 
-  it('does not let an older initial snapshot discard a newer update event', async () => {
+  it('ignores a delayed initial snapshot after a newer complete live snapshot', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     let resolveInitial: (status: UpdateStatus) => void = () => {};
-    vi.mocked(window.electronAPI!.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
-    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => {
-      listeners.get('available')?.({ version: '2.0.0', changelog: 'New notes', isPortable: false });
-      listeners.get('checking')?.();
-    });
-    await act(async () => resolveInitial({ status: 'not-available' }));
-    expect(screen.getByRole('button', { name: 'Update v2.0.0 available' })).toBeTruthy();
+    vi.mocked(window.electronAPI.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
+    await mountFooter();
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Newer error' }, 5, 1));
+    await act(async () => resolveInitial(updateSnapshot({ status: 'not-available', update: null }, 1)));
+    expect(screen.getByRole('button', { name: 'Update v2.0.0 available' }).title).toBe('Newer error');
   });
 
-  it.each(['available', 'downloaded'] as const)('seeds %s metadata from a delayed snapshot without replacing a newer error', async (status) => {
+  it('does not resurrect old metadata after a newer successful check', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     let resolveInitial: (status: UpdateStatus) => void = () => {};
-    vi.mocked(window.electronAPI!.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
-    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => {
-      listeners.get('checking')?.();
-      listeners.get('error')?.({ message: 'Newer network error' });
-    });
-    await act(async () => resolveInitial({ status, version: '2.0.0', changelog: 'Stored notes', isPortable: false }));
-    const message = status === 'available' ? 'Update v2.0.0 available' : 'Update ready to install';
-    expect(screen.getByText(message).title).toBe('Newer network error');
-    if (status === 'available') {
-      fireEvent.click(screen.getByRole('button', { name: message }));
-      expect(screen.getByText('Stored notes')).toBeTruthy();
-    }
-  });
-
-  it('does not resurrect old snapshot metadata after a newer not-available result', async () => {
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
-    let resolveInitial: (status: UpdateStatus) => void = () => {};
-    vi.mocked(window.electronAPI!.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
-    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => {
-      listeners.get('not-available')?.();
-      listeners.get('error')?.({ message: 'Later error' });
-    });
-    await act(async () => resolveInitial({ status: 'available', version: '2.0.0' }));
+    vi.mocked(window.electronAPI.getUpdateStatus).mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
+    await mountFooter();
+    emit(updateSnapshot({ status: 'not-available', update: null }, 3));
+    await act(async () => resolveInitial(updateSnapshot({ status: 'available', update: available }, 1)));
     expect(screen.queryByRole('button', { name: 'Update v2.0.0 available' })).toBeNull();
-    expect(screen.getByText('Offline · updates unavailable').title).toBe('Later error');
   });
 
-  it('starts a saved update with a clean progress state and the selected version', async () => {
+  it('does not let a delayed command reply overwrite newer live download state', async () => {
+    let resolveCheck: (result: { success: boolean; data: UpdateStatus; error: null }) => void = () => {};
+    vi.mocked(window.electronAPI.checkForUpdate).mockReturnValue(new Promise(resolve => { resolveCheck = resolve; }));
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Check' }));
+    emit(updateSnapshot({ status: 'downloaded', update: updateDetails({ status: 'downloaded' }) }, 4));
+    await act(async () => resolveCheck({ success: true, data: updateSnapshot({ status: 'available', update: available }, 2), error: null }));
+    expect(screen.getByTestId('status').textContent).toBe('downloaded');
+  });
+
+  it('updates an open release presentation when delayed notes arrive', async () => {
+    await mountFooter();
+    emit(updateSnapshot({ status: 'available', update: updateDetails({ changelog: null, changelogLoading: true }) }, 1, 1));
+    fireEvent.click(screen.getByRole('button', { name: 'Update v2.0.0 available' }));
+    expect(screen.queryByText('Saved release notes')).toBeNull();
+    emit(updateSnapshot({ status: 'available', update: available }, 2, 1));
+    expect(screen.getByText('Saved release notes')).toBeTruthy();
+  });
+
+  it('starts saved updates without replacing authoritative status with optimistic state', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     let resolveDownload: (result: { success: boolean; data: null; error: null }) => void = () => {};
-    vi.mocked(window.electronAPI!.downloadUpdate).mockReturnValue(new Promise(resolve => { resolveDownload = resolve; }));
-    render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => {
-      listeners.get('available')?.({ version: '2.0.0', changelog: 'Stored notes', isPortable: false });
-      listeners.get('checking')?.();
-      listeners.get('error')?.({ message: 'Old network error' });
-    });
+    vi.mocked(window.electronAPI.downloadUpdate).mockReturnValue(new Promise(resolve => { resolveDownload = resolve; }));
+    await mountFooter();
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Old network error' }, 1, 1));
     fireEvent.click(screen.getByRole('button', { name: 'Update v2.0.0 available' }));
     fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
     expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
     expect(screen.queryByText('Update Failed')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
-    act(() => listeners.get('progress')?.({ percentage: 20, bytesPerSecond: 10, transferred: 20, total: 100 }));
-    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+    emit(updateSnapshot({ status: 'downloading', update: available, progress: { percentage: 20, bytesPerSecond: 10, transferred: 20, total: 100 } }, 2, 1));
+    expect(screen.getByText('20%')).toBeTruthy();
     await act(async () => resolveDownload({ success: true, data: null, error: null }));
   });
 
-  it('clears a previous download error during retry and handles rejected requests', async () => {
+  it('clears earlier presentation errors during retry and handles rejected IPC', async () => {
     const failure = new Error('IPC disconnected');
     let rejectDownload: (error: Error) => void = () => {};
-    vi.mocked(window.electronAPI!.downloadUpdate)
+    vi.mocked(window.electronAPI.downloadUpdate)
       .mockResolvedValueOnce({ success: true, data: null, error: null })
       .mockReturnValueOnce(new Promise((_resolve, reject) => { rejectDownload = reject; }));
     render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
-    await waitFor(() => expect(listeners.size).toBe(7));
-    act(() => listeners.get('available')?.({ version: '2.0.0', changelog: 'Notes', isPortable: false }));
+    await waitFor(() => expect(listener).not.toBeNull());
+    emit(updateSnapshot({ status: 'available', update: available }, 1, 1));
     fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
     fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
-    await waitFor(() => expect(window.electronAPI!.downloadUpdate).toHaveBeenCalledOnce());
-    act(() => listeners.get('error')?.({ message: 'Download error' }));
+    await waitFor(() => expect(window.electronAPI.downloadUpdate).toHaveBeenCalledOnce());
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Download error' }, 2, 1));
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
-    expect(screen.queryByText('Update Failed')).toBeNull();
     await act(async () => rejectDownload(failure));
     expect(screen.getByText('Update Failed')).toBeTruthy();
     expect(reportErrorMock).toHaveBeenCalledWith('UpdaterProvider.downloadUpdate', failure);
+    expect(screen.getByTestId('status').textContent).toBe('error');
   });
 
-  it('owns subscriptions and maps update events into one state', async () => {
-    const { unmount } = render(
-      <UpdaterProvider>
-        <StatusProbe />
-      </UpdaterProvider>,
-    );
+  it('keeps a downloaded update after closing its progress presentation', async () => {
+    const view = await mountFooter();
+    emit(updateSnapshot({ status: 'available', update: available }, 1));
+    fireEvent.click(screen.getByRole('button', { name: 'Update v2.0.0 available' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
+    emit(updateSnapshot({ status: 'downloaded', update: updateDetails({ status: 'downloaded' }) }, 3));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('Update Ready')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Update ready to install' }));
+    expect(screen.getByText('Update Ready')).toBeTruthy();
+    view.unmount();
+  });
 
-    await waitFor(() => expect(listeners.size).toBe(7));
+  it('owns one subscription and forwards availability identity without replaying it', async () => {
+    const view = render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    emit(updateSnapshot({ status: 'available', update: available }, 1, 1));
+    emit(updateSnapshot({ status: 'available', update: available }, 2, 1));
+    expect(screen.getByTestId('availability').textContent).toBe('1');
     expect(setAutoCheck).toHaveBeenCalledWith(true);
-
-    act(() => {
-      listeners.get('available')?.({
-        version: '2.0.0',
-        changelog: 'Changes',
-        isPortable: false,
-      });
-    });
-
-    expect(screen.getByText('available')).toBeTruthy();
-    expect(screen.getByText('2.0.0')).toBeTruthy();
-    expect(screen.getByText('1')).toBeTruthy();
-
-    act(() => {
-      listeners.get('progress')?.({
-        percentage: 50,
-        bytesPerSecond: 100,
-        total: 200,
-        transferred: 100,
-      });
-    });
-    expect(screen.getByText('downloading')).toBeTruthy();
-
-    unmount();
-    for (const unsubscribe of unsubscribers) {
-      expect(unsubscribe).toHaveBeenCalledOnce();
-    }
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
   it('forwards disabled auto-check settings and reports IPC failures', async () => {
-    const error = new Error('IPC unavailable');
+    const failure = new Error('IPC unavailable');
     settings.autoUpdate = false;
-    setAutoCheck.mockRejectedValueOnce(error);
-
-    render(
-      <UpdaterProvider>
-        <StatusProbe />
-      </UpdaterProvider>,
-    );
-
-    await waitFor(() => expect(setAutoCheck).toHaveBeenCalledWith(false));
-    expect(reportErrorMock).toHaveBeenCalledWith(
-      'UpdaterProvider.setAutoCheck',
-      error,
-    );
+    setAutoCheck.mockRejectedValueOnce(failure);
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(reportErrorMock).toHaveBeenCalledWith('UpdaterProvider.setAutoCheck', failure));
+    expect(setAutoCheck).toHaveBeenCalledWith(false);
   });
 
-  it('owns update presentation and installer download orchestration', async () => {
-    const downloadUpdate = vi.mocked(window.electronAPI?.downloadUpdate);
-    downloadUpdate?.mockResolvedValue({ success: true, data: null, error: null });
-    render(
-      <UpdaterProvider>
-        <StatusProbe />
-      </UpdaterProvider>,
-    );
-    await waitFor(() => expect(listeners.has('available')).toBe(true));
-    act(() => {
-      listeners.get('available')?.({
-        version: '2.0.0',
-        changelog: 'Important fixes',
-        isPortable: false,
-      });
-    });
-
+  it('keeps portable downloads out of the installer workflow', async () => {
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    emit(updateSnapshot({ status: 'available', update: updateDetails({ isPortable: true }) }, 1));
     fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
-    expect(screen.getByText('Update Available — v2.0.0')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Install Now' }));
-
-    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledOnce());
-    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
-  });
-
-  it('keeps portable downloads out of the installer progress workflow', async () => {
-    const downloadUpdate = vi.mocked(window.electronAPI?.downloadUpdate);
-    downloadUpdate?.mockResolvedValue({ success: true, data: null, error: null });
-    render(
-      <UpdaterProvider>
-        <StatusProbe />
-      </UpdaterProvider>,
-    );
-    await waitFor(() => expect(listeners.has('available')).toBe(true));
-    act(() => {
-      listeners.get('available')?.({
-        version: '2.0.0',
-        changelog: 'Portable fixes',
-        isPortable: true,
-      });
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Open Download Page' }),
-    );
-
-    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Open Download Page' }));
+    await waitFor(() => expect(window.electronAPI.downloadUpdate).toHaveBeenCalledOnce());
     expect(screen.queryByText('Downloading v2.0.0...')).toBeNull();
   });
 });

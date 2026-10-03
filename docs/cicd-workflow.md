@@ -70,6 +70,13 @@ Linux CI and release jobs use the explicit `ubuntu-26.04` runner instead of `ubu
 future GitHub runner migration cannot change the build environment without a reviewed repository
 change.
 
+The desktop main process owns update status and release metadata. Its `update-status` event and
+`update:status` / `update:check` replies carry complete snapshots with a monotonically increasing
+revision. The renderer subscribes before reading its initial snapshot and ignores older replies.
+Release-note requests only enrich their matching update; closing an update dialog changes the
+presentation, not the download state. Portable check failures are reported as errors, and installer
+checks cannot replace an active download or a ready installer.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch
