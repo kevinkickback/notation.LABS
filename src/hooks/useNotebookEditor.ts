@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { updateCharacter } from '@/lib/application/characterCommands';
 import { updateGame } from '@/lib/application/gameCommands';
 import { reportError } from '@/lib/errors';
-import { externalHttpUrlSchema } from '@/lib/schemas';
+import { externalHttpsUrlSchema } from '@/lib/schemas';
 import type { CharacterLink } from '@/lib/types';
 import { hasModalOverlay } from '@/lib/uiFocus';
 
@@ -187,9 +187,9 @@ export function useNotebookEditor(
     const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(raw)
       ? raw
       : `https://${raw}`;
-    const result = externalHttpUrlSchema.safeParse(candidate);
+    const result = externalHttpsUrlSchema.safeParse(candidate);
     if (!result.success) {
-      setUrlError('Enter a valid HTTP or HTTPS URL without credentials.');
+      setUrlError('Enter a valid HTTPS URL without credentials.');
       return;
     }
     const link: CharacterLink = {

@@ -725,7 +725,7 @@ test('accepts resource hosts with ports while rejecting explicit non-HTTP scheme
   const url = drawer.getByRole('textbox', { name: 'URL', exact: true });
   await url.fill('ftp://example.com/guide');
   await drawer.getByRole('button', { name: 'Add resource', exact: true }).click();
-  await expect(drawer.getByRole('alert')).toContainText('HTTP or HTTPS');
+  await expect(drawer.getByRole('alert')).toContainText('HTTPS');
   for (const [host, label] of [['localhost:3000/guide', ''], ['example.com:8080/guide', 'Port guide']]) {
     await url.fill(host);
     await drawer.getByRole('textbox', { name: /Label/ }).fill(label);

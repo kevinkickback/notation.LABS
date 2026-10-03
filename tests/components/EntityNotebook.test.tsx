@@ -10,6 +10,7 @@ import { updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import type { CharacterLink, UserSettings } from '@/lib/types';
+import { toast } from 'sonner';
 
 const preferences = vi.hoisted(() => ({ saved: {} as UserSettings, update: vi.fn(), openUpdate: vi.fn() }));
 vi.mock('@/hooks/useRecoverableLiveQuery', () => ({
@@ -55,6 +56,19 @@ async function chooseLayout(name: string) {
 }
 
 describe('EntityNotebook', () => {
+  it('retains a legacy HTTP resource and explains how to make it openable', async () => {
+    const user = userEvent.setup();
+    render(<CharacterNotebook resources={[{ id: 'old', url: 'http://example.com/guide', label: 'Old guide' }]} />);
+    await user.click(screen.getByRole('tab', { name: /^Resources/ }));
+    const link = screen.getByLabelText('Open Old guide in a new tab');
+    expect(link.hasAttribute('href')).toBe(false);
+    expect(link.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText('example.com · Edit to use HTTPS')).not.toBeNull();
+    await user.click(link);
+    expect(toast.error).toHaveBeenCalledWith('This saved resource uses HTTP. Edit it to use HTTPS before opening.');
+    await user.click(screen.getByRole('button', { name: 'Edit Old guide' }));
+    expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe('http://example.com/guide');
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     preferences.saved = { ...DEFAULT_SETTINGS };
@@ -511,14 +525,14 @@ describe('EntityNotebook', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add resource link' }));
   });
 
-  it.each(['javascript:alert(1)', 'ftp://example.com', 'https://user:pass@example.com', 'not a url'])('rejects the unsafe or malformed URL %s without losing the draft', async url => {
+  it.each(['javascript:alert(1)', 'ftp://example.com', 'https://user:pass@example.com', 'not a url', 'http://example.com/guide'])('rejects the unsafe or malformed URL %s without losing the draft', async url => {
     const user = userEvent.setup();
     render(<CharacterNotebook resources={[]} />);
     await user.click(screen.getByRole('tab', { name: /^Resources/ }));
     await user.click(screen.getByRole('button', { name: 'Add resource link' }));
     await user.type(screen.getByRole('textbox', { name: 'URL' }), url);
     await user.click(screen.getByRole('button', { name: 'Add resource' }));
-    expect(screen.getByRole('alert').textContent).toContain('HTTP or HTTPS');
+    expect(screen.getByRole('alert').textContent).toContain('HTTPS');
     expect(updateCharacter).not.toHaveBeenCalled();
     expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe(url);
   });

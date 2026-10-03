@@ -18,13 +18,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
 import { useCoverEditor } from '@/hooks/useCoverEditor';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
 import {
   createCharacter,
   updateCharacter,
 } from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
+import { readImageFile } from '@/lib/media/images';
 import type { Character, Game } from '@/lib/types';
-import { isAllowedImageUpload } from '@/lib/utils';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
 
 interface CharacterFormDialogProps {
@@ -63,6 +64,10 @@ export function CharacterFormDialog({
   } = useCoverEditor();
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const { run: loadImage, cancel: cancelImage } = useMediaRequest(
+    open,
+    `${game.id}:${editingCharacter?.id ?? 'new'}`,
+  );
   const charNameId = useId();
   const charNotesId = useId();
   const charNotesHelpId = useId();
@@ -125,23 +130,17 @@ export function CharacterFormDialog({
 
   const handleImageSelect = () => imageInputRef.current?.click();
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be under 2MB');
-      e.target.value = '';
-      return;
-    }
-    if (!(await isAllowedImageUpload(file))) {
-      toast.error('Unsupported or invalid image file');
-      e.target.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => applyPortraitImage(reader.result as string);
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+    void loadImage(file.name, (signal) => readImageFile(file, signal), {
+      onSuccess: applyPortraitImage,
+      onError: (error) =>
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to read image file',
+        ),
+    });
   };
 
   return (
@@ -206,8 +205,14 @@ export function CharacterFormDialog({
                 focalX={portraitPanX}
                 focalY={portraitPanY}
                 onUpload={handleImageSelect}
-                onSearch={() => setImageSearchOpen(true)}
-                onRemove={() => setPortraitImage('')}
+                onSearch={() => {
+                  cancelImage();
+                  setImageSearchOpen(true);
+                }}
+                onRemove={() => {
+                  cancelImage();
+                  setPortraitImage('');
+                }}
                 onFitChange={setPortraitFit}
                 onZoomChange={setPortraitZoom}
                 onFocalXChange={setPortraitPanX}
@@ -249,7 +254,8 @@ export function CharacterFormDialog({
         </DialogContent>
       </Dialog>
       <CharacterSearchDialog
-        open={imageSearchOpen}
+        key={`${game.id}:${editingCharacter?.id ?? 'new'}`}
+        open={open && imageSearchOpen}
         onOpenChange={setImageSearchOpen}
         searchQuery={`${game.name} ${name}`.trim()}
         onImageSelect={(base64) => {

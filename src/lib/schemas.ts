@@ -37,6 +37,16 @@ export const externalHttpUrlSchema = z
     }
   }, 'URL must use HTTP or HTTPS and cannot include credentials');
 
+// Legacy backups may retain HTTP resources; new resources follow the desktop opening policy.
+export const externalHttpsUrlSchema = externalHttpUrlSchema.pipe(
+  z
+    .string()
+    .refine(
+      (value) => new URL(value).protocol === 'https:',
+      'URL must use HTTPS and cannot include credentials',
+    ),
+);
+
 const gameFields = {
   id: z.string(),
   name: z.string(),

@@ -1,71 +1,80 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
 import { reportError, toUserMessage } from '@/lib/errors';
+import { externalHttpsUrlSchema } from '@/lib/schemas';
 import {
   getLocalVideoId,
   indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
 import type { Combo } from '@/lib/types';
 
-/**
- * Manages video player dialog state and operations
- */
-export function useVideoPlayer(videoPlayerSize: 'sm' | 'md' | 'lg' | 'xl') {
-  const [videoPlayerOpen, setVideoPlayerOpen] = useState(false);
-  const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
-  const [videoPlayerTitle, setVideoPlayerTitle] = useState('');
-  const [videoSize, setVideoSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(
-    videoPlayerSize,
+interface PlayerMedia {
+  url: string;
+  title: string;
+}
+
+function releaseMedia(media: PlayerMedia | null) {
+  if (media?.url.startsWith('blob:')) URL.revokeObjectURL(media.url);
+}
+
+export function useVideoPlayer(
+  videoPlayerSize: 'sm' | 'md' | 'lg' | 'xl',
+  sessionKey = '',
+) {
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
+  const [videoSize, setVideoSize] = useState(videoPlayerSize);
+  const { run, cancel } = useMediaRequest(true, sessionKey);
+
+  const handleWatchDemo = useCallback(
+    async (combo: Combo) => {
+      const url = combo.demoUrl;
+      if (!url) return;
+      await run(
+        combo.id,
+        async () => {
+          const localId = getLocalVideoId(url);
+          if (localId) {
+            const blobUrl =
+              await indexedDbStorage.demoVideos.getBlobUrl(localId);
+            return blobUrl ? { url: blobUrl, title: combo.name } : null;
+          }
+          if (!externalHttpsUrlSchema.safeParse(url).success)
+            throw new Error('Demo URL must use HTTPS without credentials');
+          return { url, title: combo.name };
+        },
+        {
+          onSuccess: (next) => {
+            if (next) setMedia(next);
+            else toast.error('Video file not found');
+          },
+          onDiscard: releaseMedia,
+          onError: (error) => {
+            reportError('useVideoPlayer.handleWatchDemo', error);
+            toast.error(toUserMessage(error));
+          },
+        },
+      );
+    },
+    [run],
   );
 
-  const handleWatchDemo = useCallback(async (combo: Combo) => {
-    if (!combo.demoUrl) return;
-    try {
-      const localVideoId = getLocalVideoId(combo.demoUrl);
-      if (localVideoId) {
-        const blobUrl =
-          await indexedDbStorage.demoVideos.getBlobUrl(localVideoId);
-        if (!blobUrl) {
-          toast.error('Video file not found');
-          return;
-        }
-
-        setVideoPlayerUrl(blobUrl);
-        setVideoPlayerTitle(combo.name);
-        setVideoPlayerOpen(true);
-        return;
-      }
-
-      setVideoPlayerUrl(combo.demoUrl);
-      setVideoPlayerTitle(combo.name);
-      setVideoPlayerOpen(true);
-    } catch (err) {
-      reportError('useVideoPlayer.handleWatchDemo', err);
-      toast.error(toUserMessage(err));
-    }
-  }, []);
-
   const closeVideoPlayer = useCallback(() => {
-    setVideoPlayerOpen(false);
-    if (videoPlayerUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(videoPlayerUrl);
-    }
-    setVideoPlayerUrl(null);
-    setVideoPlayerTitle('');
-  }, [videoPlayerUrl]);
+    cancel();
+    setMedia(null);
+  }, [cancel]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Navigating to a different character closes its player.
   useEffect(() => {
-    return () => {
-      if (videoPlayerUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(videoPlayerUrl);
-      }
-    };
-  }, [videoPlayerUrl]);
+    setMedia(null);
+  }, [sessionKey]);
+
+  useEffect(() => () => releaseMedia(media), [media]);
 
   return {
-    videoPlayerOpen,
-    videoPlayerUrl,
-    videoPlayerTitle,
+    videoPlayerOpen: media !== null,
+    videoPlayerUrl: media?.url ?? null,
+    videoPlayerTitle: media?.title ?? '',
     videoSize,
     setVideoSize,
     handleWatchDemo,

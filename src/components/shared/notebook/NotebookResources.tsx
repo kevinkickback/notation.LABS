@@ -6,6 +6,7 @@ import {
   TrashIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,7 @@ import {
   getResourceDomain,
   type NotebookEditor,
 } from '@/hooks/useNotebookEditor';
+import { externalHttpsUrlSchema } from '@/lib/schemas';
 import type { CharacterLink } from '@/lib/types';
 
 function ResourceFavicon({ url }: { url: string }) {
@@ -160,46 +162,61 @@ export function NotebookResources({
       )}
       {links.length ? (
         <ul className="notebook-resource-list">
-          {links.map((link) => (
-            <li key={link.id}>
-              <a
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Open ${link.label} in a new tab`}
-              >
-                <ResourceFavicon key={link.url} url={link.url} />
-                <span className="notebook-resource-label">
-                  <strong>{link.label}</strong>
-                  <small>{getResourceDomain(link.url)}</small>
-                </span>
-                <ArrowSquareOutIcon size={14} />
-              </a>
-              <div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit ${link.label}`}
-                  onClick={() => openResourceEditor(link)}
-                  disabled={Boolean(resourceDraft) || savingResource}
+          {links.map((link) => {
+            const canOpen = externalHttpsUrlSchema.safeParse(link.url).success;
+            return (
+              <li key={link.id}>
+                <a
+                  href={canOpen ? link.url : undefined}
+                  aria-disabled={!canOpen || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => {
+                    if (!canOpen) {
+                      event.preventDefault();
+                      toast.error(
+                        'This saved resource uses HTTP. Edit it to use HTTPS before opening.',
+                      );
+                    }
+                  }}
+                  aria-label={`Open ${link.label} in a new tab`}
                 >
-                  <PencilSimpleIcon size={16} />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="notebook-remove-resource"
-                  aria-label={`Remove ${link.label}`}
-                  onClick={() => void removeResource(link.id)}
-                  disabled={Boolean(resourceDraft) || savingResource}
-                >
-                  <TrashIcon size={16} />
-                </Button>
-              </div>
-            </li>
-          ))}
+                  <ResourceFavicon key={link.url} url={link.url} />
+                  <span className="notebook-resource-label">
+                    <strong>{link.label}</strong>
+                    <small>
+                      {getResourceDomain(link.url)}
+                      {!canOpen && ' · Edit to use HTTPS'}
+                    </small>
+                  </span>
+                  <ArrowSquareOutIcon size={14} />
+                </a>
+                <div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Edit ${link.label}`}
+                    onClick={() => openResourceEditor(link)}
+                    disabled={Boolean(resourceDraft) || savingResource}
+                  >
+                    <PencilSimpleIcon size={16} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="notebook-remove-resource"
+                    aria-label={`Remove ${link.label}`}
+                    onClick={() => void removeResource(link.id)}
+                    disabled={Boolean(resourceDraft) || savingResource}
+                  >
+                    <TrashIcon size={16} />
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         !resourceDraft && (

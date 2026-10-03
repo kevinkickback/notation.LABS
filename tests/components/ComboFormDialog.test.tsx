@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComboFormDialog } from '@/components/combo/ComboFormDialog';
-import { createCombo } from '@/lib/application/comboCommands';
+import { createCombo, updateCombo } from '@/lib/application/comboCommands';
 import type { Game, Character, Combo } from '@/lib/types';
 
 vi.mock('@/lib/application/comboCommands', () => ({
@@ -84,6 +84,25 @@ const mockCombo: Combo = {
 };
 
 describe('ComboFormDialog', () => {
+  it('does not save the previous YouTube title after changing its URL', async () => {
+    render(<ComboFormDialog open onOpenChange={() => {}} game={mockGame} character={mockCharacter} editingCombo={{ ...mockCombo, demoUrl: 'https://youtu.be/dQw4w9WgXcQ', demoVideoTitle: 'Previous demo' }} allTags={[]} />);
+    fireEvent.change(screen.getByLabelText('YouTube demo URL'), { target: { value: 'https://youtu.be/abcdefghijk' } });
+    await act(async () => fireEvent.submit(screen.getByRole('button', { name: 'Update Combo' }).closest('form') as HTMLFormElement));
+    expect(updateCombo).toHaveBeenCalledWith(mockCombo.id, expect.objectContaining({ demoUrl: 'https://youtu.be/abcdefghijk', demoVideoTitle: undefined }), undefined);
+  });
+
+  it('discards a video read that finishes after closing and reopening the editor', async () => {
+    const props = { onOpenChange: () => {}, game: mockGame, character: mockCharacter, editingCombo: null, allTags: [] };
+    const { rerender } = render(<ComboFormDialog open {...props} />);
+    let resolve!: (data: ArrayBuffer) => void;
+    const file = { name: 'outdated.mp4', type: 'video/mp4', size: 3, arrayBuffer: () => new Promise<ArrayBuffer>(done => { resolve = done; }) } as File;
+    fireEvent.change(document.querySelector('input[type=file]') as HTMLInputElement, { target: { files: [file] } });
+    rerender(<ComboFormDialog open={false} {...props} />);
+    rerender(<ComboFormDialog open {...props} />);
+    await act(async () => resolve(new Uint8Array([1, 2, 3]).buffer));
+    expect(screen.queryByText('outdated.mp4')).toBeNull();
+    expect((screen.getByLabelText('YouTube demo URL') as HTMLInputElement).value).toBe('');
+  });
   const onOpenChange = vi.fn();
 
   beforeEach(() => {

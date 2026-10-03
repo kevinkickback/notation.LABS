@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { fetchImageAsBase64 } from '@/lib/media/images';
 import type { IGDBSearchResult } from '@/lib/types';
-import { fetchImageAsBase64 } from '@/lib/utils';
 import { getProviderBase } from './endpoints';
 
 const rawIgdbResultSchema = z.object({
@@ -48,6 +48,7 @@ export function getIgdbCoverUrl(coverImageId: string, size: string) {
 
 export async function downloadIgdbCover(
   coverImageId: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   for (const size of [
     't_cover_big_2x',
@@ -59,6 +60,7 @@ export async function downloadIgdbCover(
     const dataUrl = await fetchImageAsBase64(
       `${getProviderBase('igdb')}/download`,
       getIgdbCoverUrl(coverImageId, size),
+      signal,
     );
     if (dataUrl) return dataUrl;
   }

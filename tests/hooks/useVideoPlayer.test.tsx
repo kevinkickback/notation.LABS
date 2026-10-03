@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Combo } from '@/lib/types';
 
 import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 
@@ -37,6 +38,37 @@ vi.mock('@/lib/storage/indexedDbStorage', () => ({
 }));
 
 describe('useVideoPlayer', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const combo: Combo = { id: 'local', characterId: 'char', name: 'Demo', notation: '5L', parsedNotation: [], tags: [], sortOrder: 0, createdAt: 1, updatedAt: 1, demoUrl: 'local:video' };
+
+  it.each(['close', 'replace', 'unmount', 'navigate'] as const)('releases delayed local video URLs after %s', async action => {
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', Object.assign(class extends URL {}, { revokeObjectURL: revoke }));
+    let resolve!: (url: string) => void;
+    getBlobUrlMock.mockReturnValue(new Promise<string>(done => { resolve = done; }));
+    const { result, unmount, rerender } = renderHook(({ key }) => useVideoPlayer('lg', key), { initialProps: { key: 'first' } });
+    let load!: Promise<void>;
+    act(() => { load = result.current.handleWatchDemo(combo); });
+    if (action === 'close') act(() => result.current.closeVideoPlayer());
+    if (action === 'replace') await act(async () => { await result.current.handleWatchDemo({ ...combo, id: 'remote', demoUrl: 'https://example.com/demo' }); });
+    if (action === 'unmount') unmount();
+    if (action === 'navigate') rerender({ key: 'second' });
+    await act(async () => { resolve('blob:outdated'); await load; });
+    expect(revoke.mock.calls).toEqual([['blob:outdated']]);
+    if (action !== 'unmount') expect(result.current.videoPlayerUrl).toBe(action === 'replace' ? 'https://example.com/demo' : null);
+  });
+
+  it('releases active video URLs exactly once on replacement and close', async () => {
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', Object.assign(class extends URL {}, { revokeObjectURL: revoke }));
+    getBlobUrlMock.mockResolvedValueOnce('blob:first').mockResolvedValueOnce('blob:second');
+    const { result, unmount } = renderHook(() => useVideoPlayer('lg'));
+    await act(async () => { await result.current.handleWatchDemo(combo); });
+    await act(async () => { await result.current.handleWatchDemo({ ...combo, id: 'second' }); });
+    act(() => result.current.closeVideoPlayer());
+    unmount();
+    expect(revoke.mock.calls).toEqual([['blob:first'], ['blob:second']]);
+  });
   beforeEach(() => {
     getBlobUrlMock.mockReset();
     reportErrorMock.mockReset();
