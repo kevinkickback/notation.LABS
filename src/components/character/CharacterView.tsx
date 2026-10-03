@@ -133,66 +133,47 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
     }
   };
 
-  if (characters.length === 0) {
-    return (
-      <NotebookWorkspace>
-        <EntityNotebook
-          key={game.id}
-          kind="game"
-          entityId={game.id}
-          entityName={game.name}
-          notes={game.notes || ''}
-          isOpen={showNotes}
-          onToggle={handleToggleNotes}
-        />
+  return (
+    <NotebookWorkspace>
+      {characters.length === 0 ? (
         <CharacterViewEmptyState
           game={game}
           onAddCharacter={operations.openAddDialog}
         />
-        <CharacterFormDialog
-          open={operations.characterDialogOpen}
-          onOpenChange={operations.setCharacterDialogOpen}
-          editingCharacter={operations.editingCharacter}
-          game={game}
-        />
-      </NotebookWorkspace>
-    );
-  }
-
-  return (
-    <NotebookWorkspace>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
-        <CharacterViewHeader game={game} />
-        {selection.isSelecting ? (
-          <SelectionToolbar
-            leadingAction={<NotebookTriggerSlot />}
-            selectedCount={selection.selectedIds.size}
-            onSelectAll={() =>
-              selection.selectAll(filters.filteredAndSorted.map((c) => c.id))
-            }
-            onDeselectAll={selection.deselectAll}
-            onDelete={() => {
-              void handleBulkDelete();
-            }}
-            onCancel={selection.clearSelection}
-          />
-        ) : (
-          <CharacterViewToolbar
-            leadingAction={<NotebookTriggerSlot />}
-            filterSearch={filters.filterSearch}
-            onFilterSearchChange={filters.setFilterSearch}
-            sortBy={filters.sortBy}
-            onSortByChange={filters.setSortBy}
-            viewMode={viewMode.viewMode}
-            onViewModeChange={viewMode.setViewMode}
-            cardSize={viewMode.cardSize}
-            onCardSizeChange={viewMode.handleCardSizeChange}
-            onToggleSelect={selection.toggleSelectionMode}
-            onOpenColorDialog={() => setColorDialogOpen(true)}
-            onAddCharacter={operations.openAddDialog}
-          />
-        )}
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 min-w-0">
+          <CharacterViewHeader game={game} />
+          {selection.isSelecting ? (
+            <SelectionToolbar
+              leadingAction={<NotebookTriggerSlot />}
+              selectedCount={selection.selectedIds.size}
+              onSelectAll={() =>
+                selection.selectAll(filters.filteredAndSorted.map((c) => c.id))
+              }
+              onDeselectAll={selection.deselectAll}
+              onDelete={() => {
+                void handleBulkDelete();
+              }}
+              onCancel={selection.clearSelection}
+            />
+          ) : (
+            <CharacterViewToolbar
+              leadingAction={<NotebookTriggerSlot />}
+              filterSearch={filters.filterSearch}
+              onFilterSearchChange={filters.setFilterSearch}
+              sortBy={filters.sortBy}
+              onSortByChange={filters.setSortBy}
+              viewMode={viewMode.viewMode}
+              onViewModeChange={viewMode.setViewMode}
+              cardSize={viewMode.cardSize}
+              onCardSizeChange={viewMode.handleCardSizeChange}
+              onToggleSelect={selection.toggleSelectionMode}
+              onOpenColorDialog={() => setColorDialogOpen(true)}
+              onAddCharacter={operations.openAddDialog}
+            />
+          )}
+        </div>
+      )}
 
       <EntityNotebook
         key={game.id}
@@ -204,70 +185,72 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
         onToggle={handleToggleNotes}
       />
 
-      <div
-        className={
-          viewMode.viewMode === 'list'
-            ? 'flex flex-col gap-3'
-            : 'grid items-start gap-4'
-        }
-        style={
-          viewMode.viewMode === 'grid'
-            ? {
-                gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
-              }
-            : undefined
-        }
-      >
-        {filters.filteredAndSorted.map((character) =>
-          viewMode.viewMode === 'grid' ? (
-            <CharacterGridCard
-              key={character.id}
-              character={character}
-              comboCount={comboCountByChar[character.id] || 0}
-              isMobile={isMobile}
-              isSelecting={selection.isSelecting}
-              isSelected={selection.selectedIds.has(character.id)}
-              orientation={
-                character.portraitOrientation ??
-                settings.characterCardOrientation ??
-                'landscape'
-              }
-              onSelect={() => handleCharacterSelect(character.id)}
-              onEdit={() => operations.openEditDialog(character)}
-              onDelete={() => {
-                if (settings.confirmBeforeDelete) {
-                  deleteState.setDeleteTarget(character);
-                } else {
-                  void handleDeleteCharacter(character);
+      {characters.length > 0 && (
+        <div
+          className={
+            viewMode.viewMode === 'list'
+              ? 'flex flex-col gap-3'
+              : 'grid items-start gap-4'
+          }
+          style={
+            viewMode.viewMode === 'grid'
+              ? {
+                  gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
                 }
-              }}
-              onToggleFavorite={() => void handleToggleFavorite(character)}
-            />
-          ) : (
-            <CharacterListCard
-              key={character.id}
-              character={character}
-              comboCount={comboCountByChar[character.id] || 0}
-              lastModified={
-                lastModifiedByChar[character.id] || character.updatedAt
-              }
-              isMobile={isMobile}
-              isSelecting={selection.isSelecting}
-              isSelected={selection.selectedIds.has(character.id)}
-              onSelect={() => handleCharacterSelect(character.id)}
-              onEdit={() => operations.openEditDialog(character)}
-              onDelete={() => {
-                if (settings.confirmBeforeDelete) {
-                  deleteState.setDeleteTarget(character);
-                } else {
-                  void handleDeleteCharacter(character);
+              : undefined
+          }
+        >
+          {filters.filteredAndSorted.map((character) =>
+            viewMode.viewMode === 'grid' ? (
+              <CharacterGridCard
+                key={character.id}
+                character={character}
+                comboCount={comboCountByChar[character.id] || 0}
+                isMobile={isMobile}
+                isSelecting={selection.isSelecting}
+                isSelected={selection.selectedIds.has(character.id)}
+                orientation={
+                  character.portraitOrientation ??
+                  settings.characterCardOrientation ??
+                  'landscape'
                 }
-              }}
-              onToggleFavorite={() => void handleToggleFavorite(character)}
-            />
-          ),
-        )}
-      </div>
+                onSelect={() => handleCharacterSelect(character.id)}
+                onEdit={() => operations.openEditDialog(character)}
+                onDelete={() => {
+                  if (settings.confirmBeforeDelete) {
+                    deleteState.setDeleteTarget(character);
+                  } else {
+                    void handleDeleteCharacter(character);
+                  }
+                }}
+                onToggleFavorite={() => void handleToggleFavorite(character)}
+              />
+            ) : (
+              <CharacterListCard
+                key={character.id}
+                character={character}
+                comboCount={comboCountByChar[character.id] || 0}
+                lastModified={
+                  lastModifiedByChar[character.id] || character.updatedAt
+                }
+                isMobile={isMobile}
+                isSelecting={selection.isSelecting}
+                isSelected={selection.selectedIds.has(character.id)}
+                onSelect={() => handleCharacterSelect(character.id)}
+                onEdit={() => operations.openEditDialog(character)}
+                onDelete={() => {
+                  if (settings.confirmBeforeDelete) {
+                    deleteState.setDeleteTarget(character);
+                  } else {
+                    void handleDeleteCharacter(character);
+                  }
+                }}
+                onToggleFavorite={() => void handleToggleFavorite(character)}
+              />
+            ),
+          )}
+        </div>
+      )}
 
       <CharacterFormDialog
         open={operations.characterDialogOpen}
