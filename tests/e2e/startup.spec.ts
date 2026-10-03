@@ -40,6 +40,8 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: 700 });
       await expect(headerLogo).toBeInViewport();
       await expect(page.locator('header').getByRole('heading', { name: 'notation.LABS' })).toBeVisible();
+      const header = await page.locator('header').boundingBox();
+      expect(header?.height).toBeCloseTo(61, 0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
       if (width === 1440) await page.screenshot({ path: testInfo.outputPath(`header-${theme}.png`) });
     }
