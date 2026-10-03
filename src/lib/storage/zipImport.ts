@@ -1,4 +1,8 @@
-import JSZip from 'jszip';
+import {
+  BlobReader,
+  type FileEntry,
+  ZipReader,
+} from '@zip.js/zip.js/lib/zip-core-native.js';
 import { normalizeBackupImport } from '@/lib/backup/importPipeline';
 import {
   MAX_BACKUP_ENTRY_COUNT,
@@ -25,107 +29,46 @@ export interface ZipImportProgress {
   total: number | null;
 }
 
-interface ZipEntryMetadata {
-  uncompressedSize: number;
+class BoundedBlobReader extends BlobReader {
+  override readUint8Array(offset: number, length: number) {
+    // The library reads the directory in one allocation, before yielding entries.
+    if (length > MAX_BACKUP_METADATA_BYTES) {
+      throw new Error('Backup zip directory exceeds the size limit');
+    }
+    return super.readUint8Array(offset, length);
+  }
 }
 
-async function inspectZipCentralDirectory(
-  file: Blob,
-): Promise<Map<string, ZipEntryMetadata>> {
-  const endRecordSize = 22;
-  const maxCommentSize = 65_535;
-  if (file.size < endRecordSize) {
-    throw new Error('Invalid backup zip: end record not found');
-  }
-
-  const tailStart = Math.max(0, file.size - endRecordSize - maxCommentSize);
-  const tail = await file.slice(tailStart).arrayBuffer();
-  const tailView = new DataView(tail);
-  let endRecordOffset = -1;
-  for (let offset = tail.byteLength - endRecordSize; offset >= 0; offset--) {
-    if (tailView.getUint32(offset, true) === 0x06054b50) {
-      const commentLength = tailView.getUint16(offset + 20, true);
-      if (offset + endRecordSize + commentLength === tail.byteLength) {
-        endRecordOffset = offset;
-        break;
-      }
-    }
-  }
-  if (endRecordOffset < 0) {
-    throw new Error('Invalid backup zip: end record not found');
-  }
-
-  const diskNumber = tailView.getUint16(endRecordOffset + 4, true);
-  const directoryDisk = tailView.getUint16(endRecordOffset + 6, true);
-  const diskEntryCount = tailView.getUint16(endRecordOffset + 8, true);
-  const entryCount = tailView.getUint16(endRecordOffset + 10, true);
-  const directorySize = tailView.getUint32(endRecordOffset + 12, true);
-  const directoryOffset = tailView.getUint32(endRecordOffset + 16, true);
-  if (
-    diskNumber !== 0 ||
-    directoryDisk !== 0 ||
-    diskEntryCount !== entryCount ||
-    entryCount === 0xffff ||
-    directorySize === 0xffffffff ||
-    directoryOffset === 0xffffffff
-  ) {
-    throw new Error('Unsupported multi-volume or ZIP64 backup');
-  }
-  if (entryCount > MAX_BACKUP_ENTRY_COUNT) {
-    throw new Error(
-      `Backup zip contains more than ${MAX_BACKUP_ENTRY_COUNT} files`,
-    );
-  }
-  if (directorySize > MAX_BACKUP_METADATA_BYTES) {
-    throw new Error('Backup zip central directory exceeds the size limit');
-  }
-  if (directoryOffset + directorySize > file.size) {
-    throw new Error('Invalid backup zip: central directory is out of bounds');
-  }
-
-  const directory = await file
-    .slice(directoryOffset, directoryOffset + directorySize)
-    .arrayBuffer();
-  const directoryView = new DataView(directory);
-  const decoder = new TextDecoder();
-  const entries = new Map<string, ZipEntryMetadata>();
+async function readZipEntry(
+  entry: FileEntry,
+  limit: number,
+  limitMessage: string,
+): Promise<ArrayBuffer> {
+  if (entry.uncompressedSize > limit) throw new Error(limitMessage);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  await entry.getData(
+    new WritableStream<Uint8Array>({
+      write(chunk) {
+        size += chunk.byteLength;
+        if (size > limit) throw new Error(limitMessage);
+        if (size > entry.uncompressedSize) {
+          throw new Error(
+            'Invalid backup zip: file size does not match its contents',
+          );
+        }
+        chunks.push(new Uint8Array(chunk));
+      },
+    }),
+    { checkCrc32: true },
+  );
+  const result = new Uint8Array(size);
   let offset = 0;
-  let totalUncompressedBytes = 0;
-  for (let index = 0; index < entryCount; index++) {
-    if (
-      offset + 46 > directory.byteLength ||
-      directoryView.getUint32(offset, true) !== 0x02014b50
-    ) {
-      throw new Error('Invalid backup zip: malformed central directory');
-    }
-    const uncompressedSize = directoryView.getUint32(offset + 24, true);
-    const fileNameLength = directoryView.getUint16(offset + 28, true);
-    const extraLength = directoryView.getUint16(offset + 30, true);
-    const commentLength = directoryView.getUint16(offset + 32, true);
-    const nextOffset =
-      offset + 46 + fileNameLength + extraLength + commentLength;
-    if (nextOffset > directory.byteLength || uncompressedSize === 0xffffffff) {
-      throw new Error('Invalid backup zip: malformed or ZIP64 entry');
-    }
-
-    const name = decoder.decode(
-      new Uint8Array(directory, offset + 46, fileNameLength),
-    );
-    if (entries.has(name)) {
-      throw new Error(`Backup zip contains duplicate file "${name}"`);
-    }
-    entries.set(name, { uncompressedSize });
-    totalUncompressedBytes += uncompressedSize;
-    if (totalUncompressedBytes > MAX_BACKUP_UNCOMPRESSED_BYTES) {
-      throw new Error('Backup zip exceeds the uncompressed size limit');
-    }
-    offset = nextOffset;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
   }
-
-  if (offset !== directory.byteLength) {
-    throw new Error('Invalid backup zip: central directory size mismatch');
-  }
-  return entries;
+  return result.buffer;
 }
 
 export async function importZipBackup(
@@ -139,18 +82,50 @@ export async function importZipBackup(
   }
 
   onProgress?.({ phase: 'loading', current: 0, total: null });
-  const archiveEntries = await inspectZipCentralDirectory(file);
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const metadataFile = zip.file(ZIP_BACKUP_METADATA_FILE);
+  const reader = new ZipReader(new BoundedBlobReader(file), {
+    strictness: 'strict',
+    filenameValidation: 'strict',
+    useWebWorkers: false,
+  });
+  try {
+    await importArchive(reader, includeVideos, includeSettings, onProgress);
+  } finally {
+    await reader.close();
+  }
+}
+
+async function importArchive(
+  reader: ZipReader<Blob>,
+  includeVideos: boolean,
+  includeSettings: boolean,
+  onProgress?: (progress: ZipImportProgress) => void,
+): Promise<void> {
+  const archiveEntries = new Map<string, FileEntry>();
+  let entryCount = 0;
+  let totalUncompressedBytes = 0;
+  for await (const entry of reader.getEntriesGenerator()) {
+    if (++entryCount > MAX_BACKUP_ENTRY_COUNT) {
+      throw new Error(
+        `Backup zip contains more than ${MAX_BACKUP_ENTRY_COUNT} files`,
+      );
+    }
+    totalUncompressedBytes += entry.uncompressedSize;
+    if (totalUncompressedBytes > MAX_BACKUP_UNCOMPRESSED_BYTES) {
+      throw new Error('Backup zip exceeds the uncompressed size limit');
+    }
+    if (!entry.directory) archiveEntries.set(entry.filename, entry);
+  }
   const metadataEntry = archiveEntries.get(ZIP_BACKUP_METADATA_FILE);
-  if (!metadataFile || !metadataEntry) {
+  if (!metadataEntry) {
     throw new Error('Invalid backup zip: missing backup.json');
   }
-  if (metadataEntry.uncompressedSize > MAX_BACKUP_METADATA_BYTES) {
-    throw new Error('Backup metadata exceeds the 10 MB import limit');
-  }
-
-  const metadataText = await metadataFile.async('string');
+  const metadataText = new TextDecoder().decode(
+    await readZipEntry(
+      metadataEntry,
+      MAX_BACKUP_METADATA_BYTES,
+      'Backup metadata exceeds the 10 MB import limit',
+    ),
+  );
   let json: unknown;
   try {
     json = JSON.parse(metadataText);
@@ -185,7 +160,7 @@ export async function importZipBackup(
       }
       videoPaths.add(video.path);
       const entry = archiveEntries.get(video.path);
-      if (!entry || !zip.file(video.path)) {
+      if (!entry) {
         throw new Error(
           `Video "${video.fileName}" is missing from the backup zip`,
         );
@@ -206,6 +181,7 @@ export async function importZipBackup(
   }
 
   const videosToImport: DemoVideo[] = [];
+  let actualVideoBytes = 0;
   if (includeVideos && parsed.demoVideos) {
     onProgress?.({
       phase: 'videos',
@@ -215,13 +191,20 @@ export async function importZipBackup(
     for (const video of parsed.demoVideos) {
       let buffer: ArrayBuffer;
       if (video.path) {
-        const zipEntry = zip.file(video.path);
+        const zipEntry = archiveEntries.get(video.path);
         if (!zipEntry) {
           throw new Error(
             `Video "${video.fileName}" is missing from the backup zip`,
           );
         }
-        buffer = await zipEntry.async('arraybuffer');
+        buffer = await readZipEntry(
+          zipEntry,
+          Math.min(
+            MAX_VIDEO_SIZE_BYTES,
+            MAX_BACKUP_VIDEO_BYTES - actualVideoBytes,
+          ),
+          `Video "${video.fileName}" exceeds the backup video size limit`,
+        );
       } else if (video.dataBase64) {
         buffer = base64ToArrayBuffer(video.dataBase64);
       } else {
@@ -233,6 +216,10 @@ export async function importZipBackup(
         throw new Error(
           `Video "${video.fileName}" exceeds the 50 MB per-video limit`,
         );
+      }
+      actualVideoBytes += buffer.byteLength;
+      if (actualVideoBytes > MAX_BACKUP_VIDEO_BYTES) {
+        throw new Error('Backup videos exceed the 500 MB aggregate limit');
       }
       videosToImport.push({
         id: video.id,

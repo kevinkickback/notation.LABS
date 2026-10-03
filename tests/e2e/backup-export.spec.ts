@@ -1,4 +1,23 @@
 import { expect, test } from '@playwright/test';
+import { createBackupZip, forgeZipSize } from '../helpers/zip';
+
+test('rejects a forged expanding backup and preserves the existing library', async ({ page }) => {
+  const bytes = await createBackupZip({ version: 3, exported: '2026-10-03', games: [], padding: 'x'.repeat(1024 * 1024) });
+  forgeZipSize(bytes, 'backup.json', 1);
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    await indexedDbStorage.games.add({ name: 'Preserved library', buttonLayout: ['A'] });
+  });
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose backup file', exact: true }).click();
+  await (await chooser).setFiles({ name: 'invalid-backup.zip', mimeType: 'application/zip', buffer: Buffer.from(bytes) });
+  await expect(page.getByText(/Failed to import data:/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Importing…', exact: true })).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Preserved library', exact: true })).toBeVisible();
+});
 
 test('streams a 384 MB video library with responsive progress and cancellation', async ({ page }) => {
   test.setTimeout(120000);
