@@ -8,7 +8,7 @@ interface CharacterViewHeaderProps {
 
 export function CharacterViewHeader({ game }: CharacterViewHeaderProps) {
   return (
-    <div className="min-w-0 flex-1 flex items-center gap-4">
+    <div className="min-w-0 flex-[1_1_20rem] flex items-center gap-4">
       <CoverImage
         src={game.logoImage || defaultGameImage}
         frameAspect={3 / 4}
@@ -18,8 +18,8 @@ export function CharacterViewHeader({ game }: CharacterViewHeaderProps) {
         focalY={game.coverPanY}
         className="h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-border"
       />
-      <div className="min-w-0">
-        <h2 className="text-3xl font-bold mb-1 truncate">{game.name}</h2>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-3xl font-bold mb-1 break-words">{game.name}</h2>
         <p className="text-muted-foreground">
           Select a character to manage combos
         </p>

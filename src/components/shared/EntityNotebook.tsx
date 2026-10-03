@@ -1,6 +1,10 @@
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowSquareOutIcon,
   BookOpenIcon,
+  CheckIcon,
+  DotsSixVerticalIcon,
   LinkSimpleIcon,
   PencilSimpleIcon,
   PlusIcon,
@@ -31,11 +35,21 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
+import {
+  type NotebookLayout,
+  useNotebookPlacement,
+} from '@/hooks/useNotebookPlacement';
 import { updateCharacter } from '@/lib/application/characterCommands';
 import { updateGame } from '@/lib/application/gameCommands';
 import { reportError } from '@/lib/errors';
@@ -68,7 +82,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
   const [workspace, setWorkspace] = useState<HTMLDivElement | null>(null);
   const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const [mainWidth, setMainWidth] = useState(0);
-  const [dockHeight, setDockHeight] = useState(0);
+  const [dockBottom, setDockBottom] = useState(64);
   const [dockTop, setDockTop] = useState(0);
   const [draftWidth, setDraftWidth] = useState<number | null>(null);
   const cancelWidth = useCallback(() => setDraftWidth(null), []);
@@ -98,16 +112,8 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
         setDockTop(top);
         const footerHeight =
           container.nextElementSibling?.getBoundingClientRect().height ?? 0;
-        setDockHeight(
-          Math.max(
-            0,
-            Math.floor(
-              window.innerHeight -
-                top -
-                footerHeight -
-                (Number.parseFloat(style.paddingBottom) || 0),
-            ),
-          ),
+        setDockBottom(
+          footerHeight + (Number.parseFloat(style.paddingBottom) || 0),
         );
       }
     };
@@ -149,8 +155,10 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
             '--notebook-main-width':
               mainWidth > 0 ? `${mainWidth}px` : undefined,
             '--notebook-max-dock-width': `${MAX_DOCK_WIDTH}px`,
-            '--notebook-dock-height': `${dockHeight}px`,
+            '--notebook-dock-height':
+              'max(0px, calc(100dvh - var(--notebook-dock-top, 146px) - var(--notebook-dock-bottom, 64px)))',
             '--notebook-dock-top': dockTop > 0 ? `${dockTop}px` : undefined,
+            '--notebook-dock-bottom': `${dockBottom}px`,
           } as CSSProperties
         }
       >
@@ -252,8 +260,6 @@ export const EntityNotebook = forwardRef<
   const dock = useContext(NotebookDock);
   const dockTarget = dock?.target;
   const cancelWidth = dock?.cancelWidth;
-  const { notebookDocked: dockRequested = false } = useSettings();
-  const { setSetting } = useSettingsActions();
   const [wideWindow, setWideWindow] = useState(
     () => window.matchMedia('(min-width: 1100px)').matches,
   );
@@ -264,7 +270,13 @@ export const EntityNotebook = forwardRef<
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
   }, []);
-  const isDocked = dockRequested && wideWindow && Boolean(dockTarget);
+  const placement = useNotebookPlacement({
+    enabled: wideWindow && Boolean(dockTarget),
+    isOpen,
+    workspace: dock?.portalContainer ?? null,
+    dockWidth: dock?.width ?? DEFAULT_DOCK_WIDTH,
+  });
+  const isDocked = placement.isDocked;
   const [resizing, setResizing] = useState(false);
   const resizeStart = useRef<{
     pointerId: number;
@@ -289,6 +301,8 @@ export const EntityNotebook = forwardRef<
   const [savingResource, setSavingResource] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const contentId = useId();
+  const moveId = useId();
+  const resizeId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const dockControlRef = useRef<HTMLButtonElement>(null);
   const [restoreDockFocus, setRestoreDockFocus] = useState(false);
@@ -776,37 +790,81 @@ export const EntityNotebook = forwardRef<
     </section>
   );
 
-  const dockControl =
-    wideWindow && dockTarget ? (
-      <Button
-        ref={dockControlRef}
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="notebook-panel-icon"
-        aria-label={dockRequested ? 'Undock' : 'Dock'}
-        title={dockRequested ? 'Undock' : 'Dock'}
-        onClick={() => {
-          dockFocusRequested.current = true;
-          void setSetting('notebookDocked', !dockRequested).then((saved) => {
-            if (
-              !saved &&
-              (document.activeElement === document.body ||
-                document.activeElement === dockControlRef.current)
-            ) {
-              dockFocusRequested.current = true;
-              setRestoreDockFocus(true);
-            }
-          });
-        }}
-      >
-        <SidebarSimpleIcon size={16} />
-      </Button>
-    ) : null;
+  const changeLayout = (layout: NotebookLayout) => {
+    dockFocusRequested.current = true;
+    setRestoreDockFocus(true);
+    void placement.setLayout(layout).then((saved) => {
+      if (
+        !saved &&
+        (document.activeElement === document.body ||
+          document.activeElement === dockControlRef.current)
+      )
+        setRestoreDockFocus(true);
+    });
+  };
+
+  const layoutMenu = wideWindow && dockTarget && (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          ref={dockControlRef}
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="notebook-panel-icon"
+          aria-label="Notebook layout"
+          title="Notebook layout"
+        >
+          <SidebarSimpleIcon size={16} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" portalContainer={dock?.portalContainer}>
+        {(['floating', 'left', 'right'] as const).map((layout) => (
+          <DropdownMenuItem
+            key={layout}
+            onSelect={() => changeLayout(layout)}
+            aria-current={placement.layout === layout ? 'true' : undefined}
+          >
+            {layout === 'left' ? (
+              <ArrowLeftIcon size={16} />
+            ) : layout === 'right' ? (
+              <ArrowRightIcon size={16} />
+            ) : (
+              <ArrowSquareOutIcon size={16} />
+            )}
+            {layout === 'floating' ? 'Floating' : `Dock ${layout}`}
+            {placement.layout === layout && (
+              <CheckIcon size={14} className="ml-auto" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const moveHandle = wideWindow && dockTarget && (
+    <button
+      type="button"
+      id={moveId}
+      className="notebook-move-handle"
+      data-notebook-move-handle
+      aria-label="Move notebook"
+      title="Drag to move, or use arrow keys"
+      onKeyDown={placement.onMoveKeyDown}
+      onClick={(event) => event.currentTarget.focus()}
+    >
+      <DotsSixVerticalIcon size={16} />
+    </button>
+  );
+
+  const toolbarProps = {
+    'data-movable': wideWindow && Boolean(dockTarget),
+    onPointerDown: placement.onPointerDown,
+  };
 
   const panelTools = (
     <div className="notebook-panel-tools">
-      {dockControl}
+      {layoutMenu}
       <Button
         type="button"
         variant="ghost"
@@ -828,7 +886,8 @@ export const EntityNotebook = forwardRef<
         onValueChange={setActiveTab}
         className="notebook-panel-content"
       >
-        <div className="notebook-panel-toolbar">
+        <div className="notebook-panel-toolbar" {...toolbarProps}>
+          {moveHandle}
           <TabsList
             aria-label="Notebook section"
             className="notebook-section-tabs"
@@ -848,7 +907,8 @@ export const EntityNotebook = forwardRef<
       </Tabs>
     ) : (
       <div className="notebook-panel-content">
-        <div className="notebook-panel-toolbar">
+        <div className="notebook-panel-toolbar" {...toolbarProps}>
+          {moveHandle}
           <h2 className="notebook-panel-label">
             <BookOpenIcon size={16} />
             Notes
@@ -897,10 +957,12 @@ export const EntityNotebook = forwardRef<
         dockTarget &&
         createPortal(
           <aside
+            ref={placement.setPanel}
             className="notebook-docked"
             id={contentId}
             aria-labelledby={titleId}
             data-resizing={resizing}
+            data-side={placement.layout}
           >
             {dock && (
               <hr
@@ -928,14 +990,24 @@ export const EntityNotebook = forwardRef<
                 onPointerMove={(event) => {
                   const start = resizeStart.current;
                   if (start?.pointerId === event.pointerId)
-                    dock.setWidth(start.width + start.x - event.clientX);
+                    dock.setWidth(
+                      start.width +
+                        (placement.layout === 'left'
+                          ? event.clientX - start.x
+                          : start.x - event.clientX),
+                    );
                 }}
                 onPointerUp={(event) => {
                   const start = resizeStart.current;
                   if (start?.pointerId !== event.pointerId) return;
                   resizeStart.current = null;
                   // Persist the final choice once, rather than every drag frame.
-                  dock.saveWidth(start.width + start.x - event.clientX);
+                  dock.saveWidth(
+                    start.width +
+                      (placement.layout === 'left'
+                        ? event.clientX - start.x
+                        : start.x - event.clientX),
+                  );
                   if (event.currentTarget.hasPointerCapture(event.pointerId))
                     event.currentTarget.releasePointerCapture(event.pointerId);
                   setResizing(false);
@@ -954,9 +1026,13 @@ export const EntityNotebook = forwardRef<
                 onKeyDown={(event) => {
                   const step = event.shiftKey ? 50 : 20;
                   if (event.key === 'ArrowLeft')
-                    dock.saveWidth(dock.width + step);
+                    dock.saveWidth(
+                      dock.width + (placement.layout === 'left' ? -step : step),
+                    );
                   else if (event.key === 'ArrowRight')
-                    dock.saveWidth(dock.width - step);
+                    dock.saveWidth(
+                      dock.width + (placement.layout === 'left' ? step : -step),
+                    );
                   else if (event.key === 'Home') dock.saveWidth(MIN_DOCK_WIDTH);
                   else if (event.key === 'End') dock.saveWidth(dock.maxWidth);
                   else return;
@@ -985,18 +1061,33 @@ export const EntityNotebook = forwardRef<
           }}
         >
           <DialogContent
+            ref={placement.setPanel}
             className="notebook-drawer"
+            style={placement.floatingStyle}
+            data-moving={placement.dragging}
+            data-resizing={placement.resizing}
+            data-desktop={wideWindow && Boolean(dockTarget)}
             portalContainer={dock?.portalContainer}
             hideCloseButton
             id={contentId}
             onOpenAutoFocus={(event) => {
-              if (dockFocusRequested.current || restoreDockFocus) {
+              if (placement.dragging) {
+                event.preventDefault();
+              } else if (dockFocusRequested.current || restoreDockFocus) {
                 event.preventDefault();
                 dockFocusRequested.current = false;
                 if (restoreDockFocus) setRestoreDockFocus(false);
                 if (!hasModalOverlay()) dockControlRef.current?.focus();
               } else if (!panelFocusRequested.current || hasModalOverlay()) {
                 event.preventDefault();
+              } else {
+                event.preventDefault();
+                const firstTab = document
+                  .getElementById(contentId)
+                  ?.querySelector<HTMLElement>(
+                    '[role="tab"][data-state="active"]',
+                  );
+                (firstTab ?? noteActionRef.current)?.focus();
               }
               panelFocusRequested.current = false;
             }}
@@ -1020,9 +1111,33 @@ export const EntityNotebook = forwardRef<
                 : 'Game plan and practice reminders.'}
             </DialogDescription>
             {notebookBody}
+            {wideWindow && dockTarget && (
+              <button
+                type="button"
+                id={resizeId}
+                className="notebook-floating-resize-handle"
+                aria-label="Resize notebook"
+                aria-description={`${Math.round(placement.size.width)} by ${Math.round(placement.size.height)} pixels`}
+                title="Drag to resize, or use arrow keys"
+                onPointerDown={placement.onResizePointerDown}
+                onKeyDown={placement.onResizeKeyDown}
+              />
+            )}
           </DialogContent>
         </Dialog>
       )}
+      {placement.snap &&
+        dock?.portalContainer &&
+        createPortal(
+          <div
+            className="notebook-snap-preview"
+            style={placement.previewStyle}
+            aria-hidden="true"
+          >
+            Dock {placement.snap}
+          </div>,
+          dock.portalContainer,
+        )}
     </div>
   );
 });

@@ -76,8 +76,31 @@ cards shrink to fit containers narrower than the chosen width.
 Each game and character remembers whether its notebook is open or closed. New
 pages start closed; there is no global default-open setting. Existing preferences
 and older backups migrate to explicit page choices, preserving their prior state.
-Floating or docked layout is one saved preference throughout the app. Narrow
-windows temporarily float the notebook without replacing the docking preference.
+Floating, left-docked, or right-docked layout is shared throughout the app. The
+header can be dragged on wide windows; approaching an app edge with the panel
+while dragging toward it previews the proposed dock,
+and releasing saves the layout and position together. Dragging out of a dock
+floats the panel. Escape, pointer cancellation, and lost capture cancel a move.
+One docking icon menu provides Floating, Dock left, and Dock right with the current
+choice checked. The movement handle also accepts arrow keys (Shift for larger
+steps). The floating panel's lower-left corner resizes both dimensions, keeping
+its top and right edges anchored; arrow keys provide keyboard resizing. Size is
+shared across pages and restarts, constrained to the available viewport without
+replacing the saved size. Pointer resizing saves size and position together on
+release and never activates docking. Floating placement is saved relative to the
+available space, so window resizing keeps the panel reachable without overwriting
+the saved choice. Note and resource
+drafts survive placement changes. Older docked preferences use the right side.
+Search precedes the Notes button and the other page toolbar actions; on narrow
+windows the search field can wrap above that action group.
+The game identity keeps enough space for its title and cover, with the toolbar
+wrapping below before the identity can be squeezed into a thin column. Game titles
+wrap within their available space.
+Combo cards respond to their own width, including beside a docked notebook. Narrow
+cards place actions above a full-width wrapping row of details and tags. The same
+action controls stay available at every size; compact demo labels retain their
+accessible name.
+Narrow windows temporarily float the notebook without replacing the docking preference.
 The adjusted dock width is also shared across pages and restarts. Dragging saves
 on release; keyboard adjustments and double-click reset save immediately. Smaller
 windows constrain the displayed width without overwriting the saved choice.

@@ -332,6 +332,40 @@ describe('SettingsContext', () => {
     expect(screen.getByText('["char-2"]')).toBeTruthy();
   });
 
+  it('saves a docking side and mode atomically and rolls both back without changing page choices', async () => {
+    useLiveQueryMock.mockReturnValue({ data: { ...DEFAULT_SETTINGS, notebookOpenPages: ['char-1'] }, error: null });
+    let rejectWrite: (error: Error) => void = () => {};
+    settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
+    function Consumer() {
+      const settings = useSettings();
+      const { setSettings } = useSettingsActions();
+      return <><span>{JSON.stringify([settings.notebookDocked, settings.notebookDockSide, settings.notebookOpenPages])}</span><button type="button" onClick={() => void setSettings({ notebookDocked: true, notebookDockSide: 'left' })}>Dock left</button></>;
+    }
+    await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Dock left' }));
+    expect(screen.getByText('[true,"left",["char-1"]]')).toBeTruthy();
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledExactlyOnceWith({ notebookDocked: true, notebookDockSide: 'left' }));
+    await act(async () => rejectWrite(new Error('write failed')));
+    expect(screen.getByText('[false,"right",["char-1"]]')).toBeTruthy();
+  });
+
+  it('keeps a newer grouped placement when an earlier grouped write fails', async () => {
+    let rejectWrite: (error: Error) => void = () => {};
+    settingsUpdateMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
+    function Consumer() {
+      const settings = useSettings();
+      const { setSettings } = useSettingsActions();
+      return <><span>{JSON.stringify([settings.notebookDocked, settings.notebookDockSide])}</span>{(['left', 'right'] as const).map(side => <button key={side} type="button" onClick={() => void setSettings({ notebookDocked: true, notebookDockSide: side })}>Dock {side}</button>)}</>;
+    }
+    await renderSettings(<SettingsProvider><Consumer /></SettingsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Dock left' }));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Dock right' }));
+    await act(async () => rejectWrite(new Error('write failed')));
+    await waitFor(() => expect(settingsUpdateMock).toHaveBeenCalledWith({ notebookDocked: true, notebookDockSide: 'right' }));
+    expect(screen.getByText('[true,"right"]')).toBeTruthy();
+  });
+
   it('saves a later page choice after a pending docking change', async () => {
     let finishDefault: () => void = () => {};
     settingsUpdateMock.mockImplementationOnce(() => new Promise<void>(resolve => { finishDefault = resolve; }));

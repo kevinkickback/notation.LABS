@@ -31,10 +31,15 @@ function DropdownMenuPortal({
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  portalContainer,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+  portalContainer?: ComponentProps<
+    typeof DropdownMenuPrimitive.Portal
+  >['container'];
+}) {
   return (
-    <DropdownMenuPortal>
+    <DropdownMenuPortal container={portalContainer}>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}

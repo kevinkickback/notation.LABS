@@ -64,23 +64,24 @@ export function SortableComboCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className={`hover:shadow-md transition-shadow ${isSelected ? 'ring-2 ring-primary' : ''} ${combo.outdated ? 'border-l-4 border-l-amber-500' : ''}`}
+      className={`combo-card hover:shadow-md transition-shadow ${isSelected ? 'ring-2 ring-primary' : ''} ${combo.outdated ? 'border-l-4 border-l-amber-500' : ''}`}
     >
       <CardContent className="px-3 py-2">
-        <div className="flex items-center gap-2 mb-1.5">
+        <div className="combo-card-heading">
           {isSelecting && (
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => onToggleSelect(combo.id)}
-              className="w-4 h-4 accent-primary cursor-pointer shrink-0"
+              aria-label={`Select ${combo.name}`}
+              className="combo-card-handle w-4 h-4 accent-primary cursor-pointer shrink-0"
             />
           )}
           {!isSelecting && (
             <button
               {...(!isDragDisabled ? attributes : {})}
               {...(!isDragDisabled ? listeners : {})}
-              className={`touch-none shrink-0 ${
+              className={`combo-card-handle touch-none shrink-0 ${
                 isDragDisabled
                   ? 'cursor-not-allowed opacity-40'
                   : 'cursor-grab active:cursor-grabbing hover:text-foreground'
@@ -97,59 +98,60 @@ export function SortableComboCard({
             </button>
           )}
 
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5">
-              <h3 className="font-semibold text-xl leading-none text-center sm:text-left shrink-0">
-                {combo.name}
-              </h3>
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
-                {combo.outdated && (
-                  <Badge className="text-sm py-0.5 px-2.5 rounded-md gap-1 bg-amber-500/15 text-amber-400 border border-amber-500/60">
-                    <WarningIcon className="w-3 h-3" weight="fill" />
-                    Outdated
-                  </Badge>
-                )}
-                {combo.difficulty && (
-                  <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-yellow-400/15 text-yellow-300 border border-yellow-400/50">
-                    Difficulty: {combo.difficulty}/5
-                  </Badge>
-                )}
-                {combo.damage && (
-                  <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/50">
-                    {combo.damage} dmg
-                  </Badge>
-                )}
-                {combo.meterCost && (
-                  <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/50">
-                    {combo.meterCost}
-                  </Badge>
-                )}
-                {combo.tags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    className="text-sm py-0.5 px-3 rounded-md cursor-pointer transition-colors bg-primary/10 text-primary border border-primary/40 hover:bg-primary/20"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onTagClick(tag);
-                    }}
-                  >
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>{' '}
-            </div>{' '}
+          <div className="combo-card-summary">
+            <h3 className="combo-card-title font-semibold text-xl leading-snug">
+              {combo.name}
+            </h3>
+            <div className="combo-card-metadata">
+              {combo.outdated && (
+                <Badge className="text-sm py-0.5 px-2.5 rounded-md gap-1 bg-amber-500/15 text-amber-400 border border-amber-500/60">
+                  <WarningIcon className="w-3 h-3" weight="fill" />
+                  Outdated
+                </Badge>
+              )}
+              {combo.difficulty && (
+                <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-yellow-400/15 text-yellow-300 border border-yellow-400/50">
+                  Difficulty: {combo.difficulty}/5
+                </Badge>
+              )}
+              {combo.damage && (
+                <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/50">
+                  {combo.damage} dmg
+                </Badge>
+              )}
+              {combo.meterCost && (
+                <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/50">
+                  {combo.meterCost}
+                </Badge>
+              )}
+              {combo.tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  className="text-sm py-0.5 px-3 rounded-md cursor-pointer transition-colors bg-primary/10 text-primary border border-primary/40 hover:bg-primary/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTagClick(tag);
+                  }}
+                >
+                  #{tag}
+                </Badge>
+              ))}
+            </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+          <div className="combo-card-actions">
             {combo.demoUrl && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-9 px-3 gap-2 text-primary hover:text-primary"
+                aria-label="Watch Demo"
                 onClick={() => onWatchDemo(combo)}
               >
                 <PlayIcon className="size-5" weight="fill" />
-                <span className="text-sm font-medium">Watch Demo</span>
+                <span className="text-sm font-medium">
+                  <span className="combo-demo-verbose">Watch </span>Demo
+                </span>
               </Button>
             )}
             {combo.demoUrl && (
@@ -159,6 +161,7 @@ export function SortableComboCard({
               variant="ghost"
               size="icon"
               className="size-10 text-muted-foreground hover:text-foreground"
+              aria-label="Edit combo"
               onClick={() => onEdit(combo)}
             >
               <PencilIcon className="size-5" />
@@ -167,6 +170,7 @@ export function SortableComboCard({
               variant="ghost"
               size="icon"
               className="size-10 text-muted-foreground hover:text-foreground"
+              aria-label="Duplicate combo"
               onClick={() => onDuplicate(combo)}
             >
               <CopyIcon className="size-5" />
@@ -175,6 +179,7 @@ export function SortableComboCard({
               variant="ghost"
               size="icon"
               className="size-10 text-destructive hover:text-destructive"
+              aria-label="Delete combo"
               onClick={() => onDelete(combo.id)}
             >
               <TrashIcon className="size-5" />
@@ -193,48 +198,6 @@ export function SortableComboCard({
               <NotesMarkdown content={combo.description} />
             </div>
           )}
-        </div>
-
-        <div className="flex sm:hidden items-center justify-between mt-1.5">
-          <div>
-            {combo.demoUrl && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 px-3 gap-2 text-primary hover:text-primary"
-                onClick={() => onWatchDemo(combo)}
-              >
-                <PlayIcon className="size-5" weight="fill" />
-                <span className="text-sm font-medium">Watch Demo</span>
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-muted-foreground hover:text-foreground"
-              onClick={() => onEdit(combo)}
-            >
-              <PencilIcon className="size-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-muted-foreground hover:text-foreground"
-              onClick={() => onDuplicate(combo)}
-            >
-              <CopyIcon className="size-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-destructive hover:text-destructive"
-              onClick={() => onDelete(combo.id)}
-            >
-              <TrashIcon className="size-5" />
-            </Button>
-          </div>
         </div>
       </CardContent>
     </Card>

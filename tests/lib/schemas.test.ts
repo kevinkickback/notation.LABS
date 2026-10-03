@@ -30,6 +30,30 @@ describe('notebook preference validation', () => {
       expect(settingsSchema.safeParse({ ...DEFAULT_SETTINGS, notebookDockWidth }).success).toBe(false);
     }
   });
+  it('accepts either side and bounded relative floating positions, with older settings remaining compatible', () => {
+    const { notebookDockSide: _side, notebookFloatingPosition: _position, ...legacy } = DEFAULT_SETTINGS;
+    expect(settingsSchema.safeParse(legacy).success).toBe(true);
+    for (const notebookDockSide of ['left', 'right']) {
+      expect(settingsSchema.parse({ ...legacy, notebookDockSide }).notebookDockSide).toBe(notebookDockSide);
+    }
+    for (const notebookFloatingPosition of [null, { x: 0, y: 1 }, { x: 0.25, y: 0.5 }]) {
+      expect(settingsSchema.parse({ ...legacy, notebookFloatingPosition }).notebookFloatingPosition).toEqual(notebookFloatingPosition);
+    }
+    for (const notebookFloatingPosition of [{ x: -1, y: 0 }, { x: 1.1, y: 0 }, { x: 0, y: Infinity }, { x: '0', y: 1 }, { x: 0 }]) {
+      expect(settingsSchema.safeParse({ ...legacy, notebookFloatingPosition }).success).toBe(false);
+    }
+    expect(settingsSchema.safeParse({ ...legacy, notebookDockSide: 'bottom' }).success).toBe(false);
+  });
+  it('accepts bounded floating sizes and rejects malformed imported dimensions', () => {
+    const { notebookFloatingSize: _size, ...legacy } = DEFAULT_SETTINGS;
+    expect(settingsSchema.safeParse(legacy).success).toBe(true);
+    for (const notebookFloatingSize of [null, { width: 320, height: 280 }, { width: 480, height: 640 }, { width: 800, height: 1000 }]) {
+      expect(settingsSchema.parse({ ...legacy, notebookFloatingSize }).notebookFloatingSize).toEqual(notebookFloatingSize);
+    }
+    for (const notebookFloatingSize of [{ width: 319, height: 280 }, { width: 801, height: 640 }, { width: 480, height: 279 }, { width: 480, height: 1001 }, { width: 480.5, height: 640 }, { width: '480', height: 640 }, { width: 480, height: Infinity }, { width: 480 }]) {
+      expect(settingsSchema.safeParse({ ...legacy, notebookFloatingSize }).success).toBe(false);
+    }
+  });
 });
 
 describe('external resource URL validation', () => {

@@ -120,7 +120,10 @@ for (const width of [1440, 800]) {
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await toggle.click();
     await page.getByRole('tab', { name: /^Resources/ }).click();
-    if (width >= 1100) await page.getByRole('button', { name: 'Dock', exact: true }).click();
+    if (width >= 1100) {
+      await page.getByRole('button', { name: 'Notebook layout', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Dock right', exact: true }).click();
+    }
     const surfaceFor = (name: string) => width >= 1100
       ? page.getByRole('complementary', { name })
       : page.getByRole('dialog', { name });

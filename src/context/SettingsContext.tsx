@@ -37,6 +37,7 @@ const SettingsInitializationContext = createContext({
   retry: () => {},
 });
 const SettingsActionsContext = createContext({
+  setSettings: async (_updates: Partial<UserSettings>) => false,
   setSetting: async <K extends keyof UserSettings>(
     _key: K,
     _value: UserSettings[K],
@@ -170,12 +171,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   }, [settingsSnapshot]);
 
-  const setSetting = useCallback(
-    async <K extends keyof UserSettings>(
-      key: K,
-      value: UserSettings[K],
-    ): Promise<boolean> => {
-      const updates: Partial<UserSettings> = { [key]: value };
+  const setSettings = useCallback(
+    async (updates: Partial<UserSettings>): Promise<boolean> => {
       const { request, result } = queueSettingsWrite(() =>
         indexedDbStorage.settings.update(updates),
       );
@@ -191,7 +188,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         return true;
       } catch (error) {
         setOptimisticSettings((current) => {
-          if (latestSettingsRequests.current[key] !== request) return current;
           const next = { ...current };
           for (const updatedKey of Object.keys(updates) as Array<
             keyof UserSettings
@@ -207,6 +203,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     },
     [queueSettingsWrite],
+  );
+
+  const setSetting = useCallback(
+    <K extends keyof UserSettings>(key: K, value: UserSettings[K]) =>
+      setSettings({ [key]: value }),
+    [setSettings],
   );
 
   const setNotesPanelOpen = useCallback(
@@ -237,7 +239,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   ]);
 
   return (
-    <SettingsActionsContext.Provider value={{ setSetting, setNotesPanelOpen }}>
+    <SettingsActionsContext.Provider
+      value={{ setSetting, setSettings, setNotesPanelOpen }}
+    >
       <SettingsContext.Provider value={currentSettings}>
         <SettingsInitializationContext.Provider
           value={{
