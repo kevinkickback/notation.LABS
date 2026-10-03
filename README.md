@@ -110,6 +110,16 @@ npm run dev:web
 The repository includes an `.nvmrc`; run `nvm use` before installing
 dependencies when using a compatible Node version manager.
 
+### Code structure
+
+Application commands in `src/lib/application/` coordinate persisted changes through the storage
+repositories. Parsing, notation profiles, provider responses, and presentation stay in their own
+modules. The notebook keeps drafts in `useNotebookEditor`, renders notes and resources in separate
+components, and uses one native panel within the page's interaction boundary. Docking and floating
+change its geometry without replacing its editor. `WorkspaceFrame` supplies explicit main and
+footer references for notebook measurements; placement and resize controls persist preferences
+through the settings actions.
+
 ## 🕹️ Notation Reference
 
 | Notation | Meaning |

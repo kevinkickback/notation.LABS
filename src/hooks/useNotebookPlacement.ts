@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
+import { hasModalOverlay } from '@/lib/uiFocus';
 
 type Point = { x: number; y: number };
 type Size = { width: number; height: number };
@@ -98,12 +99,9 @@ export function useNotebookPlacement({
     top: number;
     started: boolean;
     snap: 'left' | 'right' | null;
-    focusId: string | null;
-    selection: [number | null, number | null] | null;
+    focus: HTMLElement | null;
   } | null>(null);
   const cleanupDrag = useRef<(() => void) | null>(null);
-  const focusFrame = useRef(0);
-  const mounted = useRef(true);
   const layout: NotebookLayout = notebookDocked ? notebookDockSide : 'floating';
   const isDocked = enabled && notebookDocked && draft === null;
   const size = draft?.size ?? notebookFloatingSize ?? DEFAULT_FLOATING_SIZE;
@@ -117,34 +115,6 @@ export function useNotebookPlacement({
       (bounds.bottom - bounds.top) * (notebookFloatingPosition?.y ?? 0),
   };
 
-  const restoreDragFocus = useCallback(
-    (previous: NonNullable<typeof drag.current>) => {
-      if (mounted.current && previous.started && previous.focusId) {
-        cancelAnimationFrame(focusFrame.current);
-        focusFrame.current = requestAnimationFrame(() => {
-          if (
-            document.querySelector(
-              '[data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"]',
-            )
-          )
-            return;
-          const element = document.getElementById(previous.focusId ?? '');
-          if (element?.closest('[data-state="closed"]')) return;
-          element?.focus({ preventScroll: true });
-          if (
-            previous.selection &&
-            (element instanceof HTMLTextAreaElement ||
-              element instanceof HTMLInputElement) &&
-            previous.selection[0] !== null &&
-            previous.selection[1] !== null
-          )
-            element.setSelectionRange(...previous.selection);
-        });
-      }
-    },
-    [],
-  );
-
   const finishDrag = useCallback(() => {
     cleanupDrag.current?.();
     cleanupDrag.current = null;
@@ -152,8 +122,9 @@ export function useNotebookPlacement({
     drag.current = null;
     setDraft(null);
     setSnap(null);
-    if (previous) restoreDragFocus(previous);
-  }, [restoreDragFocus]);
+    if (previous?.started && previous.focus?.isConnected && !hasModalOverlay())
+      previous.focus.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     const resize = () => {
@@ -166,14 +137,12 @@ export function useNotebookPlacement({
   useEffect(() => {
     if (!enabled || !isOpen) finishDrag();
   }, [enabled, isOpen, finishDrag]);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
+  useEffect(
+    () => () => {
       cleanupDrag.current?.();
-      cancelAnimationFrame(focusFrame.current);
-    };
-  }, []);
+    },
+    [],
+  );
 
   const setLayout = (next: NotebookLayout) =>
     setSettings({
@@ -242,15 +211,7 @@ export function useNotebookPlacement({
       top: rect.top,
       started: false,
       snap: null,
-      focusId:
-        focus?.id ||
-        (kind === 'resize' ? event.currentTarget.id : grip?.id) ||
-        null,
-      selection:
-        focus instanceof HTMLTextAreaElement ||
-        focus instanceof HTMLInputElement
-          ? [focus.selectionStart, focus.selectionEnd]
-          : null,
+      focus: focus ?? (kind === 'resize' ? event.currentTarget : grip),
     };
     workspace.setPointerCapture(event.pointerId);
     const move = (pointer: PointerEvent) => {
@@ -321,13 +282,6 @@ export function useNotebookPlacement({
             active.position,
             active.size,
           ),
-        }).then((saved) => {
-          if (
-            !saved &&
-            (document.activeElement === document.body ||
-              document.activeElement?.id === active.focusId)
-          )
-            restoreDragFocus(active);
         });
       finishDrag();
     };
@@ -401,13 +355,6 @@ export function useNotebookPlacement({
     if (delta[event.key]) {
       event.preventDefault();
       void moveBy(delta[event.key].x, delta[event.key].y);
-      if (isDocked) {
-        const focusId = event.currentTarget.id;
-        cancelAnimationFrame(focusFrame.current);
-        focusFrame.current = requestAnimationFrame(() => {
-          document.getElementById(focusId)?.focus({ preventScroll: true });
-        });
-      }
     }
   };
 

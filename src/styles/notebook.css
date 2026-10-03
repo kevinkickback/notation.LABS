@@ -246,7 +246,12 @@
   color: var(--destructive);
   font-size: 0.75rem;
 }
-.notebook-drawer[data-slot="dialog-content"] {
+.notebook-drawer {
+  position: fixed;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
   display: flex;
   z-index: 50;
   flex-direction: column;
@@ -267,7 +272,7 @@
   animation: notebook-drawer-enter 180ms ease-out;
 }
 body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
-  .notebook-drawer[data-slot="dialog-content"] {
+  .notebook-drawer {
   z-index: 49;
 }
 .notebook-drawer[data-desktop="true"] {
@@ -332,6 +337,10 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
   gap: 2px;
   margin-left: auto;
 }
+.notebook-layout-menu[data-state="closed"] {
+  /* Remove its focus scope before the next placement interaction. */
+  animation: none;
+}
 .notebook-panel-tools .notebook-panel-icon[data-slot="button"] {
   width: 30px;
   height: 30px;
@@ -350,7 +359,7 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
   min-width: 0;
 }
 @media (max-width: 600px) {
-  .notebook-drawer[data-slot="dialog-content"] {
+  .notebook-drawer {
     inset: 8px;
     width: auto;
   }
@@ -373,7 +382,7 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .notebook-drawer[data-slot="dialog-content"] {
+  .notebook-drawer {
     animation: none;
   }
   .notebook-tabs [data-slot="tabs-trigger"],
@@ -384,10 +393,7 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
 .notebook-main {
   min-width: 0;
 }
-.notebook-dock-host:empty {
-  display: none;
-}
-.notebook-workspace:has(> .notebook-dock-host > .notebook-docked) {
+.notebook-workspace:has(> .notebook-docked) {
   /* Keep the right edge fixed while resizing, using the outer margin first. */
   --notebook-dock-extension: min(
     max(0px, calc((100vw - 100%) / 2 - 16px)),
@@ -399,33 +405,28 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
   gap: 28px;
   align-items: start;
 }
-.notebook-workspace:has(> .notebook-dock-host > .notebook-docked)
-  > .notebook-main {
+.notebook-workspace:has(> .notebook-docked) > .notebook-main {
   max-width: var(--notebook-main-width, none);
 }
-.notebook-workspace:has(> .notebook-dock-host > [data-side="left"]) {
+.notebook-workspace:has(> .notebook-docked[data-side="left"]) {
   margin-left: calc(-1 * var(--notebook-dock-extension));
   grid-template-columns: var(--notebook-dock-width, 400px) minmax(0, 1fr);
 }
-.notebook-workspace:has(> .notebook-dock-host > [data-side="left"])
-  .notebook-main {
+.notebook-workspace:has(> .notebook-docked[data-side="left"]) .notebook-main {
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
   width: 100%;
 }
-.notebook-workspace:has(> .notebook-dock-host > [data-side="left"])
-  > .notebook-dock-host {
+.notebook-workspace:has(> .notebook-docked[data-side="left"])
+  > .notebook-docked {
   grid-column: 1;
   grid-row: 1;
 }
-.notebook-dock-host:has(> .notebook-docked) {
+.notebook-docked {
   position: sticky;
   top: var(--notebook-dock-top, 146px);
   min-width: 0;
-}
-.notebook-docked {
-  position: relative;
   display: flex;
   flex-direction: column;
   height: var(--notebook-dock-height, calc(100dvh - 176px));
