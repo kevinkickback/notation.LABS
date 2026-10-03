@@ -33,9 +33,11 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
 import { createCombo, updateCombo } from '@/lib/application/comboCommands';
 import { MAX_VIDEO_SIZE_BYTES } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
+import { extractYouTubeVideoId, fetchYouTubeTitle } from '@/lib/media/youtube';
 import { parseComboNotation } from '@/lib/parser';
 import {
   type DemoVideo,
@@ -43,7 +45,6 @@ import {
   getLocalVideoId,
 } from '@/lib/storage/indexedDbStorage';
 import type { Character, Combo, Game } from '@/lib/types';
-import { extractYouTubeVideoId } from '@/lib/utils';
 
 const SOFT_WARN_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_VIDEO_MIME_TYPES = [
@@ -86,6 +87,10 @@ export function ComboFormDialog({
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const outdatedToggleId = useId();
   const isDesktop = !!window.electronAPI;
+  const { run: loadVideo, cancel: cancelVideo } = useMediaRequest(
+    open,
+    `${character.id}:${editingCombo?.id ?? 'new'}`,
+  );
 
   const comboNameId = useId();
   const comboNotationId = useId();
@@ -155,7 +160,7 @@ export function ComboFormDialog({
 
   // Fetch YouTube video title when URL changes
   useEffect(() => {
-    if (!demoUrl || getLocalVideoId(demoUrl)) {
+    if (!open || !demoUrl || getLocalVideoId(demoUrl)) {
       setDemoVideoTitle('');
       return;
     }
@@ -166,26 +171,22 @@ export function ComboFormDialog({
     }
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
-      fetch(`https://noembed.com/embed?url=${encodeURIComponent(demoUrl)}`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.title) setDemoVideoTitle(data.title);
-          else setDemoVideoTitle('');
+      fetchYouTubeTitle(demoUrl, controller.signal)
+        .then((title) => {
+          if (!controller.signal.aborted) setDemoVideoTitle(title);
         })
         .catch((err: unknown) => {
           if (err instanceof DOMException && err.name === 'AbortError') {
             return;
           }
-          setDemoVideoTitle('');
+          if (!controller.signal.aborted) setDemoVideoTitle('');
         });
     }, 350);
     return () => {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [demoUrl]);
+  }, [demoUrl, open]);
 
   const buildComboPayload = () => ({
     name: name.trim(),
@@ -239,13 +240,13 @@ export function ComboFormDialog({
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
       toast.error(
         'Video exceeds 50 MB limit. Please compress the file and try again.',
       );
-      e.target.value = '';
       return;
     }
 
@@ -255,26 +256,26 @@ export function ComboFormDialog({
 
     if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
       toast.error('Unsupported video format');
-      e.target.value = '';
       return;
     }
 
-    try {
-      const buffer = await file.arrayBuffer();
-      const videoId = generateId();
-      setPendingVideo({
-        id: videoId,
-        data: buffer,
-        mimeType: file.type,
-        fileName: file.name,
-      });
-      setDemoUrl(`local:${videoId}`);
-      setDemoFileName(file.name);
-    } catch (err) {
-      reportError('ComboFormDialog.handleVideoFileChange', err);
-      toast.error('Failed to save video file');
-    }
-    e.target.value = '';
+    await loadVideo(file.name, () => file.arrayBuffer(), {
+      onSuccess: (buffer) => {
+        const videoId = generateId();
+        setPendingVideo({
+          id: videoId,
+          data: buffer,
+          mimeType: file.type,
+          fileName: file.name,
+        });
+        setDemoUrl(`local:${videoId}`);
+        setDemoFileName(file.name);
+      },
+      onError: (err) => {
+        reportError('ComboFormDialog.handleVideoFileChange', err);
+        toast.error('Failed to read video file');
+      },
+    });
   };
 
   const currentTags = tags
@@ -489,7 +490,9 @@ export function ComboFormDialog({
                   id={comboDemoUrlId}
                   value={localDemoVideoId ? '' : demoUrl}
                   onChange={(e) => {
+                    cancelVideo();
                     setDemoUrl(e.target.value);
+                    setDemoVideoTitle('');
                     setDemoFileName('');
                     setPendingVideo(undefined);
                   }}
@@ -546,6 +549,7 @@ export function ComboFormDialog({
                     size="sm"
                     className="h-6 px-2 shrink-0"
                     onClick={() => {
+                      cancelVideo();
                       setDemoUrl('');
                       setDemoFileName('');
                       setDemoVideoTitle('');

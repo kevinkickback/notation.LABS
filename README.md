@@ -120,6 +120,12 @@ change its geometry without replacing its editor. `WorkspaceFrame` supplies expl
 footer references for notebook measurements; placement and resize controls persist preferences
 through the settings actions.
 
+Media validation lives in `src/lib/media/`: local and downloaded images share raster-signature,
+MIME, and 2 MB checks; YouTube URLs use exact hosts and valid video IDs. `useMediaRequest` owns
+loading for the current editor session, cancels superseded work, and disposes outdated video URLs.
+New resource links require HTTPS, matching desktop external-link handling. Existing HTTP links
+remain in backups and can be edited, with an explanation when opening is blocked.
+
 ## 🕹️ Notation Reference
 
 | Notation | Meaning |

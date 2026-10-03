@@ -1,5 +1,4 @@
 import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useCachedSearch } from '@/hooks/useCachedSearch';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
 import {
   downloadCharacterImage,
   searchCharacterImages,
@@ -37,7 +37,7 @@ export function CharacterSearchDialog({
   searchQuery,
   onImageSelect,
 }: CharacterSearchDialogProps) {
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const { pending: downloading, run } = useMediaRequest(open, searchQuery);
   const {
     query: inputValue,
     setQuery: setInputValue,
@@ -55,20 +55,19 @@ export function CharacterSearchDialog({
 
   const handleImageSelect = async (result: ImageSearchResult) => {
     if (!result.imageUrl || downloading) return;
-    setDownloading(result.imageUrl);
-    try {
-      const dataUrl = await downloadCharacterImage(result.imageUrl);
-      if (dataUrl) {
-        onImageSelect(dataUrl);
-        toast.success('Image applied');
-      } else {
-        toast.error('Failed to download image');
-      }
-    } catch {
-      toast.error('Failed to download image');
-    } finally {
-      setDownloading(null);
-    }
+    await run(
+      result.imageUrl,
+      (signal) => downloadCharacterImage(result.imageUrl, signal),
+      {
+        onSuccess: (dataUrl) => {
+          if (dataUrl) {
+            onImageSelect(dataUrl);
+            toast.success('Image applied');
+          } else toast.error('Failed to download image');
+        },
+        onError: () => toast.error('Failed to download image'),
+      },
+    );
   };
 
   return (

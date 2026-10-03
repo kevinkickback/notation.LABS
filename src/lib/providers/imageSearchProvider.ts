@@ -1,12 +1,13 @@
 import { z } from 'zod';
+import { fetchImageAsBase64 } from '@/lib/media/images';
+import { externalHttpUrlSchema } from '@/lib/schemas';
 import type { ImageSearchResult } from '@/lib/types';
-import { fetchImageAsBase64 } from '@/lib/utils';
 import { getProviderBase } from './endpoints';
 
 const imageSearchResultSchema = z.object({
   title: z.string(),
-  thumbnailUrl: z.string(),
-  imageUrl: z.string(),
+  thumbnailUrl: z.union([z.literal(''), externalHttpUrlSchema]),
+  imageUrl: externalHttpUrlSchema,
   width: z.number(),
   height: z.number(),
 });
@@ -30,6 +31,10 @@ export async function searchCharacterImages(
   return parsed.data;
 }
 
-export function downloadCharacterImage(imageUrl: string) {
-  return fetchImageAsBase64(`${getProviderBase('image')}/download`, imageUrl);
+export function downloadCharacterImage(imageUrl: string, signal?: AbortSignal) {
+  return fetchImageAsBase64(
+    `${getProviderBase('image')}/download`,
+    imageUrl,
+    signal,
+  );
 }

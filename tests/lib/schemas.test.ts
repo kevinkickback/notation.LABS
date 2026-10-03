@@ -3,6 +3,7 @@ import {
   characterLinkSchema,
   characterSchema,
   externalHttpUrlSchema,
+  externalHttpsUrlSchema,
   gameSchema,
   legacyGameSchema,
   settingsSchema,
@@ -57,6 +58,13 @@ describe('notebook preference validation', () => {
 });
 
 describe('external resource URL validation', () => {
+  it('retains legacy HTTP links but requires HTTPS for new resources', () => {
+    const url = 'http://example.com/guide';
+    expect(characterLinkSchema.safeParse({ id: 'old', url, label: 'Guide' }).success).toBe(true);
+    expect(externalHttpsUrlSchema.safeParse(url).success).toBe(false);
+    expect(externalHttpsUrlSchema.safeParse('https://example.com/guide').success).toBe(true);
+    expect(externalHttpsUrlSchema.safeParse('not a URL').success).toBe(false);
+  });
   it.each(['https://dustloop.com', 'http://localhost:3000/guide'])(
     'accepts %s',
     (url) => {

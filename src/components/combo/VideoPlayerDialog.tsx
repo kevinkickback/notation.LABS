@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { useSettingsActions } from '@/context/SettingsContext';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { cn, getYouTubeEmbedUrl } from '@/lib/utils';
+import { getYouTubeEmbedUrl } from '@/lib/media/youtube';
+import { cn } from '@/lib/utils';
 
 interface VideoPlayerDialogProps {
   open: boolean;

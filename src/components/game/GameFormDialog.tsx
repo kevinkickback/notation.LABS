@@ -18,15 +18,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCoverEditor } from '@/hooks/useCoverEditor';
+import { useMediaRequest } from '@/hooks/useMediaRequest';
 import { createGame, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
+import { readImageFile } from '@/lib/media/images';
 import {
   getNotationProfileDefinition,
   NOTATION_PROFILES,
 } from '@/lib/notationProfiles';
 import type { Game, NotationProfile } from '@/lib/types';
-import { isAllowedImageUpload } from '@/lib/utils';
 import { CoverSearchDialog } from './CoverSearchDialog';
 
 interface GameFormDialogProps {
@@ -67,6 +68,10 @@ export function GameFormDialog({
     useState<NotationProfile>('standard');
   const [coverSearchOpen, setCoverSearchOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const { run: loadImage, cancel: cancelImage } = useMediaRequest(
+    open,
+    editingGame?.id ?? 'new',
+  );
 
   const parsedButtons = useMemo(
     () =>
@@ -185,23 +190,17 @@ export function GameFormDialog({
 
   const handleImageSelect = () => imageInputRef.current?.click();
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be under 2MB');
-      e.target.value = '';
-      return;
-    }
-    if (!(await isAllowedImageUpload(file))) {
-      toast.error('Unsupported or invalid image file');
-      e.target.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => applyCoverImage(reader.result as string);
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+    void loadImage(file.name, (signal) => readImageFile(file, signal), {
+      onSuccess: applyCoverImage,
+      onError: (error) =>
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to read image file',
+        ),
+    });
   };
 
   return (
@@ -264,8 +263,14 @@ export function GameFormDialog({
                 focalX={coverPanX}
                 focalY={coverPanY}
                 onUpload={handleImageSelect}
-                onSearch={() => setCoverSearchOpen(true)}
-                onRemove={() => setLogoImage('')}
+                onSearch={() => {
+                  cancelImage();
+                  setCoverSearchOpen(true);
+                }}
+                onRemove={() => {
+                  cancelImage();
+                  setLogoImage('');
+                }}
                 onFitChange={setCoverFit}
                 onZoomChange={setCoverZoom}
                 onFocalXChange={setCoverPanX}
@@ -378,7 +383,8 @@ export function GameFormDialog({
         </DialogContent>
       </Dialog>
       <CoverSearchDialog
-        open={coverSearchOpen}
+        key={editingGame?.id ?? 'new'}
+        open={open && coverSearchOpen}
         onOpenChange={setCoverSearchOpen}
         defaultQuery={name}
         onCoverSelect={(base64) => {
