@@ -108,6 +108,12 @@ populated collection states so a live read cannot interrupt a pending save. Comb
 retains tags as an array rather than serializing them through comma-separated text. Media requests
 continue to use their separate cancellable lifecycle.
 
+Export selection stores only selected leaves: combos and games or characters without children.
+Parent checkbox states include every descendant, including empty characters, and partial parent
+selection selects the whole branch when checked. The existing backup closure derives required
+parents for the final export; components do not synchronize parent selections manually. A closed
+export dialog's pending reads cannot replace a reopened session's data.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch

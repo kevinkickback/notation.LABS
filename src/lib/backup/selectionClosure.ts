@@ -6,7 +6,7 @@ export interface BackupFilter {
   comboIds?: string[];
 }
 
-interface BackupRecords {
+export interface BackupRecords {
   games: Game[];
   characters: Character[];
   combos: Combo[];
