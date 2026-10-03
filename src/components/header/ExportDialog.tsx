@@ -22,7 +22,12 @@ import { loadBackupSelectionData } from '@/lib/application/backupCommands';
 import { compareEntityNames } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
 import { getLocalVideoId } from '@/lib/storage/indexedDbStorage';
-import type { Character, Combo, Game } from '@/lib/types';
+import {
+  createExportSelection,
+  getExportCheckState,
+  getSelectedExportRecords,
+  toggleExportNode,
+} from './exportSelection';
 
 interface ExportProgressModalProps {
   current: number;
@@ -101,27 +106,23 @@ interface ExportDialogProps {
   ) => void;
 }
 
-interface TreeData {
-  games: Game[];
-  characters: Character[];
-  combos: Combo[];
-}
-
 export function ExportDialog({
   open,
   onOpenChange,
   onExport,
 }: ExportDialogProps) {
-  const [data, setData] = useState<TreeData>({
-    games: [],
-    characters: [],
-    combos: [],
-  });
-  const [selectedGames, setSelectedGames] = useState<Set<string>>(new Set());
-  const [selectedCharacters, setSelectedCharacters] = useState<Set<string>>(
-    new Set(),
+  const [selection, setSelection] = useState(() =>
+    createExportSelection({
+      games: [],
+      characters: [],
+      combos: [],
+    }),
   );
-  const [selectedCombos, setSelectedCombos] = useState<Set<string>>(new Set());
+  const { records: data, charactersByGame, combosByCharacter } = selection;
+  const selectedRecords = useMemo(
+    () => getSelectedExportRecords(selection),
+    [selection],
+  );
   const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set());
   const [expandedCharacters, setExpandedCharacters] = useState<Set<string>>(
     new Set(),
@@ -133,221 +134,68 @@ export function ExportDialog({
 
   useEffect(() => {
     if (!open) return;
+    let active = true;
     setLoading(true);
+    setExpandedGames(new Set());
+    setExpandedCharacters(new Set());
+    setIncludeVideos(false);
+    setHasLocalVideos(false);
     loadBackupSelectionData()
       .then(([games, characters, combos, videos]) => {
-        setData({ games, characters, combos });
-
-        setSelectedGames(new Set(games.map((g) => g.id)));
-        setSelectedCharacters(new Set(characters.map((c) => c.id)));
-        setSelectedCombos(new Set(combos.map((c) => c.id)));
-        setExpandedGames(new Set());
-        setExpandedCharacters(new Set());
+        if (!active) return;
+        setSelection(createExportSelection({ games, characters, combos }));
         setHasLocalVideos(videos.length > 0);
-        setIncludeVideos(false);
         setLoading(false);
       })
       .catch((err) => {
+        if (!active) return;
         reportError('ExportDialog.loadData', err);
-        setData({ games: [], characters: [], combos: [] });
-        setSelectedGames(new Set());
-        setSelectedCharacters(new Set());
-        setSelectedCombos(new Set());
-        setExpandedGames(new Set());
-        setExpandedCharacters(new Set());
-        setHasLocalVideos(false);
-        setIncludeVideos(false);
+        setSelection(
+          createExportSelection({ games: [], characters: [], combos: [] }),
+        );
         setLoading(false);
         toast.error('Failed to load export data');
       });
+    return () => {
+      active = false;
+    };
   }, [open]);
-
-  const charactersByGame = useMemo(() => {
-    const map = new Map<string, Character[]>();
-    for (const char of data.characters) {
-      const list = map.get(char.gameId) || [];
-      list.push(char);
-      map.set(char.gameId, list);
-    }
-    return map;
-  }, [data.characters]);
 
   const sortedGames = useMemo(
     () => [...data.games].sort(compareEntityNames),
     [data.games],
   );
-
-  const combosByCharacter = useMemo(() => {
-    const map = new Map<string, Combo[]>();
-    for (const combo of data.combos) {
-      const list = map.get(combo.characterId) || [];
-      list.push(combo);
-      map.set(combo.characterId, list);
-    }
-    return map;
-  }, [data.combos]);
-
-  // Count how many relevant local videos exist for the current selection
-  const selectedVideoCount = useMemo(() => {
-    if (!hasLocalVideos) return 0;
-    return data.combos.filter(
-      (c) => selectedCombos.has(c.id) && !!getLocalVideoId(c.demoUrl),
-    ).length;
-  }, [selectedCombos, data.combos, hasLocalVideos]);
-
-  const toggleGame = (gameId: string) => {
-    const next = new Set(selectedGames);
-    const chars = charactersByGame.get(gameId) || [];
-    const nextChars = new Set(selectedCharacters);
-    const nextCombos = new Set(selectedCombos);
-
-    if (next.has(gameId)) {
-      next.delete(gameId);
-      for (const char of chars) {
-        nextChars.delete(char.id);
-        for (const combo of combosByCharacter.get(char.id) || []) {
-          nextCombos.delete(combo.id);
-        }
-      }
-    } else {
-      next.add(gameId);
-      for (const char of chars) {
-        nextChars.add(char.id);
-        for (const combo of combosByCharacter.get(char.id) || []) {
-          nextCombos.add(combo.id);
-        }
-      }
-    }
-    setSelectedGames(next);
-    setSelectedCharacters(nextChars);
-    setSelectedCombos(nextCombos);
-  };
-
-  const toggleCharacter = (charId: string, gameId: string) => {
-    const nextChars = new Set(selectedCharacters);
-    const nextCombos = new Set(selectedCombos);
-    const combos = combosByCharacter.get(charId) || [];
-
-    if (nextChars.has(charId)) {
-      nextChars.delete(charId);
-      for (const combo of combos) {
-        nextCombos.delete(combo.id);
-      }
-    } else {
-      nextChars.add(charId);
-      for (const combo of combos) {
-        nextCombos.add(combo.id);
-      }
-    }
-    setSelectedCharacters(nextChars);
-    setSelectedCombos(nextCombos);
-
-    // Update game state: select if any child is selected, deselect if none
-    const gameChars = charactersByGame.get(gameId) || [];
-    const nextGames = new Set(selectedGames);
-    if (gameChars.some((c) => nextChars.has(c.id))) {
-      nextGames.add(gameId);
-    } else {
-      nextGames.delete(gameId);
-    }
-    setSelectedGames(nextGames);
-  };
-
-  const toggleCombo = (comboId: string, charId: string, gameId: string) => {
-    const nextCombos = new Set(selectedCombos);
-    if (nextCombos.has(comboId)) {
-      nextCombos.delete(comboId);
-    } else {
-      nextCombos.add(comboId);
-    }
-    setSelectedCombos(nextCombos);
-
-    // Update character state
-    const charCombos = combosByCharacter.get(charId) || [];
-    const nextChars = new Set(selectedCharacters);
-    if (charCombos.some((c) => nextCombos.has(c.id))) {
-      nextChars.add(charId);
-    } else {
-      nextChars.delete(charId);
-    }
-    setSelectedCharacters(nextChars);
-
-    const gameChars = charactersByGame.get(gameId) || [];
-    const nextGames = new Set(selectedGames);
-    if (gameChars.some((c) => nextChars.has(c.id))) {
-      nextGames.add(gameId);
-    } else {
-      nextGames.delete(gameId);
-    }
-    setSelectedGames(nextGames);
-  };
+  const selectedVideoCount = hasLocalVideos
+    ? selectedRecords.combos.filter((combo) => !!getLocalVideoId(combo.demoUrl))
+        .length
+    : 0;
 
   const toggleExpandGame = (gameId: string) => {
-    const next = new Set(expandedGames);
-    if (next.has(gameId)) {
-      next.delete(gameId);
-    } else {
-      next.add(gameId);
-    }
-    setExpandedGames(next);
+    setExpandedGames((current) => {
+      const next = new Set(current);
+      if (next.has(gameId)) next.delete(gameId);
+      else next.add(gameId);
+      return next;
+    });
   };
-
-  const toggleExpandCharacter = (charId: string) => {
-    const next = new Set(expandedCharacters);
-    if (next.has(charId)) {
-      next.delete(charId);
-    } else {
-      next.add(charId);
-    }
-    setExpandedCharacters(next);
-  };
-
-  const selectAll = () => {
-    setSelectedGames(new Set(data.games.map((g) => g.id)));
-    setSelectedCharacters(new Set(data.characters.map((c) => c.id)));
-    setSelectedCombos(new Set(data.combos.map((c) => c.id)));
-  };
-
-  const selectNone = () => {
-    setSelectedGames(new Set());
-    setSelectedCharacters(new Set());
-    setSelectedCombos(new Set());
-  };
-
-  const getGameCheckState = (gameId: string): boolean | 'indeterminate' => {
-    const chars = charactersByGame.get(gameId) || [];
-    if (chars.length === 0) return selectedGames.has(gameId);
-    const allCombos = chars.flatMap((c) => combosByCharacter.get(c.id) || []);
-    if (allCombos.length === 0) return selectedGames.has(gameId);
-    const selectedCount = allCombos.filter((c) =>
-      selectedCombos.has(c.id),
-    ).length;
-    if (selectedCount === 0) return false;
-    if (selectedCount === allCombos.length) return true;
-    return 'indeterminate';
-  };
-
-  const getCharCheckState = (charId: string): boolean | 'indeterminate' => {
-    const combos = combosByCharacter.get(charId) || [];
-    if (combos.length === 0) return selectedCharacters.has(charId);
-    const selectedCount = combos.filter((c) => selectedCombos.has(c.id)).length;
-    if (selectedCount === 0) return false;
-    if (selectedCount === combos.length) return true;
-    return 'indeterminate';
-  };
-
-  const handleExport = () => {
-    onExport(includeVideos, {
-      gameIds: [...selectedGames],
-      characterIds: [...selectedCharacters],
-      comboIds: [...selectedCombos],
+  const toggleExpandCharacter = (characterId: string) => {
+    setExpandedCharacters((current) => {
+      const next = new Set(current);
+      if (next.has(characterId)) next.delete(characterId);
+      else next.add(characterId);
+      return next;
     });
   };
 
-  const nothingSelected =
-    selectedGames.size === 0 &&
-    selectedCharacters.size === 0 &&
-    selectedCombos.size === 0;
+  const handleExport = () => {
+    if (loading || selection.selected.size === 0) return;
+    onExport(includeVideos, {
+      gameIds: selectedRecords.games.map((game) => game.id),
+      characterIds: selectedRecords.characters.map((character) => character.id),
+      comboIds: selectedRecords.combos.map((combo) => combo.id),
+    });
+  };
+  const nothingSelected = selection.selected.size === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -368,7 +216,13 @@ export function ExportDialog({
             <Button
               variant="ghost"
               size="sm"
-              onClick={selectAll}
+              onClick={() =>
+                setSelection((current) => ({
+                  ...current,
+                  selected: new Set(current.leaves),
+                }))
+              }
+              disabled={loading}
               className="text-xs h-7 px-2"
             >
               All
@@ -376,7 +230,10 @@ export function ExportDialog({
             <Button
               variant="ghost"
               size="sm"
-              onClick={selectNone}
+              onClick={() =>
+                setSelection((current) => ({ ...current, selected: new Set() }))
+              }
+              disabled={loading}
               className="text-xs h-7 px-2"
             >
               None
@@ -395,7 +252,11 @@ export function ExportDialog({
             ) : (
               sortedGames.map((game) => {
                 const chars = charactersByGame.get(game.id) || [];
-                const gameState = getGameCheckState(game.id);
+                const gameState = getExportCheckState(
+                  selection,
+                  'game',
+                  game.id,
+                );
                 const isExpanded = expandedGames.has(game.id);
 
                 return (
@@ -405,6 +266,9 @@ export function ExportDialog({
                       <button
                         type="button"
                         onClick={() => toggleExpandGame(game.id)}
+                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${game.name}`}
+                        aria-expanded={isExpanded}
+                        disabled={chars.length === 0}
                         className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
                       >
                         {chars.length > 0 ? (
@@ -418,8 +282,13 @@ export function ExportDialog({
                         )}
                       </button>
                       <Checkbox
+                        aria-label={`Include game ${game.name}`}
                         checked={gameState}
-                        onCheckedChange={() => toggleGame(game.id)}
+                        onCheckedChange={() =>
+                          setSelection((current) =>
+                            toggleExportNode(current, 'game', game.id),
+                          )
+                        }
                       />
                       <span className="min-w-0 flex-1 truncate pr-2 text-sm font-medium">
                         {game.name}
@@ -433,7 +302,11 @@ export function ExportDialog({
                     {isExpanded &&
                       chars.map((char) => {
                         const combos = combosByCharacter.get(char.id) || [];
-                        const charState = getCharCheckState(char.id);
+                        const charState = getExportCheckState(
+                          selection,
+                          'character',
+                          char.id,
+                        );
                         const isCharExpanded = expandedCharacters.has(char.id);
 
                         return (
@@ -443,6 +316,9 @@ export function ExportDialog({
                               <button
                                 type="button"
                                 onClick={() => toggleExpandCharacter(char.id)}
+                                aria-label={`${isCharExpanded ? 'Collapse' : 'Expand'} ${char.name}`}
+                                aria-expanded={isCharExpanded}
+                                disabled={combos.length === 0}
                                 className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
                               >
                                 {combos.length > 0 ? (
@@ -456,9 +332,16 @@ export function ExportDialog({
                                 )}
                               </button>
                               <Checkbox
+                                aria-label={`Include character ${char.name}`}
                                 checked={charState}
                                 onCheckedChange={() =>
-                                  toggleCharacter(char.id, game.id)
+                                  setSelection((current) =>
+                                    toggleExportNode(
+                                      current,
+                                      'character',
+                                      char.id,
+                                    ),
+                                  )
                                 }
                               />
                               <span className="min-w-0 flex-1 truncate pr-2 text-sm">
@@ -479,9 +362,20 @@ export function ExportDialog({
                                 >
                                   <span className="size-3.5 inline-block shrink-0" />
                                   <Checkbox
-                                    checked={selectedCombos.has(combo.id)}
+                                    aria-label={`Include combo ${combo.name}`}
+                                    checked={getExportCheckState(
+                                      selection,
+                                      'combo',
+                                      combo.id,
+                                    )}
                                     onCheckedChange={() =>
-                                      toggleCombo(combo.id, char.id, game.id)
+                                      setSelection((current) =>
+                                        toggleExportNode(
+                                          current,
+                                          'combo',
+                                          combo.id,
+                                        ),
+                                      )
                                     }
                                   />
                                   <span className="min-w-0 flex-1 truncate pr-2 text-sm text-muted-foreground">
@@ -521,7 +415,7 @@ export function ExportDialog({
 
         <Button
           onClick={handleExport}
-          disabled={nothingSelected}
+          disabled={loading || nothingSelected}
           className="w-full"
         >
           {nothingSelected ? 'Select items to export' : 'Export'}

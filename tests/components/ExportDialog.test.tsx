@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Dexie } from 'dexie';
 import { ExportDialog, ExportProgressModal } from '@/components/header/ExportDialog';
 import type { Game, Character, Combo } from '@/lib/types';
 
@@ -223,6 +224,67 @@ describe('ExportDialog', () => {
       />,
     );
     expect(screen.queryByText('Export Data')).toBeFalsy();
+  });
+
+  it('counts empty characters in parent selection and exports only the chosen branch', async () => {
+    vi.mocked(indexedDbStorage.characters.getAll).mockResolvedValueOnce([
+      mockCharacters[0], { ...mockCharacters[0], id: 'empty-fighter', name: 'Empty fighter' },
+    ]);
+    vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([mockCombos[0]]);
+    const user = userEvent.setup();
+    await renderDialog();
+    await user.click(screen.getByRole('button', { name: 'Expand Street Fighter 6' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Include character Empty fighter' }));
+    const game = screen.getByRole('checkbox', { name: 'Include game Street Fighter 6' });
+    expect(game.getAttribute('aria-checked')).toBe('mixed');
+    await user.click(game);
+    expect(game.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('checkbox', { name: 'Include character Empty fighter' }).getAttribute('aria-checked')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'None' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Include character Empty fighter' }));
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(onExport).toHaveBeenCalledWith(false, { gameIds: ['game-1'], characterIds: ['empty-fighter'], comboIds: [] });
+  });
+
+  it('keeps rapid sibling changes in one selection and derives parent and video states', async () => {
+    vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValueOnce(['video']);
+    vi.mocked(indexedDbStorage.characters.getAll).mockResolvedValueOnce([mockCharacters[0]]);
+    vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([
+      { ...mockCombos[0], demoUrl: 'local:video' }, { ...mockCombos[1], characterId: 'char-1' },
+    ]);
+    const user = userEvent.setup();
+    await renderDialog();
+    await user.click(screen.getByRole('button', { name: 'Expand Street Fighter 6' }));
+    await user.click(screen.getByRole('button', { name: 'Expand Ryu' }));
+    await user.click(screen.getByRole('button', { name: 'None' }));
+    act(() => {
+      screen.getByRole('checkbox', { name: 'Include combo BnB Corner' }).click();
+      screen.getByRole('checkbox', { name: 'Include combo Dust Loop' }).click();
+    });
+    expect(screen.getByRole('checkbox', { name: 'Include character Ryu' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText('Include demo videos')).toBeTruthy();
+    await user.click(screen.getByRole('checkbox', { name: 'Include combo BnB Corner' }));
+    expect(screen.queryByText('Include demo videos')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Include character Ryu' }).getAttribute('aria-checked')).toBe('mixed');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(onExport).toHaveBeenCalledWith(false, { gameIds: ['game-1'], characterIds: ['char-1'], comboIds: ['combo-2'] });
+  });
+
+  it('ignores a previous session load after reopening and disables export until the new read finishes', async () => {
+    let finishOld!: (games: Game[]) => void;
+    let finishNew!: (games: Game[]) => void;
+    const oldRead = new Dexie.Promise<Game[]>(resolve => { finishOld = resolve; });
+    const newRead = new Dexie.Promise<Game[]>(resolve => { finishNew = resolve; });
+    vi.mocked(indexedDbStorage.games.getAll).mockReturnValueOnce(oldRead).mockReturnValueOnce(newRead);
+    const { rerender } = render(<ExportDialog open onOpenChange={onOpenChange} onExport={onExport} />);
+    rerender(<ExportDialog open={false} onOpenChange={onOpenChange} onExport={onExport} />);
+    rerender(<ExportDialog open onOpenChange={onOpenChange} onExport={onExport} />);
+    await act(async () => { finishOld(mockGames); await oldRead; });
+    expect(screen.getByText('Loading...')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Select items to export' }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { finishNew([mockGames[1]]); await newRead; });
+    expect(screen.queryByText('Street Fighter 6')).toBeNull();
+    expect(screen.getByText('Guilty Gear Strive')).toBeTruthy();
   });
 
   it('shows no data message when there are no games', async () => {
