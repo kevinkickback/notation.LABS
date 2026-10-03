@@ -7,6 +7,7 @@ import {
   PlusIcon,
   SquaresFourIcon,
 } from '@phosphor-icons/react';
+import { CardSizeSlider } from '@/components/shared/CardSizeSlider';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
+import type { CardGridLayout } from '@/lib/cardGrid';
 import type { GameSort } from '@/lib/types';
 
 const SORT_LABELS: Record<GameSort, string> = {
@@ -33,7 +34,7 @@ interface GameLibraryToolbarProps {
   onSortByChange: (sort: GameSort) => void;
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
-  cardSize: number;
+  cardLayout: CardGridLayout;
   onCardSizeChange: (size: number) => void;
   onToggleSelect: () => void;
   onAddGame: () => void;
@@ -46,7 +47,7 @@ export function GameLibraryToolbar({
   onSortByChange,
   viewMode,
   onViewModeChange,
-  cardSize,
+  cardLayout,
   onCardSizeChange,
   onToggleSelect,
   onAddGame,
@@ -137,14 +138,9 @@ export function GameLibraryToolbar({
                 <p className="text-xs font-medium text-muted-foreground mb-1.5">
                   Card Size
                 </p>
-                <Slider
-                  aria-label="Card size"
-                  min={120}
-                  max={300}
-                  step={10}
-                  value={[cardSize]}
-                  onValueChange={([v]) => onCardSizeChange(v)}
-                  className="w-full"
+                <CardSizeSlider
+                  layout={cardLayout}
+                  onSizeChange={onCardSizeChange}
                 />
               </div>
             )}
