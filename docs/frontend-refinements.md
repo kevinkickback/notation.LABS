@@ -9,8 +9,14 @@ migrations, and the game library initialize. Stage descriptions and progress
 reflect those tasks. Startup errors keep the overlay visible with a retry action.
 The workspace stays inert until initialization completes, then the overlay fades.
 The overlay inherits the application theme and respects reduced motion.
-The splash and header share the existing application icon from `build/icon.png`.
-The splash displays a larger mark above the title, with a smaller size in short windows.
+The splash preserves the detailed artwork in `src/assets/branding/splash-logo.png`.
+It displays a larger mark above the title, with a smaller size in short windows.
+The header uses a flat SVG companion mark with solid colors and stronger edges.
+Small app icons use simplified artwork at 16px and 24px. The Windows icon contains
+native frames from 16px through 256px; a 512px PNG serves macOS and Linux. The browser
+favicon uses the same multi-size icon. Both compact directions and their native PNG
+exports live in `src/assets/branding/`; regenerate them with `npm run assets:branding`
+after installing Playwright's Chromium browser. The detailed splash stays separate.
 Rejected settings and library reads stay in startup state rather than escaping to
 the global error page. Retry restarts initialization and the reactive reads; cached
 results from an earlier retry cannot mark the new attempt ready. Detailed errors

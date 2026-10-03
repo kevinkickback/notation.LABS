@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`loads the shared app logo on the splash and header in ${theme} mode at each breakpoint`, async ({ page }, testInfo) => {
+  test(`loads the detailed splash and compact header marks in ${theme} mode at each breakpoint`, async ({ page }, testInfo) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.route('**/src/lib/storage/indexedDbStorage.ts*', async route => {
       const response = await route.fetch();
@@ -34,8 +34,9 @@ for (const theme of ['light', 'dark'] as const) {
     await page.evaluate(() => (window as unknown as { finishStartupBrandProbe: () => void }).finishStartupBrandProbe());
     await expect(overlay).toHaveCount(0);
     const headerLogo = page.locator('header img');
-    await expect(headerLogo).toHaveJSProperty('naturalWidth', 512);
-    await expect(headerLogo).toHaveAttribute('src', source ?? '');
+    await expect(headerLogo).toHaveJSProperty('naturalWidth', 32);
+    await expect(headerLogo).toHaveAttribute('src', /(?:^data:image\/svg\+xml|(?:app|flask)-mark.*\.svg)/);
+    expect(await headerLogo.getAttribute('src')).not.toBe(source);
     for (const width of [320, 800, 1440]) {
       await page.setViewportSize({ width, height: 700 });
       await expect(headerLogo).toBeInViewport();

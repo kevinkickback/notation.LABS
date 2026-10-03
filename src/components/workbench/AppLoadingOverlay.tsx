@@ -59,11 +59,10 @@ export function AppLoadingOverlay({
       tabIndex={-1}
     >
       <div className="startup-brand">
-        <AppLogo className="startup-logo" />
+        <AppLogo className="startup-logo" variant="splash" />
         <h1 id={titleId}>
           notation<span>.LABS</span>
         </h1>
-        <p>Fighting game combo notebook</p>
       </div>
       <div className="startup-progress">
         <progress max={100} value={progress} aria-label="Startup progress" />
