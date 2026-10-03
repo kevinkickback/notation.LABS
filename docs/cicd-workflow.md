@@ -63,10 +63,15 @@ This command opts that pull request into GitHub native auto-merge. It does not b
 branch protection, or an out-of-date base.
 
 `ci.yml` runs on every non-draft pull request targeting `main`. It validates release metadata,
-audits production dependencies, runs Biome and TypeScript, executes Vitest with coverage, builds and
-validates the desktop and renderer bundles, and runs the browser suite separately.
-Repository-run Node commands use Node 24, matching
-`.nvmrc` and the package engine requirement.
+audits production dependencies and the shipped Electron runtime, runs Biome and TypeScript,
+executes Vitest with coverage, builds and validates the desktop and renderer bundles, and runs the
+browser suite separately. Repository-run Node commands use Node 24, matching `.nvmrc` and the
+package engine requirement.
+`npm run audit:electron` checks the full npm audit for Electron advisories, since the binary ships
+despite its development dependency classification. The separate production audit covers bundled
+app libraries. Release build jobs repeat both audits before packaging. Audit request failures stop
+the checks. See [dependency security](dependency-security.md)
+for the remaining build-tool advisory and its exposure assessment.
 Linux CI and release jobs use the explicit `ubuntu-26.04` runner instead of `ubuntu-latest`, so a
 future GitHub runner migration cannot change the build environment without a reviewed repository
 change.
