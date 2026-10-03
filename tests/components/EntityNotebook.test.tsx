@@ -1,5 +1,5 @@
-import { act, createRef, type ReactElement, useState } from 'react';
-import { fireEvent, render as renderComponent, screen, waitFor, within } from '@testing-library/react';
+import { createRef, type ReactElement, useState } from 'react';
+import { act, fireEvent, render as renderComponent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EntityNotebook, type EntityNotebookRef, NotebookWorkspace } from '@/components/shared/EntityNotebook';
@@ -47,6 +47,11 @@ function CharacterNotebook({ notes = '', resources = links, initiallyOpen = true
 function RememberedCharacterNotebook() {
   const [open, toggle] = useNotebookOpen('ryu');
   return <NotebookWorkspace><EntityNotebook kind="character" entityId="ryu" entityName="Ryu" notes="Practice" links={[]} isOpen={open} onToggle={toggle} /></NotebookWorkspace>;
+}
+
+async function chooseLayout(name: string) {
+  await act(async () => fireEvent.keyDown(screen.getByRole('button', { name: 'Notebook layout' }), { key: 'Enter' }));
+  await act(async () => fireEvent.click(screen.getByRole('menuitem', { name })));
 }
 
 describe('EntityNotebook', () => {
@@ -190,18 +195,18 @@ describe('EntityNotebook', () => {
       expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Note' }));
       await user.clear(screen.getByRole('textbox', { name: 'Note' }));
       await user.type(screen.getByRole('textbox', { name: 'Note' }), 'Docked draft');
-      await user.click(screen.getByRole('button', { name: 'Dock' }));
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Undock' }));
+      await chooseLayout('Dock right');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' }));
       const dock = screen.getByRole('complementary', { name: 'Ryu Notebook' });
       expect(screen.queryByRole('dialog')).toBeNull();
       expect((within(dock).getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Docked draft');
       await user.click(within(dock).getByRole('tab', { name: 'Resources (0)' }));
       await user.click(within(dock).getByRole('button', { name: 'Add resource link' }));
       await user.type(screen.getByRole('textbox', { name: 'URL' }), 'https://example.com/draft');
-      await user.click(within(dock).getByRole('button', { name: 'Undock' }));
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Dock' }));
+      await chooseLayout('Floating');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' }));
       expect((screen.getByRole('textbox', { name: 'URL' }) as HTMLInputElement).value).toBe('https://example.com/draft');
-      await user.click(screen.getByRole('button', { name: 'Dock' }));
+      await chooseLayout('Dock right');
       await user.click(screen.getByRole('button', { name: 'Close notebook' }));
       expect(screen.queryByRole('complementary')).toBeNull();
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notes & Resources' }));
@@ -216,23 +221,109 @@ describe('EntityNotebook', () => {
 
   it('hides docking controls and their spacing in narrow windows', () => {
     render(<CharacterNotebook />);
-    expect(screen.queryByRole('button', { name: 'Dock' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Undock' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Notebook layout' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resize notebook' })).toBeNull();
     expect(screen.getByRole('dialog').querySelector('.notebook-panel-tools')?.children).toHaveLength(1);
+  });
+
+  it('places the notebook on either side from the layout menu without losing its draft', async () => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
+    try {
+      const user = userEvent.setup();
+      render(<CharacterNotebook resources={[]} />);
+      await user.click(screen.getByRole('button', { name: 'Add note' }));
+      await user.type(screen.getByRole('textbox', { name: 'Note' }), 'Placement draft');
+      for (const side of ['left', 'right'] as const) {
+        await act(async () => fireEvent.keyDown(screen.getByRole('button', { name: 'Notebook layout' }), { key: 'Enter' }));
+        await act(async () => fireEvent.click(screen.getByRole('menuitem', { name: `Dock ${side}` })));
+        await waitFor(() => expect(preferences.update).toHaveBeenCalledWith({ notebookDocked: true, notebookDockSide: side }));
+        expect(screen.getByRole('complementary').getAttribute('data-side')).toBe(side);
+        expect((screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Placement draft');
+      }
+      await act(async () => fireEvent.keyDown(screen.getByRole('button', { name: 'Notebook layout' }), { key: 'Enter' }));
+      await act(async () => fireEvent.click(screen.getByRole('menuitem', { name: 'Floating' })));
+      expect(screen.getByRole('dialog')).not.toBeNull();
+      expect((screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Placement draft');
+      expect(updateCharacter).not.toHaveBeenCalled();
+    } finally {
+      mediaSpy.mockRestore();
+    }
+  });
+
+  it('provides keyboard movement and one placement menu without reset actions', async () => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
+    try {
+      const user = userEvent.setup();
+      render(<CharacterNotebook />);
+      const handle = screen.getByRole('button', { name: 'Move notebook' });
+      await act(async () => handle.focus());
+      await user.keyboard('{ArrowLeft}');
+      await waitFor(() => expect(preferences.saved.notebookFloatingPosition?.x).toBeLessThan(1));
+      await user.keyboard('{Shift>}{ArrowLeft}{/Shift}');
+      await waitFor(() => expect(preferences.saved.notebookFloatingPosition?.x).toBeLessThan(0.9));
+      expect(screen.getByRole('dialog').querySelector('.notebook-panel-tools')?.children).toHaveLength(2);
+      await act(async () => fireEvent.keyDown(screen.getByRole('button', { name: 'Notebook layout' }), { key: 'Enter' }));
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Floating', 'Dock left', 'Dock right']);
+      expect(screen.getByRole('menuitem', { name: 'Floating' }).getAttribute('aria-current')).toBe('true');
+      expect(screen.queryByRole('menuitem', { name: /Reset/ })).toBeNull();
+    } finally {
+      mediaSpy.mockRestore();
+    }
+  });
+
+  it('resizes by keyboard and remembers the size across notebook remounts', async () => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
+    try {
+      preferences.saved = { ...DEFAULT_SETTINGS, notebookFloatingSize: { width: 480, height: 600 } };
+      const user = userEvent.setup();
+      const first = render(<CharacterNotebook />);
+      const handle = screen.getByRole('button', { name: 'Resize notebook' });
+      handle.focus();
+      await user.keyboard('{ArrowRight}{ArrowUp}');
+      await waitFor(() => expect(preferences.saved.notebookFloatingSize).toEqual({ width: 500, height: 580 }));
+      expect(document.activeElement).toBe(handle);
+      expect(preferences.update).toHaveBeenLastCalledWith({ notebookFloatingSize: { width: 500, height: 580 }, notebookFloatingPosition: expect.any(Object) });
+      first.unmount();
+      render(<NotebookWorkspace><EntityNotebook kind="game" entityId="sf6" entityName="Street Fighter 6" notes="Game plan" isOpen onToggle={vi.fn()} /></NotebookWorkspace>);
+      expect(screen.getByRole('dialog').style.getPropertyValue('--notebook-float-width')).toBe('500px');
+      expect(screen.getByRole('dialog').style.getPropertyValue('--notebook-float-height')).toBe('580px');
+    } finally {
+      mediaSpy.mockRestore();
+    }
+  });
+
+  it('rolls back a failed resize without losing its editor draft', async () => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
+    try {
+      preferences.saved = { ...DEFAULT_SETTINGS, notebookFloatingSize: { width: 480, height: 600 } };
+      const user = userEvent.setup();
+      render(<CharacterNotebook resources={[]} />);
+      await user.click(screen.getByRole('button', { name: 'Add note' }));
+      await user.type(screen.getByRole('textbox', { name: 'Note' }), 'Resize draft');
+      preferences.update.mockRejectedValueOnce(new Error('Storage unavailable'));
+      const handle = screen.getByRole('button', { name: 'Resize notebook' });
+      handle.focus();
+      await user.keyboard('{ArrowRight}');
+      await waitFor(() => expect(screen.getByRole('dialog').style.getPropertyValue('--notebook-float-width')).toBe('480px'));
+      expect(preferences.saved.notebookFloatingSize).toEqual({ width: 480, height: 600 });
+      expect((screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement).value).toBe('Resize draft');
+      expect(document.activeElement).toBe(handle);
+    } finally {
+      mediaSpy.mockRestore();
+    }
   });
 
   it('restores saved docking across remounts for game and character notebooks and saves undocking', async () => {
     const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
     try {
-      const user = userEvent.setup();
       const first = render(<CharacterNotebook />);
-      await user.click(screen.getByRole('button', { name: 'Dock' }));
-      await waitFor(() => expect(preferences.update).toHaveBeenCalledWith({ notebookDocked: true }));
+      await chooseLayout('Dock right');
+      await waitFor(() => expect(preferences.update).toHaveBeenCalledWith({ notebookDocked: true, notebookDockSide: 'right' }));
       first.unmount();
       const second = render(<NotebookWorkspace><EntityNotebook kind="game" entityId="sf6" entityName="Street Fighter 6" notes="Game plan" isOpen onToggle={vi.fn()} /></NotebookWorkspace>);
       expect(screen.getByRole('complementary', { name: 'Street Fighter 6 Notebook' })).not.toBeNull();
       expect(screen.queryByRole('dialog')).toBeNull();
-      await user.click(screen.getByRole('button', { name: 'Undock' }));
+      await chooseLayout('Floating');
       await waitFor(() => expect(preferences.update).toHaveBeenCalledWith({ notebookDocked: false }));
       second.unmount();
       render(<CharacterNotebook />);
@@ -246,14 +337,13 @@ describe('EntityNotebook', () => {
   it('returns to the saved mode when persisting a docking change fails', async () => {
     const mediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({ ...window.matchMedia('(min-width: 1100px)'), matches: true });
     try {
-      const user = userEvent.setup();
       preferences.update.mockRejectedValueOnce(new Error('Storage unavailable'));
       render(<CharacterNotebook />);
-      await user.click(screen.getByRole('button', { name: 'Dock' }));
+      await chooseLayout('Dock right');
       await waitFor(() => expect(screen.getByRole('dialog', { name: 'Ryu Notebook' })).not.toBeNull());
       expect(preferences.saved.notebookDocked).toBe(false);
       expect(screen.queryByRole('complementary')).toBeNull();
-      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Dock' })));
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notebook layout' })));
     } finally {
       mediaSpy.mockRestore();
     }
@@ -338,7 +428,7 @@ describe('EntityNotebook', () => {
       const user = userEvent.setup();
       render(<CharacterNotebook />);
       expect(screen.queryByRole('button', { name: 'Reference' })).toBeNull();
-      await user.click(screen.getByRole('button', { name: 'Dock' }));
+      await chooseLayout('Dock right');
       const handle = screen.getByRole('separator', { name: 'Notebook width' });
       handle.focus();
       expect(handle.getAttribute('aria-valuenow')).toBe('400');

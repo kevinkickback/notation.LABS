@@ -135,6 +135,21 @@ export const settingsSchema = z.object({
   notesOverrides: z.array(z.string()).optional(),
   notebookOpenPages: z.array(z.string()).optional(),
   notebookDocked: z.boolean().optional(),
+  notebookDockSide: z.enum(['left', 'right']).optional(),
+  notebookFloatingPosition: z
+    .object({
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+    })
+    .nullable()
+    .optional(),
+  notebookFloatingSize: z
+    .object({
+      width: z.number().int().min(320).max(800),
+      height: z.number().int().min(280).max(1000),
+    })
+    .nullable()
+    .optional(),
   notebookDockWidth: z.number().int().min(320).max(600).optional(),
   parsedNotationVersion: z.number().int().nonnegative().default(0),
   accentColor: z.string().optional(),

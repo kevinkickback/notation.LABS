@@ -1,0 +1,79 @@
+.combo-card {
+  container-type: inline-size;
+  container-name: combo-card;
+}
+.combo-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.combo-card-summary {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.combo-card-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.combo-card-metadata {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.combo-card-metadata:empty {
+  display: none;
+}
+.combo-card-metadata [data-slot="badge"] {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.combo-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+@container combo-card (max-width: 760px) {
+  .combo-card-heading {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    row-gap: 8px;
+    margin-bottom: 12px;
+  }
+  .combo-card-summary {
+    display: contents;
+  }
+  .combo-card-handle {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .combo-card-title {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .combo-card-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
+  .combo-card-metadata {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+@container combo-card (max-width: 420px) {
+  .combo-demo-verbose {
+    display: none;
+  }
+  .combo-card-actions [data-slot="separator-root"] {
+    display: none;
+  }
+}
