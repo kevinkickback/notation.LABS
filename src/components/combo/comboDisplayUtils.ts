@@ -202,23 +202,21 @@ export function getNrsHoldAssociations(tokens: ComboToken[]): {
 
 export function getRepeatParenIndices(tokens: ComboToken[]): Set<number> {
   const showParens = new Set<number>();
+  const starts: Array<{ index: number; contentStart: number }> = [];
+  let contentCount = 0;
   for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].type === 'repeat-start') {
-      let innerCount = 0;
-      let endIdx = -1;
-      for (let j = i + 1; j < tokens.length; j++) {
-        if (tokens[j].type === 'repeat-end') {
-          endIdx = j;
-          break;
-        }
-        if (tokens[j].type !== 'separator') {
-          innerCount++;
-        }
-      }
-      if (innerCount > 1 && endIdx !== -1) {
+    const token = tokens[i];
+    if (token.type === 'repeat-end') {
+      const start = starts.pop();
+      if (start && contentCount - start.contentStart > 1) {
+        showParens.add(start.index);
         showParens.add(i);
-        showParens.add(endIdx);
       }
+    }
+    if (token.type !== 'separator') contentCount++;
+    if (token.type === 'repeat-start') {
+      // Exclude this marker from its own content while counting it for enclosing repeats.
+      starts.push({ index: i, contentStart: contentCount });
     }
   }
   return showParens;
