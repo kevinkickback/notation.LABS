@@ -8,6 +8,7 @@ import { Header } from '@/components/header/Header';
 import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoadingOverlay } from '@/components/workbench/AppLoadingOverlay';
+import { WorkspaceFrame } from '@/components/workbench/WorkspaceFrame';
 import {
   useSettings,
   useSettingsInitialization,
@@ -122,8 +123,8 @@ function App() {
               selectedCharacter={selectedCharacter}
             />
 
-            <main
-              className="container mx-auto px-4 py-8 flex-1"
+            <WorkspaceFrame
+              footer={<WorkspaceStatus />}
               aria-busy={!pageIsCurrent}
               inert={!pageIsCurrent}
             >
@@ -143,11 +144,7 @@ function App() {
                   combos={page.combos}
                 />
               )}
-            </main>
-
-            <footer className="workspace-footer">
-              <WorkspaceStatus />
-            </footer>
+            </WorkspaceFrame>
             <Toaster />
           </>
         )}

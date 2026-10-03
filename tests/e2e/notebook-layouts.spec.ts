@@ -98,6 +98,32 @@ async function notebookPlacement(page: Page) {
   });
 }
 
+test('keeps the same editor and caret through snapping and responsive layouts', async ({ page }) => {
+  await page.getByRole('button', { name: 'Notes & Resources', exact: true }).click();
+  const floating = page.getByRole('dialog', { name: 'Ryu Notebook' });
+  await floating.getByRole('button', { name: 'Edit note', exact: true }).click();
+  const note = floating.getByRole('textbox', { name: 'Note', exact: true });
+  await note.fill('Keep the same editor and selection');
+  await note.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(5, 14));
+  const editor = await note.elementHandle();
+  if (!editor) throw new Error('The note editor is missing');
+  await beginNotebookDrag(page, floating);
+  await page.mouse.move(24, 180, { steps: 8 });
+  await page.mouse.up();
+  const docked = page.getByRole('complementary', { name: 'Ryu Notebook' });
+  await expect(docked).toBeVisible();
+  for (const width of [800, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(width === 800 ? floating : docked).toBeVisible();
+    expect(await editor.evaluate(element => element.isConnected && document.activeElement === element)).toBe(true);
+    expect(await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd])).toEqual([5, 14]);
+  }
+  await chooseNotebookLayout(page, 'Floating');
+  await expect(floating).toBeVisible();
+  expect(await editor.evaluate(element => element.isConnected)).toBe(true);
+  expect(await editor.evaluate((element: HTMLTextAreaElement) => [element.selectionStart, element.selectionEnd])).toEqual([5, 14]);
+});
+
 async function beginNotebookDrag(page: Page, panel: Locator) {
   const grip = await panel.getByRole('button', { name: 'Move notebook', exact: true }).boundingBox();
   if (!grip) throw new Error('Missing notebook movement handle');
