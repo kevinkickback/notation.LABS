@@ -63,8 +63,9 @@ This command opts that pull request into GitHub native auto-merge. It does not b
 branch protection, or an out-of-date base.
 
 `ci.yml` runs on every non-draft pull request targeting `main`. It validates release metadata,
-audits production dependencies, runs Biome and TypeScript, executes Vitest with coverage, builds the
-web app, and runs the browser suite separately. Repository-run Node commands use Node 24, matching
+audits production dependencies, runs Biome and TypeScript, executes Vitest with coverage, builds and
+validates the desktop and renderer bundles, and runs the browser suite separately.
+Repository-run Node commands use Node 24, matching
 `.nvmrc` and the package engine requirement.
 Linux CI and release jobs use the explicit `ubuntu-26.04` runner instead of `ubuntu-latest`, so a
 future GitHub runner migration cannot change the build environment without a reviewed repository
@@ -167,6 +168,24 @@ and macOS users may need to approve the application under Privacy & Security.
   rejected.
 
 `npm run build:app` performs the production Electron build and creates the platform packages.
+
+`npm run build:desktop` builds both app surfaces and stages the compiled files in
+`.tmp/desktop-app` with a generated manifest that copies the root version and app identity.
+The desktop main process and preload bundle their libraries; the staging check rejects unbundled
+or dynamic runtime module imports. Electron Builder packages this staged app, preserving icons,
+updater configuration, platform helpers, and the configured security fuses. The root dependencies
+remain the source for production dependency auditing, including libraries bundled into the renderer.
+There are no native app modules to rebuild.
+The build retains published dependency license files for each bundled surface, falling back to
+the package's license and author metadata when no notice file is published. It also retains the
+app's `LICENSE`, so removing installed dependencies does not remove their published notices.
+The packager's `beforeBuild` hook validates the staged runtime and explicitly skips dependency
+collection; an empty manifest alone would make Electron Builder fall back to the root dependency tree.
+
+After building, run `npm run package:check -- <packaged-executable>` against the unpacked executable
+(inside `Contents/MacOS` on macOS). This checks the archive, app identity, updater resources, security
+fuses, preload, and persisted edits in the real production binary, using a fresh profile under `.tmp`.
+The check connects to Chromium for testing without enabling the Node inspector or changing the binary.
 
 Publish an approved draft with:
 

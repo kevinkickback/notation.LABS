@@ -18,7 +18,9 @@
     "dev:web": "cross-env ELECTRON=false vite --open",
     "dev:app": "cross-env ELECTRON=true vite --no-open",
     "build:web": "tsc -b && cross-env ELECTRON=false vite build",
-    "build:app": "npm run clean:app && tsc -b && cross-env ELECTRON=true vite build && electron-builder --publish never",
+    "build:app": "npm run build:desktop && electron-builder --publish never",
+    "build:desktop": "npm run clean:app && tsc -b && cross-env ELECTRON=true vite build && node scripts/stage-desktop-app.mjs",
+    "package:check": "node scripts/check-desktop-package.mjs",
     "clean:app": "node scripts/clean-app-build.mjs",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
@@ -69,6 +71,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
+    "@electron/asar": "3.4.1",
+    "@electron/fuses": "1.8.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.2.1",
     "@testing-library/react": "^16.3.2",
@@ -96,13 +100,16 @@
     "productName": "Notation Labs",
     "copyright": "Copyright © 2026 KevinKickback",
     "directories": {
+      "app": ".tmp/desktop-app",
       "output": "release",
       "buildResources": "build"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "LICENSE"
     ],
+    "beforeBuild": "./scripts/stage-desktop-app.mjs",
     "icon": "build/icon.ico",
     "publish": {
       "provider": "github",
