@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 
 vi.mock('@/lib/storage/indexedDbStorage', () => ({
   indexedDbStorage: {
-    export: vi.fn(),
     import: vi.fn(),
     importZip: vi.fn(),
   },
@@ -63,7 +62,7 @@ describe('Header', () => {
     await user.upload(input as HTMLInputElement, file);
 
     expect(toast.error).toHaveBeenCalledWith(
-      'Backup file is too large for JSON import. Export fewer videos or use filters.',
+      'Failed to import data: Backup file is too large for JSON import. Export fewer videos or use filters.',
     );
     expect(indexedDbStorage.import).not.toHaveBeenCalled();
   });

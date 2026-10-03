@@ -1,4 +1,8 @@
-import type { BackupSink } from './exportContract';
+import {
+  BACKUP_FORMATS,
+  type BackupFormat,
+  type BackupSink,
+} from './exportContract';
 
 type SavePickerWindow = Window & {
   showSaveFilePicker?: (options?: {
@@ -16,17 +20,14 @@ type SavePickerWindow = Window & {
   }>;
 };
 
-export type BackupSaveResult = 'saved' | 'cancelled' | 'unavailable';
-
 /** Choose the destination before reading videos; streamed writes apply backpressure. */
 export async function openBackupSink(
   suggestedName: string,
+  format: BackupFormat,
 ): Promise<BackupSink | null> {
+  const { mimeType, extension } = BACKUP_FORMATS[format];
   if (window.electronAPI) {
-    const id = await window.electronAPI.beginBackup(
-      suggestedName,
-      'application/zip',
-    );
+    const id = await window.electronAPI.beginBackup(suggestedName, mimeType);
     if (!id) return null;
     return {
       // IPC clones the backing buffer, so do not pass a view into an entire video.
@@ -39,12 +40,12 @@ export async function openBackupSink(
   const picker = (window as SavePickerWindow).showSaveFilePicker;
   if (picker) {
     try {
-      const handle = await picker({
+      const handle = await picker.call(window, {
         suggestedName,
         types: [
           {
             description: 'Notation Labs Backup',
-            accept: { 'application/zip': ['.zip'] },
+            accept: { [mimeType]: [extension] },
           },
         ],
       });
@@ -68,10 +69,7 @@ export async function openBackupSink(
       return Promise.resolve();
     },
     close: () => {
-      triggerBlobDownload(
-        new Blob(parts, { type: 'application/zip' }),
-        suggestedName,
-      );
+      triggerBlobDownload(new Blob(parts, { type: mimeType }), suggestedName);
       parts.length = 0;
       return Promise.resolve();
     },
@@ -82,7 +80,7 @@ export async function openBackupSink(
   };
 }
 
-export function triggerBlobDownload(blob: Blob, suggestedName: string): void {
+function triggerBlobDownload(blob: Blob, suggestedName: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -91,58 +89,4 @@ export function triggerBlobDownload(blob: Blob, suggestedName: string): void {
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-async function saveBlobWithPicker(
-  blob: Blob,
-  suggestedName: string,
-  mimeType: string,
-): Promise<BackupSaveResult> {
-  const picker = (window as SavePickerWindow).showSaveFilePicker;
-  if (!picker) return 'unavailable';
-
-  try {
-    const handle = await picker({
-      suggestedName,
-      types: [
-        {
-          description: 'Notation Labs Backup',
-          accept: {
-            [mimeType]: [suggestedName.endsWith('.zip') ? '.zip' : '.json'],
-          },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return 'saved';
-  } catch (error) {
-    return error instanceof DOMException && error.name === 'AbortError'
-      ? 'cancelled'
-      : 'unavailable';
-  }
-}
-
-export async function saveBackupBlob(
-  blob: Blob,
-  suggestedName: string,
-  mimeType: string,
-  isDesktop: boolean,
-): Promise<BackupSaveResult> {
-  if (isDesktop) {
-    const buffer = new Uint8Array(await blob.arrayBuffer());
-    const result = await window.electronAPI.saveFile(
-      buffer,
-      suggestedName,
-      mimeType,
-    );
-    if (result.success) return 'saved';
-    if (result.error === 'User cancelled') return 'cancelled';
-    throw new Error(result.error ?? 'Failed to save exported file');
-  }
-
-  return mimeType === 'application/json'
-    ? saveBlobWithPicker(blob, suggestedName, mimeType)
-    : 'unavailable';
 }

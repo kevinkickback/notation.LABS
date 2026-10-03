@@ -1,5 +1,4 @@
 import { mkdirSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -347,68 +346,6 @@ app.on('ready', async () => {
     const changelog = await fetchChangelog(version);
     return { version, changelog };
   });
-
-  ipcMain.handle(
-    'file:save',
-    async (
-      event,
-      buffer: unknown,
-      filename: unknown,
-      mimeType: unknown,
-    ): Promise<{ success: boolean; error?: string; path?: string }> => {
-      assertTrustedIpcSender(event);
-      if (!mainWindow) {
-        return { success: false, error: 'Main window not available' };
-      }
-
-      if (!(buffer instanceof Uint8Array)) {
-        return { success: false, error: 'Invalid buffer' };
-      }
-
-      if (typeof filename !== 'string' || !filename.trim()) {
-        return { success: false, error: 'Invalid filename' };
-      }
-
-      if (mimeType !== 'application/json' && mimeType !== 'application/zip') {
-        return { success: false, error: 'Unsupported file type' };
-      }
-
-      const safeFilename = basename(filename.trim()).slice(0, 255);
-
-      const filters =
-        mimeType === 'application/json'
-          ? [{ name: 'JSON Backup', extensions: ['json'] }]
-          : mimeType === 'application/zip'
-            ? [{ name: 'ZIP Backup', extensions: ['zip'] }]
-            : [];
-
-      try {
-        const generation = rendererGeneration;
-        const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
-          defaultPath: safeFilename,
-          filters: [...filters, { name: 'All Files', extensions: ['*'] }],
-        });
-
-        if (canceled || !filePath) {
-          return { success: false, error: 'User cancelled' };
-        }
-
-        assertTrustedIpcSender(event);
-        if (generation !== rendererGeneration)
-          throw new Error(
-            'Export cancelled because the application page changed',
-          );
-
-        await writeFile(filePath, Buffer.from(buffer));
-        return { success: true, path: filePath };
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
-      }
-    },
-  );
 
   ipcMain.handle(
     BACKUP_CHANNELS.begin,

@@ -99,7 +99,7 @@ describe('GeneralSettings accent color', () => {
         version: '1.3.0',
         changelog: 'Notes',
       }),
-      saveFile: vi.fn(),
+
     beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
     };
   });

@@ -30,7 +30,6 @@ test('keeps newer update state through delayed replies and closing update detail
       setAutoCheck: async () => undefined,
       getAppVersion: async () => '1.8.0',
       getCurrentChangelog: async () => ({ version: '1.8.0', changelog: null }),
-      saveFile: async () => ({ success: false }),
       beginBackup: async () => null,
       writeBackupChunk: async () => undefined,
       finishBackup: async () => undefined,

@@ -1,61 +1,33 @@
 import { strToU8, Zip, ZipPassThrough } from 'fflate';
 import {
-  BACKUP_CHUNK_BYTES,
-  type BackupExportProgress,
-  type BackupSink,
-} from '@/lib/backup/exportContract';
-import {
-  type BackupFilter,
-  closeBackupSelection,
-} from '@/lib/backup/selectionClosure';
-import {
   MAX_BACKUP_METADATA_BYTES,
   MAX_BACKUP_VIDEO_BYTES,
   MAX_BACKUP_VIDEO_COUNT,
+  MAX_JSON_BACKUP_BYTES,
   MAX_VIDEO_SIZE_BYTES,
   MAX_ZIP_BACKUP_BYTES,
 } from '@/lib/defaults';
-import { settingsSchema } from '@/lib/schemas';
-import { db } from './database';
+import { sanitizeCanonicalVideoReference } from '@/lib/storage/videoReferences';
 import {
-  collectLocalVideoIds,
-  sanitizeCombosLocalVideos,
-} from './videoRepository';
-
-async function loadSelection(filter?: BackupFilter) {
-  const [games, characters, combos, settings] = await db.transaction(
-    'r',
-    [db.games, db.characters, db.combos, db.settings],
-    () =>
-      Promise.all([
-        db.games.toArray(),
-        db.characters.toArray(),
-        db.combos.toArray(),
-        db.settings.get(1),
-      ]),
-  );
-  return {
-    ...closeBackupSelection({ games, characters, combos }, filter),
-    settings: settings ? settingsSchema.parse(settings) : undefined,
-  };
-}
+  BACKUP_CHUNK_BYTES,
+  type BackupExportProgress,
+  type BackupSink,
+  type BackupSnapshot,
+} from './exportContract';
+import type { ResolvedBackupVideo } from './importPipeline';
 
 /** Stream a compatible v3 ZIP without retaining all videos or the whole archive. */
-export async function exportBackupTo(
-  sink: BackupSink,
-  filter?: BackupFilter,
+export async function writeZipBackup(
+  snapshot: BackupSnapshot,
+  readVideo: (id: string) => Promise<ResolvedBackupVideo | undefined>,
+  write: BackupSink['write'],
   onProgress?: (progress: BackupExportProgress) => void,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<BackupExportProgress> {
   let zip: Zip | undefined;
   try {
-    const selection = await loadSelection(filter);
-    const availableIds = new Set(
-      await db.demoVideos.toCollection().primaryKeys(),
-    );
-    const videoIds = collectLocalVideoIds(selection.combos).filter((id) =>
-      availableIds.has(id),
-    );
+    const { records: selection, videoIds } = snapshot;
+    signal?.throwIfAborted();
     if (videoIds.length > MAX_BACKUP_VIDEO_COUNT)
       throw new Error(
         `Backups support at most ${MAX_BACKUP_VIDEO_COUNT} videos. Export smaller selections.`,
@@ -96,7 +68,7 @@ export async function exportBackupTo(
             throw new Error(
               'Backups must fit the 512 MB import limit. Export smaller selections.',
             );
-          await sink.write(part);
+          await write(part);
           bytesWritten += part.byteLength;
         }
       });
@@ -129,7 +101,7 @@ export async function exportBackupTo(
     reportProgress();
     for (const id of videoIds) {
       check();
-      const video = await db.demoVideos.get(id);
+      const video = await readVideo(id);
       if (!video) continue;
       if (video.data.byteLength > MAX_VIDEO_SIZE_BYTES)
         throw new Error(
@@ -154,13 +126,13 @@ export async function exportBackupTo(
     }
     phase = 'finalizing';
     reportProgress();
+    const includedVideoIds = new Set(demoVideos.map((video) => video.id));
     const metadata = {
       version: 3,
       exported: new Date().toISOString(),
       ...selection,
-      combos: sanitizeCombosLocalVideos(
-        selection.combos,
-        new Set(demoVideos.map((video) => video.id)),
+      combos: selection.combos.map((combo) =>
+        sanitizeCanonicalVideoReference(combo, includedVideoIds),
       ),
       demoVideos,
     };
@@ -173,60 +145,51 @@ export async function exportBackupTo(
     zip.end();
     await pending;
     check();
-    // File-system commit cannot safely be cancelled once close begins.
-    phase = 'committing';
-    reportProgress();
-    await sink.close();
+    return { phase, current, total: videoIds.length, bytesWritten };
   } catch (error) {
     zip?.terminate();
-    await sink.abort();
     throw error;
   }
 }
-export async function exportBackup(
-  includeVideos = false,
-  filter?: BackupFilter,
-  onProgress?: (current: number, total: number) => void,
-): Promise<Blob> {
-  if (includeVideos) {
-    const parts: Blob[] = [];
-    let lastCurrent = -1;
-    await exportBackupTo(
-      {
-        write: (chunk) => {
-          parts.push(new Blob([new Uint8Array(chunk)]));
-          return Promise.resolve();
-        },
-        close: () => Promise.resolve(),
-        abort: () => {
-          parts.length = 0;
-          return Promise.resolve();
-        },
-      },
-      filter,
-      (progress) => {
-        if (progress.current !== lastCurrent) {
-          onProgress?.(progress.current, progress.total);
-          lastCurrent = progress.current;
-        }
-      },
+export async function writeJsonBackup(
+  records: BackupSnapshot['records'],
+  write: BackupSink['write'],
+  onProgress?: (progress: BackupExportProgress) => void,
+  signal?: AbortSignal,
+): Promise<BackupExportProgress> {
+  signal?.throwIfAborted();
+  const progress: BackupExportProgress = {
+    phase: 'finalizing',
+    current: 0,
+    total: 0,
+    bytesWritten: 0,
+  };
+  onProgress?.({ ...progress });
+  const includedVideoIds = new Set<string>();
+  const metadata = {
+    version: 1,
+    exported: new Date().toISOString(),
+    ...records,
+    combos: records.combos.map((combo) =>
+      sanitizeCanonicalVideoReference(combo, includedVideoIds),
+    ),
+  };
+  const bytes = strToU8(JSON.stringify(metadata, null, 2));
+  if (bytes.byteLength > MAX_JSON_BACKUP_BYTES)
+    throw new Error(
+      'Backup JSON exceeds the 100 MB import limit. Export smaller selections.',
     );
-    return new Blob(parts, { type: 'application/zip' });
+  for (
+    let offset = 0;
+    offset < bytes.byteLength;
+    offset += BACKUP_CHUNK_BYTES
+  ) {
+    signal?.throwIfAborted();
+    const chunk = bytes.subarray(offset, offset + BACKUP_CHUNK_BYTES);
+    await write(chunk);
+    progress.bytesWritten += chunk.byteLength;
+    onProgress?.({ ...progress });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
-  const selection = await loadSelection(filter);
-  return new Blob(
-    [
-      JSON.stringify(
-        {
-          version: 1,
-          exported: new Date().toISOString(),
-          ...selection,
-          combos: sanitizeCombosLocalVideos(selection.combos, new Set()),
-        },
-        null,
-        2,
-      ),
-    ],
-    { type: 'application/json' },
-  );
+  return progress;
 }

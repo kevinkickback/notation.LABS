@@ -83,6 +83,15 @@ Release-note requests only enrich their matching update; closing an update dialo
 presentation, not the download state. Portable check failures are reported as errors, and installer
 checks cannot replace an active download or a ready installer.
 
+Backup transfers use one application command and destination contract for JSON and video ZIP
+exports. Storage reads a consistent record snapshot and video IDs; format codecs frame the backup
+and write bounded chunks; the browser or desktop destination owns saving. The transfer hook owns
+progress, cancellation, and the busy guard across imports and exports. Cancellation aborts pending
+writes before commit; closing a completed destination is not cancellable. Desktop saves use only
+the narrow streaming preload bridge and atomic temporary-file commit. Browsers without a save
+picker download a Blob assembled from chunks after completion. Both formats enforce their import
+size limits before committing a file.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch

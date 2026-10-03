@@ -1,19 +1,21 @@
 import 'fake-indexeddb/auto';
+import { createBackupTo } from '@/lib/application/backupCommands';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
-const limits = vi.hoisted(() => ({ video: 50 * 1024 * 1024, total: 500 * 1024 * 1024, metadata: 10 * 1024 * 1024, archive: 512 * 1024 * 1024 }));
+const limits = vi.hoisted(() => ({ video: 50 * 1024 * 1024, total: 500 * 1024 * 1024, metadata: 10 * 1024 * 1024, archive: 512 * 1024 * 1024, json: 100 * 1024 * 1024 }));
 vi.mock('@/lib/defaults', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/defaults')>(),
   get MAX_VIDEO_SIZE_BYTES() { return limits.video; },
   get MAX_BACKUP_VIDEO_BYTES() { return limits.total; },
   get MAX_BACKUP_METADATA_BYTES() { return limits.metadata; },
   get MAX_ZIP_BACKUP_BYTES() { return limits.archive; },
+  get MAX_JSON_BACKUP_BYTES() { return limits.json; },
 }));
 
 describe('restorable streaming backup limits', () => {
   beforeEach(async () => {
-    Object.assign(limits, { video: 50 * 1024 * 1024, total: 500 * 1024 * 1024, metadata: 10 * 1024 * 1024, archive: 512 * 1024 * 1024 });
+    Object.assign(limits, { video: 50 * 1024 * 1024, total: 500 * 1024 * 1024, metadata: 10 * 1024 * 1024, archive: 512 * 1024 * 1024, json: 100 * 1024 * 1024 });
     await Promise.all([db.games.clear(), db.characters.clear(), db.combos.clear(), db.demoVideos.clear(), db.settings.clear()]);
   });
   async function seed(count: number, bytes = 8) {
@@ -31,7 +33,7 @@ describe('restorable streaming backup limits', () => {
   it('rejects 101 videos before writing and does not commit an unusable backup', async () => {
     await seed(101);
     const sink = destination();
-    await expect(indexedDbStorage.exportTo(sink)).rejects.toThrow('at most 100 videos');
+    await expect(createBackupTo(sink, 'zip')).rejects.toThrow('at most 100 videos');
     expect(sink.write).not.toHaveBeenCalled();
     expect(sink.close).not.toHaveBeenCalled();
     expect(sink.abort).toHaveBeenCalledOnce();
@@ -39,11 +41,20 @@ describe('restorable streaming backup limits', () => {
   it('exports and restores exactly 100 videos', async () => {
     await seed(100);
     const sink = destination();
-    await indexedDbStorage.exportTo(sink);
+    await createBackupTo(sink, 'zip');
     await db.demoVideos.clear();
     await indexedDbStorage.importZip(new Blob(sink.parts.map(part => new Uint8Array(part))), true);
     expect(await db.demoVideos.count()).toBe(100);
     expect(sink.close).toHaveBeenCalledOnce();
+  });
+  it('rejects JSON beyond its import limit before writing or committing', async () => {
+    await seed(1);
+    limits.json = 10;
+    const sink = destination();
+    await expect(createBackupTo(sink, 'json')).rejects.toThrow('100 MB import limit');
+    expect(sink.write).not.toHaveBeenCalled();
+    expect(sink.close).not.toHaveBeenCalled();
+    expect(sink.abort).toHaveBeenCalledOnce();
   });
   it.each([
     ['video', 4, 'per-video'],
@@ -54,7 +65,7 @@ describe('restorable streaming backup limits', () => {
     await seed(2);
     limits[limit] = value;
     const sink = destination();
-    await expect(indexedDbStorage.exportTo(sink)).rejects.toThrow(message);
+    await expect(createBackupTo(sink, 'zip')).rejects.toThrow(message);
     expect(sink.close).not.toHaveBeenCalled();
     expect(sink.abort).toHaveBeenCalledOnce();
   });
