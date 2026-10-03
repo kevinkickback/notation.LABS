@@ -193,6 +193,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit shipped Electron runtime
+        run: npm run audit:electron
       - name: Build artifacts and update manifests without publishing
         run: npm run build:app
       - name: Preserve build artifacts

@@ -15,6 +15,9 @@ if (!executable)
     'Pass the packaged executable path (inside the .app bundle on macOS)',
   );
 const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const lockfile = JSON.parse(
+  await readFile(join(root, 'package-lock.json'), 'utf8'),
+);
 const resources =
   process.platform === 'darwin'
     ? resolve(dirname(executable), '../Resources')
@@ -135,12 +138,17 @@ try {
     await window.electronAPI.setAutoCheck(false);
     return {
       version: await window.electronAPI.getAppVersion(),
+      electron: window.electronAPI.versions.electron,
       status: await window.electronAPI.getUpdateStatus(),
       node: typeof window.require,
       protocol: location.protocol,
     };
   });
   assert.equal(runtime.version, metadata.version);
+  assert.equal(
+    runtime.electron,
+    lockfile.packages['node_modules/electron'].version,
+  );
   assert.equal(runtime.node, 'undefined');
   assert.equal(runtime.protocol, 'file:');
   assert.equal(typeof runtime.status.status, 'string');
@@ -162,6 +170,7 @@ try {
   console.log(
     JSON.stringify({
       version: runtime.version,
+      electron: runtime.electron,
       archiveBytes: (await stat(archive)).size,
       archiveEntries: entries.length,
       persistence: 'passed',
