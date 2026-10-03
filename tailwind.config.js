@@ -7,7 +7,5 @@ export default {
       center: true,
       padding: '2rem',
     },
-    extend: {},
   },
-  darkMode: ['selector', '[data-appearance="dark"]'],
 };

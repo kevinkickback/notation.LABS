@@ -70,6 +70,7 @@ describe('SettingsContext', () => {
     initMock.mockResolvedValue(undefined);
     document.documentElement.style.removeProperty('--app-font-family');
     document.documentElement.style.removeProperty('--accent-color');
+    document.documentElement.style.removeProperty('--accent-foreground');
     document.documentElement.classList.remove('dark');
   });
 
@@ -140,6 +141,7 @@ describe('SettingsContext', () => {
     expect(
       document.documentElement.style.getPropertyValue('--accent-color'),
     ).toBe('#123456');
+    expect(document.documentElement.style.getPropertyValue('--accent-foreground')).toBe('#fff');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 

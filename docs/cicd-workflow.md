@@ -120,6 +120,15 @@ retained combos stay available. Preference normalization can read both parent ta
 transaction, including older default-open settings; any write failure leaves the entire cascade
 unchanged for retry.
 
+Styling imports Tailwind once through `src/main.css`. `src/styles/theme.css` owns the app's light and
+dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings provider
+applies the `.dark` class, font, and custom accent, and notifications read the same theme preference.
+The Tailwind configuration retains the centered container spacing used by the workspace.
+Accent appearance uses opaque sRGB colors and selects black or white foreground text by relative
+luminance using the [WCAG contrast calculation](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
+Native browser color parsing handles non-hex choices without an additional dependency.
+Primary and accent hover surfaces stay opaque so the calculated contrast is retained.
+
 ## Releasing a version
 
 ### 1. Prepare the release on a feature branch
