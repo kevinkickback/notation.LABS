@@ -7,7 +7,6 @@ import {
 } from '@phosphor-icons/react';
 import type { ChangeEvent } from 'react';
 import { useRef, useState } from 'react';
-import { toast } from 'sonner';
 import {
   ExportDialog,
   ExportProgressModal,
@@ -26,112 +25,34 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  createBackup,
-  createBackupTo,
-  importJsonBackup,
-  importZipBackup,
-} from '@/lib/application/backupCommands';
-import type { BackupExportProgress } from '@/lib/backup/exportContract';
-import {
-  openBackupSink,
-  saveBackupBlob,
-  triggerBlobDownload,
-} from '@/lib/backup/platformSave';
-import { MAX_JSON_BACKUP_BYTES, MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
-import { reportError, toUserMessage } from '@/lib/errors';
-import type { ZipImportProgress } from '@/lib/storage/indexedDbStorage';
+import { useBackupTransfer } from '@/hooks/useBackupTransfer';
+import type { BackupFilter } from '@/lib/backup/selectionClosure';
 import type { Game } from '@/lib/types';
-
-function getExportSuccessMessage(includeVideos: boolean): string {
-  return includeVideos ? 'Data exported with demo videos' : 'Data exported';
-}
 
 export function Header({ activeGame }: { activeGame?: Game }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [notationGuideOpen, setNotationGuideOpen] = useState(false);
-  const [exportProgress, setExportProgress] =
-    useState<BackupExportProgress | null>(null);
-  const exportController = useRef<AbortController | null>(null);
-  const exportCommitting = useRef(false);
-  const [importProgress, setImportProgress] =
-    useState<ZipImportProgress | null>(null);
-  const isDesktop = !!window.electronAPI;
+  const {
+    isBusy,
+    exportProgress,
+    importProgress,
+    exportBackup,
+    importFile,
+    cancelExport,
+  } = useBackupTransfer();
   const [importOptions, setImportOptions] = useState({
     includeVideos: true,
     includeSettings: false,
   });
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = async (
-    includeVideos: boolean,
-    filter: { gameIds: string[]; characterIds: string[]; comboIds: string[] },
-  ) => {
+  const handleExport = (includeVideos: boolean, filter: BackupFilter) => {
     setExportDialogOpen(false);
-    try {
-      const extension = includeVideos ? 'zip' : 'json';
-      const suggestedName = `notation-labs-backup-${Date.now()}.${extension}`;
-      const mimeType = includeVideos ? 'application/zip' : 'application/json';
-      const successMessage = getExportSuccessMessage(includeVideos);
-
-      if (includeVideos) {
-        const sink = await openBackupSink(suggestedName);
-        if (!sink) return;
-        const controller = new AbortController();
-        exportController.current = controller;
-        exportCommitting.current = false;
-        setExportProgress({
-          phase: 'videos',
-          current: 0,
-          total: 0,
-          bytesWritten: 0,
-        });
-        await createBackupTo(
-          sink,
-          filter,
-          (progress) => {
-            exportCommitting.current = progress.phase === 'committing';
-            setExportProgress(progress);
-          },
-          controller.signal,
-        );
-        toast.success(successMessage);
-        return;
-      }
-
-      const data = await createBackup(includeVideos, filter, undefined);
-
-      const saveResult = await saveBackupBlob(
-        data,
-        suggestedName,
-        mimeType,
-        isDesktop,
-      );
-      if (saveResult === 'saved') {
-        toast.success(successMessage);
-        return;
-      }
-      if (saveResult === 'cancelled') {
-        return;
-      }
-
-      triggerBlobDownload(data, suggestedName);
-      toast.success(successMessage);
-    } catch (error) {
-      if (exportController.current?.signal.aborted) return;
-      reportError('Header.handleExport', error);
-      toast.error(toUserMessage(error));
-    } finally {
-      setExportProgress(null);
-      exportController.current = null;
-      exportCommitting.current = false;
-    }
+    return exportBackup(includeVideos ? 'zip' : 'json', filter);
   };
-
   const handleImportClick = () => setImportDialogOpen(true);
-
   const handleChooseImportFile = (
     includeVideos: boolean,
     includeSettings: boolean,
@@ -140,55 +61,13 @@ export function Header({ activeGame }: { activeGame?: Game }) {
     setImportDialogOpen(false);
     importInputRef.current?.click();
   };
-
-  const handleImportChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImportChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
-    const isZipBackup =
-      file.name.toLowerCase().endsWith('.zip') ||
-      file.type === 'application/zip';
-
-    if (!isZipBackup && file.size > MAX_JSON_BACKUP_BYTES) {
-      toast.error(
-        'Backup file is too large for JSON import. Export fewer videos or use filters.',
-      );
-      e.target.value = '';
-      return;
-    }
-    if (isZipBackup && file.size > MAX_ZIP_BACKUP_BYTES) {
-      toast.error('Backup zip exceeds the 512 MB import limit.');
-      e.target.value = '';
-      return;
-    }
-    try {
-      if (isZipBackup) {
-        setImportProgress({ phase: 'loading', current: 0, total: null });
-        await importZipBackup(
-          file,
-          importOptions.includeVideos,
-          importOptions.includeSettings,
-          setImportProgress,
-        );
-      } else {
-        const text = await file.text();
-        await importJsonBackup(
-          text,
-          importOptions.includeVideos,
-          importOptions.includeSettings,
-        );
-      }
-      toast.success(
-        importOptions.includeSettings
-          ? 'Data imported. Settings were replaced from backup.'
-          : 'Data imported. Current settings were preserved.',
-      );
-    } catch (err) {
-      toast.error(`Failed to import data: ${toUserMessage(err)}`);
-    } finally {
-      setImportProgress(null);
-    }
+    await importFile(file, importOptions);
     setImportOptions({ includeVideos: true, includeSettings: false });
-    e.target.value = '';
+    input.value = '';
   };
 
   return (
@@ -215,6 +94,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
           <Button
             variant="ghost"
             size="icon"
+            disabled={isBusy}
             onClick={() => setExportDialogOpen(true)}
             title="Export Data"
             aria-label="Export data"
@@ -225,6 +105,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
           <Button
             variant="ghost"
             size="icon"
+            disabled={isBusy}
             onClick={handleImportClick}
             title="Import Data"
             aria-label="Import data"
@@ -271,6 +152,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={isBusy}
                   onClick={() => setExportDialogOpen(true)}
                   className="w-full justify-start"
                 >
@@ -282,6 +164,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={isBusy}
                   onClick={handleImportClick}
                   className="w-full justify-start"
                 >
@@ -312,12 +195,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
         onExport={handleExport}
       />
       {exportProgress && (
-        <ExportProgressModal
-          {...exportProgress}
-          onCancel={() => {
-            if (!exportCommitting.current) exportController.current?.abort();
-          }}
-        />
+        <ExportProgressModal {...exportProgress} onCancel={cancelExport} />
       )}
       {importProgress && (
         <ImportProgressModal

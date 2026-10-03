@@ -1,4 +1,3 @@
-import { exportBackup, exportBackupTo } from './backupExport';
 import { characterRepository } from './characterRepository';
 import { comboRepository } from './comboRepository';
 import { gameRepository } from './gameRepository';
@@ -26,8 +25,6 @@ export const indexedDbStorage = {
   settings: settingsRepository,
   gameStats: gameStatsRepository,
   demoVideos: videoRepository,
-  export: exportBackup,
-  exportTo: exportBackupTo,
   import: importJsonBackup,
   importZip: importZipBackup,
 };
