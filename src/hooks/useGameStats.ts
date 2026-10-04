@@ -6,8 +6,8 @@ import type { Character, Combo, Game } from '@/lib/types';
  */
 export function useGameStats(
   games: Game[],
-  characters: Character[] | undefined,
-  combos: Combo[] | undefined,
+  characters: Pick<Character, 'id' | 'gameId' | 'updatedAt'>[] | undefined,
+  combos: Pick<Combo, 'characterId' | 'updatedAt'>[] | undefined,
 ) {
   return useMemo(() => {
     const charCountByGame: Record<string, number> = {};

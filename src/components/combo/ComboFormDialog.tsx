@@ -36,7 +36,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMediaRequest } from '@/hooks/useMediaRequest';
 import { useSubmission } from '@/hooks/useSubmission';
 import { createCombo, updateCombo } from '@/lib/application/comboCommands';
-import { MAX_VIDEO_SIZE_BYTES } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
 import { extractYouTubeVideoId, fetchYouTubeTitle } from '@/lib/media/youtube';
 import { parseComboNotation } from '@/lib/parser';
@@ -210,15 +209,10 @@ export function ComboFormDialog({
     e.target.value = '';
     if (!file) return;
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      toast.error(
-        'Video exceeds 50 MB limit. Please compress the file and try again.',
-      );
-      return;
-    }
-
     if (file.size > SOFT_WARN_VIDEO_SIZE_BYTES) {
-      toast.warning('Large files may affect app performance.');
+      toast.warning(
+        `This video will use ${(file.size / 1024 / 1024).toFixed(1)} MB of local storage.`,
+      );
     }
 
     if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
@@ -226,12 +220,12 @@ export function ComboFormDialog({
       return;
     }
 
-    await loadVideo(file.name, () => file.arrayBuffer(), {
-      onSuccess: (buffer) => {
+    await loadVideo(file.name, () => Promise.resolve(file), {
+      onSuccess: (blob) => {
         const videoId = generateId();
         setPendingVideo({
           id: videoId,
-          data: buffer,
+          data: blob,
           mimeType: file.type,
           fileName: file.name,
         });
@@ -501,7 +495,7 @@ export function ComboFormDialog({
                   )}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Max file size: 50 MB.
+                  Stored locally. Larger videos need more free space.
                 </p>
                 {demoUrl && (
                   <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">

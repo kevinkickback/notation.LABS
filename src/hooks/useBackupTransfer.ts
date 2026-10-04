@@ -12,7 +12,7 @@ import {
 } from '@/lib/backup/exportContract';
 import { openBackupSink } from '@/lib/backup/platformSave';
 import type { BackupFilter } from '@/lib/backup/selectionClosure';
-import { MAX_JSON_BACKUP_BYTES, MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
+import { MAX_JSON_BACKUP_BYTES } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import type { ZipImportProgress } from '@/lib/storage/indexedDbStorage';
 
@@ -29,12 +29,12 @@ export function useBackupTransfer() {
     useState<BackupExportProgress | null>(null);
   const [importProgress, setImportProgress] =
     useState<ZipImportProgress | null>(null);
-  const exportController = useRef<AbortController | null>(null);
+  const transferController = useRef<AbortController | null>(null);
   const committing = useRef(false);
 
   useEffect(
     () => () => {
-      if (!committing.current) exportController.current?.abort();
+      if (!committing.current) transferController.current?.abort();
     },
     [],
   );
@@ -44,14 +44,14 @@ export function useBackupTransfer() {
     busy.current = true;
     setIsBusy(true);
     const controller = new AbortController();
-    exportController.current = controller;
+    transferController.current = controller;
     committing.current = false;
     try {
       const name = `notation-labs-backup-${Date.now()}${BACKUP_FORMATS[format].extension}`;
       const sink = await openBackupSink(name, format);
       if (!sink) return;
       setExportProgress({
-        phase: format === 'zip' ? 'videos' : 'finalizing',
+        phase: 'preparing',
         current: 0,
         total: 0,
         bytesWritten: 0,
@@ -76,7 +76,7 @@ export function useBackupTransfer() {
       }
     } finally {
       setExportProgress(null);
-      exportController.current = null;
+      transferController.current = null;
       committing.current = false;
       busy.current = false;
       setIsBusy(false);
@@ -87,15 +87,20 @@ export function useBackupTransfer() {
     if (busy.current) return;
     busy.current = true;
     setIsBusy(true);
+    const controller = new AbortController();
+    transferController.current = controller;
+    committing.current = false;
+    const progress = (value: ZipImportProgress) => {
+      committing.current = value.phase === 'committing';
+      setImportProgress(value);
+    };
     try {
       const zip =
         file.name.toLowerCase().endsWith('.zip') ||
         file.type === BACKUP_FORMATS.zip.mimeType;
-      if (file.size > (zip ? MAX_ZIP_BACKUP_BYTES : MAX_JSON_BACKUP_BYTES))
+      if (!zip && file.size > MAX_JSON_BACKUP_BYTES)
         throw new Error(
-          zip
-            ? 'Backup zip exceeds the 512 MB import limit.'
-            : 'Backup file is too large for JSON import. Export fewer videos or use filters.',
+          'This JSON backup is too large to read safely. Choose a ZIP backup.',
         );
       setImportProgress({ phase: 'loading', current: 0, total: null });
       if (zip)
@@ -103,13 +108,16 @@ export function useBackupTransfer() {
           file,
           options.includeVideos,
           options.includeSettings,
-          setImportProgress,
+          progress,
+          controller.signal,
         );
       else
         await importJsonBackup(
-          await file.text(),
+          file,
           options.includeVideos,
           options.includeSettings,
+          progress,
+          controller.signal,
         );
       toast.success(
         options.includeSettings
@@ -117,9 +125,14 @@ export function useBackupTransfer() {
           : 'Data imported. Current settings were preserved.',
       );
     } catch (error) {
-      toast.error(`Failed to import data: ${toUserMessage(error)}`);
+      if (!controller.signal.aborted) {
+        reportError('backup.import', error);
+        toast.error(`Failed to import data: ${toUserMessage(error)}`);
+      }
     } finally {
       setImportProgress(null);
+      transferController.current = null;
+      committing.current = false;
       busy.current = false;
       setIsBusy(false);
     }
@@ -131,8 +144,11 @@ export function useBackupTransfer() {
     importProgress,
     exportBackup,
     importFile,
+    cancelImport: () => {
+      if (!committing.current) transferController.current?.abort();
+    },
     cancelExport: () => {
-      if (!committing.current) exportController.current?.abort();
+      if (!committing.current) transferController.current?.abort();
     },
   };
 }

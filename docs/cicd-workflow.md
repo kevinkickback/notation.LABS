@@ -83,14 +83,15 @@ Release-note requests only enrich their matching update; closing an update dialo
 presentation, not the download state. Portable check failures are reported as errors, and installer
 checks cannot replace an active download or a ready installer.
 
-Backup transfers use one application command and destination contract for JSON and video ZIP
-exports. Storage reads a consistent record snapshot and video IDs; format codecs frame the backup
-and write bounded chunks; the browser or desktop destination owns saving. The transfer hook owns
-progress, cancellation, and the busy guard across imports and exports. Cancellation aborts pending
-writes before commit; closing a completed destination is not cancellable. Desktop saves use only
-the narrow streaming preload bridge and atomic temporary-file commit. Browsers without a save
-picker download a Blob assembled from chunks after completion. Both formats enforce their import
-size limits before committing a file.
+Backup transfers use one application command, destination contract, and bundled worker for JSON and
+ZIP. Storage captures a consistent record snapshot and pins immutable media; codecs stream bounded
+chunks and await destination writes. Imports stage validated records and payloads before atomically
+publishing references. The transfer hook owns progress, cancellation, and the busy guard in both
+directions. Cancellation rolls back before commit; final publication and destination replacement are
+not cancellable. Desktop saving uses the narrow preload bridge and an atomic temporary-file commit.
+Browser saving uses a native picker when available, otherwise a native streaming Blob download.
+See [backup formats and validation](backups.md) for compatibility, recovery, allocation budgets, and
+the separate packaged large-file validation procedure.
 
 Application initialization sets up preferences, then runs versioned notation maintenance. Preference
 reads and initialization do not rewrite combos. Maintenance commits derived combo tokens and the

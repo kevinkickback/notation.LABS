@@ -1,72 +1,64 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { createBackupTo } from '@/lib/application/backupCommands';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { captureBackup } from '../../helpers/backup';
 
-const limits = vi.hoisted(() => ({ video: 50 * 1024 * 1024, total: 500 * 1024 * 1024, metadata: 10 * 1024 * 1024, archive: 512 * 1024 * 1024, json: 100 * 1024 * 1024 }));
+const limits = vi.hoisted(() => ({ json: 100 * 1024 * 1024 }));
 vi.mock('@/lib/defaults', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/defaults')>(),
-  get MAX_VIDEO_SIZE_BYTES() { return limits.video; },
-  get MAX_BACKUP_VIDEO_BYTES() { return limits.total; },
-  get MAX_BACKUP_METADATA_BYTES() { return limits.metadata; },
-  get MAX_ZIP_BACKUP_BYTES() { return limits.archive; },
   get MAX_JSON_BACKUP_BYTES() { return limits.json; },
 }));
 
-describe('restorable streaming backup limits', () => {
+describe('scalable backup capabilities', () => {
   beforeEach(async () => {
-    Object.assign(limits, { video: 50 * 1024 * 1024, total: 500 * 1024 * 1024, metadata: 10 * 1024 * 1024, archive: 512 * 1024 * 1024, json: 100 * 1024 * 1024 });
-    await Promise.all([db.games.clear(), db.characters.clear(), db.combos.clear(), db.demoVideos.clear(), db.settings.clear()]);
+    limits.json = 100 * 1024 * 1024;
+    await Promise.all(db.tables.map(table => table.clear()));
   });
-  async function seed(count: number, bytes = 8) {
-    const gameId = await indexedDbStorage.games.add({ name: 'Limit fixture', buttonLayout: ['A'] });
+  async function seed(count: number) {
+    const gameId = await indexedDbStorage.games.add({ name: 'Large library', buttonLayout: ['A'] });
     const characterId = await indexedDbStorage.characters.add({ name: 'Character', gameId });
     for (let index = 0; index < count; index++) {
-      await indexedDbStorage.demoVideos.add({ id: `video-${index}`, fileName: 'demo.mp4', mimeType: 'video/mp4', data: new ArrayBuffer(bytes) });
+      await indexedDbStorage.demoVideos.add({ id: `video-${index}`, fileName: 'demo.mp4', mimeType: 'video/mp4', data: new Blob([new Uint8Array([index % 256, 42])], { type: 'video/mp4' }) });
       await indexedDbStorage.combos.add({ name: `Combo ${index}`, characterId, notation: 'A', parsedNotation: [], tags: [], demoUrl: `local:video-${index}` });
     }
+    return gameId;
   }
-  function destination() {
-    const parts: Uint8Array[] = [];
-    return { parts, write: vi.fn(async (chunk: Uint8Array) => { parts.push(new Uint8Array(chunk)); }), close: vi.fn(async () => undefined), abort: vi.fn(async () => undefined) };
-  }
-  it('rejects 101 videos before writing and does not commit an unusable backup', async () => {
-    await seed(101);
-    const sink = destination();
-    await expect(createBackupTo(sink, 'zip')).rejects.toThrow('at most 100 videos');
-    expect(sink.write).not.toHaveBeenCalled();
-    expect(sink.close).not.toHaveBeenCalled();
-    expect(sink.abort).toHaveBeenCalledOnce();
+  it('exports and restores 1,000 distinct videos in one backup', async () => {
+    await seed(1000);
+    const archive = await captureBackup(true);
+    await Promise.all(db.tables.map(table => table.clear()));
+    await indexedDbStorage.importZip(archive, true);
+    expect(await db.demoVideos.count()).toBe(1000);
+    expect(await db.combos.count()).toBe(1000);
+    for (const index of [0, 999]) {
+      const video = await indexedDbStorage.demoVideos.get(`video-${index}`);
+      expect(video?.data).toBeInstanceOf(Blob);
+      expect(Array.from(new Uint8Array(await (video!.data as Blob).arrayBuffer()))).toEqual([index % 256, 42]);
+    }
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
+    expect(await db.mediaPayloads.count()).toBe(1000);
+  }, 60_000);
+  it('round trips embedded images larger than the former combined metadata allowance', async () => {
+    const bytes = new Uint8Array(2 * 1024 * 1024).fill(42);
+    bytes.set([0xff, 0xd8, 0xff]);
+    const image = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+    for (let index = 0; index < 4; index++) await indexedDbStorage.games.add({ name: `Cover ${index}`, logoImage: image, buttonLayout: [] });
+    const archive = await captureBackup(true);
+    await db.games.clear();
+    await indexedDbStorage.importZip(archive);
+    expect(await db.games.count()).toBe(4);
+    expect((await db.games.toArray()).every(game => game.logoImage === image)).toBe(true);
   });
-  it('exports and restores exactly 100 videos', async () => {
-    await seed(100);
-    const sink = destination();
-    await createBackupTo(sink, 'zip');
-    await db.demoVideos.clear();
-    await indexedDbStorage.importZip(new Blob(sink.parts.map(part => new Uint8Array(part))), true);
-    expect(await db.demoVideos.count()).toBe(100);
-    expect(sink.close).toHaveBeenCalledOnce();
-  });
-  it('rejects JSON beyond its import limit before writing or committing', async () => {
+  it('offers ZIP when JSON exceeds its whole-document parsing budget and aborts saving', async () => {
     await seed(1);
     limits.json = 10;
-    const sink = destination();
-    await expect(createBackupTo(sink, 'json')).rejects.toThrow('100 MB import limit');
-    expect(sink.write).not.toHaveBeenCalled();
+    const sink = { write: vi.fn(async () => undefined), close: vi.fn(async () => undefined), abort: vi.fn(async () => undefined) };
+    await expect(createBackupTo(sink, 'json')).rejects.toThrow(/ZIP/);
     expect(sink.close).not.toHaveBeenCalled();
     expect(sink.abort).toHaveBeenCalledOnce();
-  });
-  it.each([
-    ['video', 4, 'per-video'],
-    ['total', 12, '500 MB'],
-    ['metadata', 10, 'metadata'],
-    ['archive', 32, '512 MB'],
-  ] as const)('rejects a selection exceeding the %s limit without committing', async (limit, value, message) => {
-    await seed(2);
-    limits[limit] = value;
-    const sink = destination();
-    await expect(createBackupTo(sink, 'zip')).rejects.toThrow(message);
-    expect(sink.close).not.toHaveBeenCalled();
-    expect(sink.abort).toHaveBeenCalledOnce();
+    expect(await db.backupSessions.count()).toBe(0);
   });
 });

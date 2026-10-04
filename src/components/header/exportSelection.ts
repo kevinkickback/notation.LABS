@@ -1,15 +1,14 @@
 import {
-  type BackupRecords,
+  type BackupSelectionRecords,
   closeBackupSelection,
 } from '@/lib/backup/selectionClosure';
-import type { Character, Combo } from '@/lib/types';
 
 type ExportNodeKind = 'game' | 'character' | 'combo';
 
 export interface ExportSelection {
-  records: BackupRecords;
-  charactersByGame: Map<string, Character[]>;
-  combosByCharacter: Map<string, Combo[]>;
+  records: BackupSelectionRecords;
+  charactersByGame: Map<string, BackupSelectionRecords['characters']>;
+  combosByCharacter: Map<string, BackupSelectionRecords['combos']>;
   leavesByNode: Map<string, string[]>;
   leaves: Set<string>;
   selected: ReadonlySet<string>;
@@ -20,9 +19,14 @@ function nodeKey(kind: ExportNodeKind, id: string) {
 }
 
 /** Only leaves are selected. Empty games and characters are leaves in their own right. */
-export function createExportSelection(records: BackupRecords): ExportSelection {
-  const charactersByGame = new Map<string, Character[]>();
-  const combosByCharacter = new Map<string, Combo[]>();
+export function createExportSelection(
+  records: BackupSelectionRecords,
+): ExportSelection {
+  const charactersByGame = new Map<
+    string,
+    BackupSelectionRecords['characters']
+  >();
+  const combosByCharacter = new Map<string, BackupSelectionRecords['combos']>();
   for (const character of records.characters) {
     const children = charactersByGame.get(character.gameId) ?? [];
     children.push(character);
@@ -99,7 +103,7 @@ export function toggleExportNode(
 
 export function getSelectedExportRecords(
   selection: ExportSelection,
-): BackupRecords {
+): BackupSelectionRecords {
   const { records, selected } = selection;
   return closeBackupSelection(records, {
     gameIds: records.games

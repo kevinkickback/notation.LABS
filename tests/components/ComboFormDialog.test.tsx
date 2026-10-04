@@ -91,15 +91,16 @@ describe('ComboFormDialog', () => {
     expect(updateCombo).toHaveBeenCalledWith(mockCombo.id, expect.objectContaining({ demoUrl: 'https://youtu.be/abcdefghijk', demoVideoTitle: undefined }), undefined);
   });
 
-  it('discards a video read that finishes after closing and reopening the editor', async () => {
+  it('discards a pending video selection after closing and reopening without reading its bytes', async () => {
     const props = { onOpenChange: () => {}, game: mockGame, character: mockCharacter, editingCombo: null, allTags: [] };
     const { rerender } = render(<ComboFormDialog open {...props} />);
-    let resolve!: (data: ArrayBuffer) => void;
-    const file = { name: 'outdated.mp4', type: 'video/mp4', size: 3, arrayBuffer: () => new Promise<ArrayBuffer>(done => { resolve = done; }) } as File;
+    const readBytes = vi.fn();
+    const file = Object.assign(new File([new Uint8Array([1, 2, 3])], 'outdated.mp4', { type: 'video/mp4' }), { arrayBuffer: readBytes });
     fireEvent.change(document.querySelector('input[type=file]') as HTMLInputElement, { target: { files: [file] } });
     rerender(<ComboFormDialog open={false} {...props} />);
     rerender(<ComboFormDialog open {...props} />);
-    await act(async () => resolve(new Uint8Array([1, 2, 3]).buffer));
+    await act(async () => { await Promise.resolve(); });
+    expect(readBytes).not.toHaveBeenCalled();
     expect(screen.queryByText('outdated.mp4')).toBeNull();
     expect((screen.getByLabelText('YouTube demo URL') as HTMLInputElement).value).toBe('');
   });

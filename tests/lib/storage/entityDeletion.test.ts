@@ -1,3 +1,4 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteGame, deleteGames } from '@/lib/application/gameCommands';
@@ -63,7 +64,7 @@ describe('atomic entity deletion', () => {
 
   it('rolls records and settings back when video cleanup fails', async () => {
     const before = await snapshot();
-    const failure = vi.spyOn(db.demoVideos, 'bulkDelete').mockRejectedValueOnce(new Error('Video cleanup failed'));
+    const failure = vi.spyOn(db.demoVideos, 'delete').mockRejectedValueOnce(new Error('Video cleanup failed'));
     await expect(deleteGame('removed-game')).rejects.toThrow('Video cleanup failed');
     failure.mockRestore();
     expect(await snapshot()).toEqual(before);

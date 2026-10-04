@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import type { ZipImportProgress } from '@/lib/storage/zipImport';
 
 interface ImportDialogProps {
   open: boolean;
@@ -17,16 +18,17 @@ interface ImportDialogProps {
   onChooseFile: (includeVideos: boolean, includeSettings: boolean) => void;
 }
 
-interface ImportProgressModalProps {
-  phase: 'loading' | 'videos' | 'finalizing';
-  current: number;
-  total: number | null;
+interface ImportProgressModalProps extends ZipImportProgress {
+  onCancel: () => void;
 }
 
 export function ImportProgressModal({
   phase,
   current,
   total,
+  bytesProcessed = 0,
+  onCancel,
+  warning,
 }: ImportProgressModalProps) {
   const isVideoPhase = phase === 'videos' && total !== null && total > 0;
   const pct = isVideoPhase ? Math.round((current / total) * 100) : 0;
@@ -42,11 +44,13 @@ export function ImportProgressModal({
         <DialogHeader>
           <DialogTitle>Importing…</DialogTitle>
           <DialogDescription>
-            {phase === 'loading'
-              ? 'Reading backup archive…'
-              : phase === 'finalizing'
-                ? 'Finalizing imported data…'
-                : `Importing video ${current} of ${total}…`}
+            {phase === 'committing'
+              ? 'Saving the restored library. Please wait…'
+              : phase === 'loading'
+                ? 'Reading backup archive…'
+                : phase === 'finalizing'
+                  ? 'Checking library records…'
+                  : `Importing video ${current} of ${total}…`}
           </DialogDescription>
         </DialogHeader>
         {isVideoPhase ? (
@@ -65,6 +69,17 @@ export function ImportProgressModal({
             <span>This can take a bit for large backups.</span>
           </div>
         )}
+        <p className="text-xs text-muted-foreground">
+          {(bytesProcessed / 1024 / 1024).toFixed(1)} MB processed
+        </p>
+        {warning && <p className="text-sm text-muted-foreground">{warning}</p>}
+        <Button
+          variant="outline"
+          onClick={onCancel}
+          disabled={phase === 'committing'}
+        >
+          Cancel import
+        </Button>
       </DialogContent>
     </Dialog>
   );

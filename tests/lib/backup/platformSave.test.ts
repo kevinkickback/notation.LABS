@@ -8,7 +8,7 @@ describe('backup destinations', () => {
       beginBackup: vi.fn(() => Promise.resolve('chosen-session')),
       writeBackupChunk: vi.fn(() => Promise.resolve()),
       finishBackup: vi.fn(() => Promise.resolve()),
-      abortBackup: vi.fn(() => Promise.resolve()),
+      abortBackup: vi.fn(() => Promise.resolve()), getBackupCapacity: vi.fn(() => Promise.resolve(null)),
     };
     vi.stubGlobal('window', { electronAPI: bridge });
     const sink = await openBackupSink(`backup.${format}`, format);
@@ -30,6 +30,12 @@ describe('backup destinations', () => {
   it('returns cancellation without creating a destination', async () => {
     vi.stubGlobal('window', { electronAPI: { beginBackup: vi.fn(() => Promise.resolve(null)) } });
     expect(await openBackupSink('backup.zip', 'zip')).toBeNull();
+  });
+  it('cleans the chosen desktop destination if its capacity request fails', async () => {
+    const abortBackup = vi.fn(async () => undefined);
+    vi.stubGlobal('window', { electronAPI: { beginBackup: async () => 'id', getBackupCapacity: async () => { throw new Error('bridge stopped'); }, abortBackup } });
+    await expect(openBackupSink('backup.zip', 'zip')).rejects.toThrow('bridge stopped');
+    expect(abortBackup).toHaveBeenCalledWith('id');
   });
   it('uses the browser file picker with owned chunks and propagates write errors', async () => {
     const write = vi.fn((_data: Blob | Uint8Array) => Promise.reject(new Error('disk full')));

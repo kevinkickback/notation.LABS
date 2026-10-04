@@ -48,7 +48,7 @@ global.ResizeObserver = class ResizeObserver {
 };
 
 // Polyfill window.matchMedia for jsdom (used by useIsMobile hook)
-Object.defineProperty(window, 'matchMedia', {
+if (typeof window !== 'undefined') Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
     matches: false,

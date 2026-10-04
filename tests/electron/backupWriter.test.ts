@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { basename, join, resolve, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BackupWriter } from '../../electron/backupWriter';
@@ -8,7 +9,9 @@ import { BackupWriter } from '../../electron/backupWriter';
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
   const unlink = vi.fn(actual.unlink);
-  return { ...actual, unlink, default: { ...actual, unlink } };
+  const open = vi.fn(actual.open);
+  const statfs = vi.fn(actual.statfs);
+  return { ...actual, open, statfs, unlink, default: { ...actual, open, statfs, unlink } };
 });
 
 describe('streamed backup destination', () => {
@@ -74,6 +77,68 @@ describe('streamed backup destination', () => {
     await writer.write(next, new Uint8Array([7]));
     await writer.finish(next);
     expect([...await readFile(join(directory, 'next.zip'))]).toEqual([7]);
+  });
+
+  it('recovers a journaled partial file without touching the existing destination', async () => {
+    const journals = join(directory, 'journals');
+    await mkdir(journals);
+    const id = randomUUID();
+    const destination = join(directory, 'backup.zip');
+    const temporary = join(directory, `.backup.zip.${id}.part`);
+    await writeFile(destination, 'original');
+    await writeFile(temporary, 'partial');
+    await writeFile(join(journals, `${id}.json`), JSON.stringify({ id, destination, temporary }));
+    const recovered = new BackupWriter(journals);
+    await recovered.recover();
+    await recovered.recover();
+    expect(await readFile(destination, 'utf8')).toBe('original');
+    expect(await readdir(directory)).toEqual(['backup.zip', 'journals']);
+    expect(await readdir(journals)).toEqual([]);
+    const next = await recovered.begin(destination);
+    expect(await readdir(journals)).toEqual([`${next}.json`]);
+    await recovered.write(next, new Uint8Array([42]));
+    await recovered.finish(next);
+    expect(await readdir(journals)).toEqual([]);
+  });
+
+  it('refuses a recovery journal pointing at an unrelated file', async () => {
+    const journals = join(directory, 'journals');
+    await mkdir(journals);
+    const id = randomUUID();
+    const destination = join(directory, 'backup.zip');
+    await writeFile(destination, 'original');
+    await writeFile(join(journals, `${id}.json`), JSON.stringify({ id, destination, temporary: destination }));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await new BackupWriter(journals).recover();
+    expect(await readFile(destination, 'utf8')).toBe('original');
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['ENOSPC', 'out of space'],
+    ['EFBIG', 'NTFS or exFAT'],
+  ])('explains %s and cleans a failed output', async (code, message) => {
+    const actual = await vi.importActual<typeof fsPromises>('node:fs/promises');
+    vi.mocked(fsPromises.open).mockImplementationOnce(async (...args) => {
+      const file = await actual.open(...args);
+      vi.spyOn(file, 'write').mockRejectedValueOnce(Object.assign(new Error('write failed'), { code }));
+      return file;
+    });
+    const destination = join(directory, 'backup.zip');
+    await writeFile(destination, 'original');
+    const id = await writer.begin(destination);
+    await expect(writer.write(id, new Uint8Array([1]))).rejects.toThrow(message);
+    await writer.abort(id);
+    expect(await readFile(destination, 'utf8')).toBe('original');
+    expect(await readdir(directory)).toEqual(['backup.zip']);
+  });
+
+  it('keeps unavailable filesystem estimates advisory and rejects arbitrary capacity sessions', async () => {
+    const id = await writer.begin(join(directory, 'backup.zip'));
+    expect(await writer.availableBytes(id)).toBeGreaterThan(0);
+    vi.mocked(fsPromises.statfs).mockRejectedValueOnce(new Error('not supported'));
+    expect(await writer.availableBytes(id)).toBeNull();
+    await expect(writer.availableBytes('arbitrary')).rejects.toThrow('Invalid backup session');
   });
 
 });

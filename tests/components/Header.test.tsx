@@ -44,6 +44,7 @@ describe('Header', () => {
   });
 
   it('rejects oversized import files before calling storage import', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const user = userEvent.setup();
     const { container } = render(<Header />);
 
@@ -62,7 +63,7 @@ describe('Header', () => {
     await user.upload(input as HTMLInputElement, file);
 
     expect(toast.error).toHaveBeenCalledWith(
-      'Failed to import data: Backup file is too large for JSON import. Export fewer videos or use filters.',
+      'Failed to import data: This JSON backup is too large to read safely. Choose a ZIP backup.',
     );
     expect(indexedDbStorage.import).not.toHaveBeenCalled();
   });
@@ -97,6 +98,8 @@ describe('Header', () => {
       '{"version":1,"exported":"now"}',
       false,
       true,
+      expect.any(Function),
+      expect.any(AbortSignal),
     );
     expect(toast.success).toHaveBeenCalledWith(
       'Data imported. Settings were replaced from backup.',
