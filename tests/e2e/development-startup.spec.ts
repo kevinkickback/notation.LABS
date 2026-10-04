@@ -24,9 +24,11 @@ test('loads a cold development workspace within the desktop window deadline', as
     if (!url) throw new Error('Development server did not expose its address');
     // Isolate local stylesheet/renderer startup from an external font service.
     await page.route('https://fonts.googleapis.com/**', route => route.abort());
-    await page.goto(url, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
-    await expect(page.locator('.notification-bell')).toHaveCSS('height', '24px');
+    await test.step('loads the styled workspace within the desktop deadline', async () => {
+      await page.goto(url);
+      await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+      await expect(page.locator('.notification-bell')).toHaveCSS('height', '24px');
+    }, { timeout: 15_000 });
   } finally {
     if (originalElectron === undefined) delete process.env.ELECTRON;
     else process.env.ELECTRON = originalElectron;
