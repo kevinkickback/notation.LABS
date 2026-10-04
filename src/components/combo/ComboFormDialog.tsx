@@ -44,6 +44,7 @@ import {
   generateId,
   getLocalVideoId,
 } from '@/lib/storage/indexedDbStorage';
+import { hasTag, tagKey, uniqueTags } from '@/lib/tags';
 import type { Character, Combo, Game } from '@/lib/types';
 import {
   buildComboPayload,
@@ -244,28 +245,30 @@ export function ComboFormDialog({
 
   const localDemoVideoId = getLocalVideoId(demoUrl);
   const tagSuggestions = useMemo(
-    () => allTags.filter((t) => !tags.includes(t)),
+    () => uniqueTags(allTags).filter((tag) => !hasTag(tags, tag)),
     [allTags, tags],
   );
 
   const commitTag = (value: string) => {
     const val = value.trim();
-    if (val && !tags.includes(val)) {
-      const updated = [...tags, val];
+    if (val && !hasTag(tags, val)) {
+      const spelling =
+        allTags.find((tag) => tagKey(tag) === tagKey(val)) ?? val;
+      const updated = [...tags, spelling.trim()];
       updateDraft({ tags: updated });
     }
     setTagInput('');
   };
 
   const removeTag = (tag: string) => {
-    const updated = tags.filter((t) => t !== tag);
+    const updated = tags.filter((value) => tagKey(value) !== tagKey(tag));
     updateDraft({ tags: updated });
   };
 
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Tab' && tagInput.trim()) {
       const match = tagSuggestions.find((t) =>
-        t.toLowerCase().startsWith(tagInput.toLowerCase()),
+        tagKey(t).startsWith(tagKey(tagInput)),
       );
       if (match) {
         e.preventDefault();
@@ -449,7 +452,7 @@ export function ComboFormDialog({
               </FormSection>
 
               <FormSection>
-                <Label htmlFor={comboDemoUrlId}>YouTube demo URL</Label>
+                <Label htmlFor={comboDemoUrlId}>Video Demo</Label>
                 <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_auto] sm:gap-3">
                   <Input
                     id={comboDemoUrlId}
@@ -494,9 +497,6 @@ export function ComboFormDialog({
                     </span>
                   )}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Stored locally. Larger videos need more free space.
-                </p>
                 {demoUrl && (
                   <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
                     <PlayIcon
@@ -546,7 +546,7 @@ export function ComboFormDialog({
                     id={comboDescriptionHelpId}
                     className="mt-1.5 text-xs text-muted-foreground"
                   >
-                    Multiple lines and Markdown are supported.
+                    Markdown supported.
                   </p>
                 </div>
 
@@ -558,10 +558,6 @@ export function ComboFormDialog({
                     >
                       Mark as outdated
                     </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Flag this combo as potentially outdated due to a game
-                      patch
-                    </p>
                   </div>
                   <Switch
                     id={outdatedToggleId}

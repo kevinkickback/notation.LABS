@@ -1,0 +1,223 @@
+.combo-preview {
+  --preview-accent: #2660bd;
+  --preview-direction: oklch(0.38 0.08 265);
+  --preview-button-l: #b52b35;
+  --preview-button-m: #8c620f;
+  --preview-button-h: #255faa;
+  --preview-button-s: #267153;
+  min-height: 100dvh;
+}
+.dark .combo-preview {
+  --preview-accent: #8bb8fc;
+  --preview-direction: #bdceef;
+  --preview-button-l: #fb8790;
+  --preview-button-m: #e8c16a;
+  --preview-button-h: #82b6fa;
+  --preview-button-s: #7bc8a2;
+}
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 72px;
+  padding: 0 max(24px, calc((100vw - 1120px) / 2));
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.preview-brand {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.8px;
+}
+.preview-brand span {
+  color: var(--preview-accent);
+}
+.preview-header-label {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.preview-header > button {
+  margin-left: auto;
+}
+.preview-main {
+  max-width: 1120px;
+  padding: 40px 24px 24px;
+  margin: 0 auto;
+}
+.preview-eyebrow {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1.6px;
+  color: var(--muted-foreground);
+}
+.preview-intro h1 {
+  margin: 7px 0;
+  font-size: 34px;
+  font-weight: 650;
+  letter-spacing: -1.2px;
+}
+.preview-intro > p:last-child {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.preview-toolbar,
+.preview-toolbar-start,
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.preview-toolbar {
+  justify-content: space-between;
+  margin: 32px 0 16px;
+}
+.preview-toolbar h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.preview-toolbar h2 > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+.preview-controls label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.preview-controls select {
+  padding: 6px 24px 6px 9px;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.preview-filter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--preview-accent);
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--muted);
+  cursor: pointer;
+}
+.preview-selection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.preview-selection > span {
+  color: var(--preview-accent);
+}
+.preview-card-list {
+  display: grid;
+  gap: 14px;
+}
+.preview-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.preview-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.preview-empty > p {
+  margin: 32px 0 16px;
+}
+.combo-preview button:focus-visible,
+.combo-preview select:focus-visible {
+  outline: 2px solid var(--accent-color, #3b82f6);
+  outline-offset: 3px;
+}
+.preview-editor-form {
+  display: grid;
+  gap: 16px;
+}
+.preview-editor-field {
+  display: grid;
+  gap: 7px;
+}
+.preview-editor-form label,
+.preview-upload {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+}
+.preview-editor-form input:not([type="checkbox"]),
+.preview-editor-form textarea,
+.preview-editor-form select,
+.preview-upload input {
+  min-width: 0;
+  width: 100%;
+  padding: 9px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 5px;
+}
+.preview-editor-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.preview-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.preview-editor-form .preview-editor-checkbox {
+  display: flex;
+  align-items: center;
+}
+@media (max-width: 760px) {
+  .preview-header {
+    padding: 0 20px;
+    gap: 16px;
+  }
+  .preview-header-label {
+    display: none;
+  }
+  .preview-main {
+    padding: 28px 20px 20px;
+  }
+}
+@media (max-width: 420px) {
+  .preview-header {
+    height: 60px;
+    padding: 0 14px;
+  }
+  .preview-main {
+    padding: 24px 14px 18px;
+  }
+  .preview-intro h1 {
+    font-size: 28px;
+  }
+  .preview-controls {
+    gap: 10px 8px;
+  }
+  .preview-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .combo-preview *,
+  .combo-preview *::before,
+  .combo-preview *::after {
+    transition: none !important;
+  }
+}

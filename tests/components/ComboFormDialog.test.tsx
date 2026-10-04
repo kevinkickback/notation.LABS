@@ -84,9 +84,29 @@ const mockCombo: Combo = {
 };
 
 describe('ComboFormDialog', () => {
+  it('merges legacy case variants, excludes selected suggestions, and reuses existing tag spelling', async () => {
+    const user = userEvent.setup();
+    render(<ComboFormDialog open onOpenChange={() => {}} game={mockGame} character={mockCharacter}
+      editingCombo={{ ...mockCombo, tags: ['BnB', 'bnb', 'Corner'] }} allTags={['BnB', 'BNB', 'corner', 'Meterless', 'meterless']} />);
+    expect(screen.getAllByRole('button', { name: /^Remove tag:/ })).toHaveLength(2);
+    const input = screen.getByLabelText('Tags');
+    const suggestions = document.getElementById(input.getAttribute('list') ?? '');
+    expect(Array.from(suggestions?.querySelectorAll('option') ?? []).map(option => option.value)).toEqual(['Meterless']);
+    await user.type(input, 'bNB{Enter}');
+    expect(screen.getAllByRole('button', { name: /^Remove tag:/ })).toHaveLength(2);
+    await user.type(input, 'METERLESS{Enter}');
+    expect(screen.getByRole('button', { name: 'Remove tag: Meterless' })).not.toBeNull();
+    await user.type(input, 'meterless,');
+    await user.type(input, 'BnB');
+    await user.tab();
+    expect(screen.getAllByRole('button', { name: /^Remove tag:/ })).toHaveLength(3);
+    await user.click(screen.getByRole('button', { name: 'Update Combo' }));
+    expect(updateCombo).toHaveBeenCalledWith(mockCombo.id, expect.objectContaining({ tags: ['BnB', 'Corner', 'Meterless'] }), undefined);
+  });
+
   it('does not save the previous YouTube title after changing its URL', async () => {
     render(<ComboFormDialog open onOpenChange={() => {}} game={mockGame} character={mockCharacter} editingCombo={{ ...mockCombo, demoUrl: 'https://youtu.be/dQw4w9WgXcQ', demoVideoTitle: 'Previous demo' }} allTags={[]} />);
-    fireEvent.change(screen.getByLabelText('YouTube demo URL'), { target: { value: 'https://youtu.be/abcdefghijk' } });
+    fireEvent.change(screen.getByLabelText('Video Demo'), { target: { value: 'https://youtu.be/abcdefghijk' } });
     await act(async () => fireEvent.submit(screen.getByRole('button', { name: 'Update Combo' }).closest('form') as HTMLFormElement));
     expect(updateCombo).toHaveBeenCalledWith(mockCombo.id, expect.objectContaining({ demoUrl: 'https://youtu.be/abcdefghijk', demoVideoTitle: undefined }), undefined);
   });
@@ -102,7 +122,7 @@ describe('ComboFormDialog', () => {
     await act(async () => { await Promise.resolve(); });
     expect(readBytes).not.toHaveBeenCalled();
     expect(screen.queryByText('outdated.mp4')).toBeNull();
-    expect((screen.getByLabelText('YouTube demo URL') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Video Demo') as HTMLInputElement).value).toBe('');
   });
   const onOpenChange = vi.fn();
 
@@ -124,7 +144,7 @@ describe('ComboFormDialog', () => {
 
     expect(screen.getByRole('dialog', { name: 'Add Combo for Ryu' })).not.toBeNull();
     expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
-    expect(screen.getByLabelText('YouTube demo URL')).not.toBeNull();
+    expect(screen.getByLabelText('Video Demo')).not.toBeNull();
     expect(screen.getByLabelText('Description')).not.toBeNull();
     expect(screen.getAllByText('Required')).toHaveLength(2);
     expect(screen.getByLabelText('Combo Name').hasAttribute('required')).toBe(
@@ -170,23 +190,7 @@ describe('ComboFormDialog', () => {
     expect(screen.getByText('S')).not.toBeNull();
   });
 
-  it('explains storage cost without imposing a video file-size limit', () => {
-    render(
-      <ComboFormDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        game={mockGame}
-        character={mockCharacter}
-        editingCombo={null}
-        allTags={[]}
-      />,
-    );
-
-    expect(screen.getByText(/larger videos need more free space/i)).not.toBeNull();
-    expect(screen.queryByText(/max file size/i)).toBeNull();
-  });
-
-  it('identifies combo descriptions as multiline Markdown fields', () => {
+  it('associates the Markdown hint with the description field', () => {
     render(
       <ComboFormDialog
         open={true}
@@ -203,7 +207,7 @@ describe('ComboFormDialog', () => {
 
     expect(helpId).not.toBeNull();
     expect(document.getElementById(helpId ?? '')?.textContent).toMatch(
-      /multiple lines and markdown are supported/i,
+      /markdown supported/i,
     );
   });
 

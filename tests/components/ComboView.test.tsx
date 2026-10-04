@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComboView } from '@/components/combo/ComboView';
 import type { Game, Character, Combo } from '@/lib/types';
@@ -119,6 +119,33 @@ const mockCombos: Combo[] = [
 ];
 
 describe('ComboView', () => {
+  it('shows one filter for existing case variants and matches both spellings without duplicating selection', async () => {
+    const user = userEvent.setup();
+    render(<ComboView game={mockGame} character={mockCharacter} combos={[
+      { ...mockCombos[0], tags: ['BnB', 'bnb', 'Corner'] },
+      { ...mockCombos[1], tags: ['BNB', 'Punish'] },
+      { ...mockCombos[1], id: 'third', name: 'No shared tag', tags: [] },
+    ]} />);
+    const first = screen.getByRole('article', { name: 'BnB Corner' });
+    expect(within(first).getAllByRole('button', { name: /^Filter by/ })).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Filter by BNB' }));
+    expect(screen.getAllByRole('article')).toHaveLength(2);
+    expect(screen.getByText('2 of 3 combos')).not.toBeNull();
+    const filter = screen.getByRole('button', { name: '#BnB' });
+    expect(filter.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByRole('button', { name: '#BNB' })).toBeNull();
+    await user.click(within(first).getByRole('button', { name: 'Filter by BnB' }));
+    await user.click(filter);
+    expect(filter.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+    await user.click(filter);
+    const corner = screen.getByRole('button', { name: '#Corner' });
+    await user.click(corner);
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

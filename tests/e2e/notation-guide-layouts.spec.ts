@@ -75,3 +75,53 @@ test('Study keeps every profile readable and examples usable at every breakpoint
     }
   }
 });
+
+test('keeps preview text and button labels readable in both themes and distinguishes input backgrounds', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Notation guide', exact: true }).click();
+  const guide = page.getByRole('dialog', { name: 'Combo Notation Guide' });
+  for (const theme of ['light', 'dark'] as const) {
+    for (const motionIconStyle of ['joystick', 'arrows'] as const) {
+      await page.evaluate(async updates => {
+        const path = '/src/lib/storage/indexedDbStorage.ts';
+        const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+        await indexedDbStorage.settings.update(updates);
+      }, { colorTheme: theme, motionIconStyle });
+      await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^$/);
+      const icons = guide.locator('.guide-preview-output').filter({ has: page.getByText('Icons', { exact: true }) }).locator('.guide-preview-surface');
+      await expect(icons).toHaveAttribute('data-motion-style', motionIconStyle);
+      const results = await guide.evaluate(element => {
+        const context = document.createElement('canvas').getContext('2d');
+        if (!context) throw new Error('Cannot measure preview contrast');
+        const luminance = (color: string) => {
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          const rgb = context.getImageData(0, 0, 1, 1).data;
+          const channels = Array.from(rgb).slice(0, 3).map(value => {
+            const channel = value / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+          return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+        };
+        const surfaces = Array.from(element.querySelectorAll<HTMLElement>('.guide-preview-surface'));
+        const contrast = surfaces.flatMap(surface => {
+          const background = luminance(getComputedStyle(surface).backgroundColor);
+          return Array.from(surface.querySelectorAll<HTMLElement>('span[style], svg text')).map(token => {
+            const style = getComputedStyle(token);
+            const foreground = luminance(token.tagName === 'text' ? style.fill : style.color);
+            return (Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05);
+          });
+        });
+        const plate = (style: string) => {
+          const surface = element.querySelector<HTMLElement>(`.guide-live-preview [data-motion-style="${style}"]`);
+          if (!surface) throw new Error(`Missing ${style} preview`);
+          return luminance(getComputedStyle(surface).backgroundColor);
+        };
+        return { contrast, joystick: plate('joystick'), arrows: plate('arrows') };
+      });
+      expect(results.contrast.length).toBeGreaterThan(0);
+      expect(Math.min(...results.contrast)).toBeGreaterThanOrEqual(4.5);
+      if (theme === 'light') expect(results.arrows).toBeGreaterThan(results.joystick);
+    }
+  }
+});

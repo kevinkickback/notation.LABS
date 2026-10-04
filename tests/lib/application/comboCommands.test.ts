@@ -29,6 +29,20 @@ async function createOwner() {
 }
 
 describe('combo commands', () => {
+  it('saves each tag once regardless of capitalization and retains its first spelling', async () => {
+    const { characterId } = await createOwner();
+    const tags = [' BnB ', 'bnb', 'Corner', 'CORNER', '', ' Café', 'Cafe\u0301'];
+    const comboId = await createCombo({ characterId, name: 'Tags', notation: '5LP', tags });
+    expect((await indexedDbStorage.combos.get(comboId))?.tags).toEqual(['BnB', 'Corner', 'Café']);
+    expect(tags[0]).toBe(' BnB ');
+    await updateCombo(comboId, { tags: [' Punish ', 'punish', 'Meterless', 'METERLESS'] });
+    expect((await indexedDbStorage.combos.get(comboId))?.tags).toEqual(['Punish', 'Meterless']);
+    await updateCombo(comboId, { damage: '1000' });
+    expect((await indexedDbStorage.combos.get(comboId))?.tags).toEqual(['Punish', 'Meterless']);
+    await updateCombo(comboId, { tags: [] });
+    expect((await indexedDbStorage.combos.get(comboId))?.tags).toEqual([]);
+  });
+
   it('derives parsed notation when creating a combo', async () => {
     const { characterId } = await createOwner();
     const notation = '5LP > 236HP';
