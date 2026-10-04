@@ -68,7 +68,7 @@ describe('notification panel', () => {
     updater.knownUpdate = updateDetails({ version: '3.0.0' });
     view.rerender(<NotificationHistory />);
     await user.click(screen.getByRole('button', { name: 'View update' }));
-    expect(updater.showAvailableUpdate).toHaveBeenCalledWith();
+    await waitFor(() => expect(updater.showAvailableUpdate).toHaveBeenCalledWith());
   });
 
   it('shows a retry when saved history cannot be read', async () => {

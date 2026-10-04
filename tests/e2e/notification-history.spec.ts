@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { updateDetails, updateSnapshot } from '../helpers/updater';
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -92,6 +93,39 @@ test('does not duplicate a retained update error or restore it after clearing an
   await page.getByRole('button', { name: 'Notifications', exact: true }).click();
   await expect(history.getByText('No notifications yet.')).toBeVisible();
 });
+
+for (const status of ['available', 'downloaded'] as const) {
+  test(`returns keyboard focus to the bell after viewing the ${status} update from history`, async ({ page }) => {
+    const snapshot = updateSnapshot({ status, update: updateDetails({ status }) }, 1, 1, `update-${status}`);
+    await page.addInitScript(snapshot => {
+      Object.defineProperty(window, 'electronAPI', { value: {
+        getUpdateStatus: async () => snapshot,
+        onUpdateStatus: () => () => {},
+        setAutoCheck: async () => {},
+        getAppVersion: async () => '1.8.0',
+        installUpdate: async () => {},
+      } });
+    }, snapshot);
+    await page.reload();
+    const bell = page.getByRole('button', { name: 'Notifications, 1 unread' });
+    await bell.focus();
+    await page.keyboard.press('Enter');
+    const history = page.getByRole('dialog', { name: 'Notifications', exact: true });
+    await history.getByRole('button', { name: 'View update' }).focus();
+    await page.keyboard.press('Enter');
+    const details = page.getByRole('dialog', {
+      name: status === 'available' ? 'Update Available — v2.0.0' : 'Update Ready', exact: true,
+    });
+    await expect(details).toBeVisible();
+    await expect.poll(() => details.evaluate(element => element.contains(document.activeElement))).toBe(true);
+    await expect(history).toHaveCount(0);
+    await details.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(details).toHaveCount(0);
+    await expect(bell).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(history).toBeVisible();
+  });
+}
 
 for (const width of [320, 800, 1440]) {
   for (const colorTheme of ['light', 'dark'] as const) {

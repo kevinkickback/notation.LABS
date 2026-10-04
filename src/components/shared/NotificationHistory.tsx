@@ -35,7 +35,9 @@ export function NotificationHistory() {
   const [attempt, setAttempt] = useState(0);
   const [clock, setClock] = useState(Date.now);
   const titleId = useId();
+  const bellRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const openUpdateOnClose = useRef(false);
   const { knownUpdate, showAvailableUpdate } = useUpdater();
   const { data: entries, error } = useRecoverableLiveQuery(
     () => notificationRepository.list(clock),
@@ -98,6 +100,7 @@ export function NotificationHistory() {
             unread ? `Notifications, ${unread} unread` : 'Notifications'
           }
           title="Notification history"
+          ref={bellRef}
         >
           <BellIcon aria-hidden="true" size={18} />
           {unread > 0 && (
@@ -115,6 +118,14 @@ export function NotificationHistory() {
           sideOffset={10}
           collisionPadding={12}
           aria-labelledby={titleId}
+          onCloseAutoFocus={(event) => {
+            if (!openUpdateOnClose.current) return;
+            event.preventDefault();
+            openUpdateOnClose.current = false;
+            // Open after the panel releases focus, with a persistent return target.
+            bellRef.current?.focus();
+            showAvailableUpdate();
+          }}
           className="notification-history z-50 flex w-[400px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg outline-none"
         >
           <div className="flex items-center justify-between gap-3 border-b p-3">
@@ -244,8 +255,8 @@ export function NotificationHistory() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  openUpdateOnClose.current = true;
                                   setOpen(false);
-                                  showAvailableUpdate();
                                 }}
                               >
                                 View update

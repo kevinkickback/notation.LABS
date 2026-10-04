@@ -81,6 +81,23 @@ describe('UpdaterProvider', () => {
     return view;
   }
 
+  it('records a distinct terminal event when its intermediate status arrives too late', async () => {
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    const failure = { status: 'error' as const, update: null, error: 'Check failed' };
+    emit(updateSnapshot(failure, 2, 0, 'first-check'));
+    recordNotificationMock.mockClear();
+    emit(updateSnapshot(failure, 4, 0, 'second-check'));
+    expect(recordNotificationMock).toHaveBeenCalledWith({
+      id: 'update-event:second-check', type: 'error', message: 'Check failed', action: undefined,
+      event: { source: 'updater', id: 'second-check' },
+    });
+    emit(updateSnapshot({ status: 'checking', update: null }, 3, 0, 'checking'));
+    emit(updateSnapshot(failure, 5, 0, 'second-check'));
+    expect(recordNotificationMock).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('status').textContent).toBe('error');
+  });
+
   it('keeps the main-process update details through an offline check error', async () => {
     const network = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
     await mountFooter();

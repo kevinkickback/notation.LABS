@@ -76,6 +76,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       return latestStatus.current;
     const previous = latestStatus.current;
     const terminalChanged =
+      next.eventId !== previous.eventId ||
       next.status !== previous.status ||
       next.update?.version !== previous.update?.version ||
       next.error !== previous.error;
