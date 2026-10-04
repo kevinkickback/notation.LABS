@@ -328,9 +328,15 @@ async function stageZipBackup(
           videos,
           sessionId: session.id,
         });
-        progress.phase = 'committing';
+        progress.phase = 'finalizing';
         report();
-        await applyBackupImportPlan(plan);
+        await applyBackupImportPlan(plan, {
+          signal,
+          onCommitting: () => {
+            progress.phase = 'committing';
+            report();
+          },
+        });
       } finally {
         await finishBackupSession(session.id);
       }

@@ -104,11 +104,20 @@ export async function importJsonBackupUnlocked(
     signal?.throwIfAborted();
     onProgress?.({
       warning,
-      phase: 'committing',
+      phase: 'finalizing',
       current: videos.length,
       total: includeVideos ? (parsed.demoVideos?.length ?? 0) : 0,
     });
-    await applyBackupImportPlan(plan);
+    await applyBackupImportPlan(plan, {
+      signal,
+      onCommitting: () =>
+        onProgress?.({
+          warning,
+          phase: 'committing',
+          current: videos.length,
+          total: includeVideos ? (parsed.demoVideos?.length ?? 0) : 0,
+        }),
+    });
   } finally {
     await finishBackupSession(session.id);
   }

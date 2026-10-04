@@ -31,10 +31,19 @@ export const archiveImageSchema = z.object({
     'image/bmp',
   ]),
 });
+const inlineImageSchema = z
+  .string()
+  .refine(
+    (value) => !/^data:/i.test(value) || isImageDataUrl(value),
+    'Backup contains an unsupported or invalid image',
+  )
+  .optional();
 export const archiveGameSchema = gameSchema.extend({
+  logoImage: inlineImageSchema,
   image: archiveImageSchema.optional(),
 });
 export const archiveCharacterSchema = characterSchema.extend({
+  portraitImage: inlineImageSchema,
   image: archiveImageSchema.optional(),
 });
 export const archiveComboSchema = comboSchema;
@@ -54,6 +63,7 @@ export function separateImage<T extends Game | Character>(
       : 'portraitImage' in record
         ? record.portraitImage
         : undefined;
+  inlineImageSchema.parse(source);
   if (!isImageDataUrl(source)) return { record, blob: undefined };
   const comma = source.indexOf(',');
   const mimeType = source.slice(5, source.indexOf(';'));

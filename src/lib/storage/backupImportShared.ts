@@ -133,21 +133,32 @@ export async function publishBackupSession(sessionId: string): Promise<void> {
 /** Compatibility adapter: old JSON is already bounded by its whole-document allocation budget. */
 export async function applyBackupImportPlan(
   plan: BackupImportPlan,
+  options: { signal?: AbortSignal; onCommitting?: () => void } = {},
 ): Promise<void> {
   const sessionId = plan.sessionId ?? (await createBackupSession('import')).id;
   try {
-    for (const game of plan.games)
+    for (const game of plan.games) {
+      options.signal?.throwIfAborted();
       await stageBackupRecord(sessionId, 'games', game);
-    for (const character of plan.characters)
+    }
+    for (const character of plan.characters) {
+      options.signal?.throwIfAborted();
       await stageBackupRecord(sessionId, 'characters', character);
-    for (const combo of plan.combos)
+    }
+    for (const combo of plan.combos) {
+      options.signal?.throwIfAborted();
       await stageBackupRecord(sessionId, 'combos', combo);
+    }
     for (const video of plan.videos) {
+      options.signal?.throwIfAborted();
       const reference =
         'data' in video ? await stageVideoPayload(video, sessionId) : video;
       await stageBackupRecord(sessionId, 'videos', reference);
     }
+    options.signal?.throwIfAborted();
     await db.backupSessions.update(sessionId, { settings: plan.settings });
+    options.signal?.throwIfAborted();
+    options.onCommitting?.();
     await publishBackupSession(sessionId);
   } finally {
     if (!plan.sessionId) await finishBackupSession(sessionId);
