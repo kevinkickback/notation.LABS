@@ -110,6 +110,8 @@ db.version(6)
 // Payload bytes are immutable. Library metadata and transfer snapshots hold their references.
 // Legacy buffers migrate one video at a time, outside the schema upgrade transaction.
 db.version(7).stores({
+  combos:
+    'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder, [characterId+id]',
   demoVideos: 'id, payloadId, [id+payloadId]',
   mediaPayloads: 'id, sessionId, [sessionId+id]',
   backupSessions: 'id, updatedAt',

@@ -1,7 +1,7 @@
 import { parseComboRecords } from '@/lib/comboParsing';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { COMBO_NOTATION_PARSER_VERSION } from '@/lib/parser';
-import type { Combo } from '@/lib/types';
+import type { Combo, Game } from '@/lib/types';
 import { db } from './database';
 import { recordBatches } from './recordBatches';
 
@@ -27,13 +27,37 @@ export async function reparseCombosForCharacters(
   alreadyParsedIds = new Set<string>(),
 ): Promise<void> {
   if (!characterIds.length) return;
-  const affected = new Set(characterIds);
-  for await (const batch of recordBatches(db.combos)) {
-    const changed: Combo[] = [];
-    for (const combo of batch)
-      if (affected.has(combo.characterId) && !alreadyParsedIds.has(combo.id))
-        changed.push(await parseStoredCombo(combo));
-    if (changed.length) await db.combos.bulkPut(changed);
+  const games = new Map<
+    string,
+    Pick<Game, 'id' | 'buttonLayout' | 'notationProfile'> | undefined
+  >();
+  for (const characterId of new Set(characterIds)) {
+    const character = await db.characters.get(characterId);
+    if (character && !games.has(character.gameId)) {
+      const game = await db.games.get(character.gameId);
+      games.set(
+        character.gameId,
+        game
+          ? {
+              id: game.id,
+              buttonLayout: game.buttonLayout,
+              notationProfile: game.notationProfile,
+            }
+          : undefined,
+      );
+    }
+    const game = character ? games.get(character.gameId) : undefined;
+    for await (const batch of recordBatches(db.combos, {
+      index: 'characterId',
+      value: characterId,
+    })) {
+      const changed = parseComboRecords(
+        batch.filter((combo) => !alreadyParsedIds.has(combo.id)),
+        game ? [game] : [],
+        character ? [{ id: character.id, gameId: character.gameId }] : [],
+      );
+      if (changed.length) await db.combos.bulkPut(changed);
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import type { EntityTable } from 'dexie';
+import Dexie, { type EntityTable } from 'dexie';
 import {
   BACKUP_BATCH_BYTES,
   BACKUP_RECORD_BATCH,
@@ -28,13 +28,22 @@ export async function projectRecords<T extends { id: string }, R>(
 /** Keyset pagination works inside the caller's transaction, without retaining a collection. */
 export async function* recordBatches<T extends { id: string }>(
   table: EntityTable<T, 'id'>,
+  scope?: { index: string; value: string },
 ): AsyncGenerator<T[], void> {
   let after: string | undefined;
   for (;;) {
     let bytes = 0;
     let count = 0;
-    const collection =
-      after === undefined
+    const collection = scope
+      ? table
+          .where(`[${scope.index}+id]`)
+          .between(
+            [scope.value, after ?? Dexie.minKey],
+            [scope.value, Dexie.maxKey],
+            false,
+            true,
+          )
+      : after === undefined
         ? table.orderBy('id')
         : table.where('id').above(after);
     const batch: T[] = await collection
