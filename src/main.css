@@ -11,6 +11,8 @@
 @import "./styles/notebook.css";
 @import "./styles/status.css";
 
+@source "../index.html";
+
 @custom-variant dark (&:is(.dark *));
 
 @config "../tailwind.config.js";
