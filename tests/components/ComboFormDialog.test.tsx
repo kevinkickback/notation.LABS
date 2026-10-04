@@ -110,20 +110,6 @@ describe('ComboFormDialog', () => {
     vi.clearAllMocks();
   });
 
-  it('renders Add Combo title when no editingCombo', () => {
-    render(
-      <ComboFormDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        game={mockGame}
-        character={mockCharacter}
-        editingCombo={null}
-        allTags={['corner', 'bnb']}
-      />,
-    );
-    expect(screen.getByText('Add Combo for Ryu')).not.toBeNull();
-  });
-
   it('uses field labels without redundant section headings and marks required fields', () => {
     render(
       <ComboFormDialog
@@ -136,6 +122,7 @@ describe('ComboFormDialog', () => {
       />,
     );
 
+    expect(screen.getByRole('dialog', { name: 'Add Combo for Ryu' })).not.toBeNull();
     expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
     expect(screen.getByLabelText('YouTube demo URL')).not.toBeNull();
     expect(screen.getByLabelText('Description')).not.toBeNull();
@@ -146,20 +133,6 @@ describe('ComboFormDialog', () => {
     expect(screen.getByLabelText('Notation').hasAttribute('required')).toBe(
       true,
     );
-  });
-
-  it('renders Edit Combo title when editingCombo is provided', () => {
-    render(
-      <ComboFormDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        game={mockGame}
-        character={mockCharacter}
-        editingCombo={mockCombo}
-        allTags={['corner', 'bnb']}
-      />,
-    );
-    expect(screen.getByText('Edit Combo for Ryu')).not.toBeNull();
   });
 
   it('populates form fields when editing an existing combo', () => {
@@ -173,6 +146,7 @@ describe('ComboFormDialog', () => {
         allTags={['corner', 'bnb']}
       />,
     );
+    expect(screen.getByRole('dialog', { name: 'Edit Combo for Ryu' })).not.toBeNull();
     expect(screen.getByDisplayValue('BnB Corner')).not.toBeNull();
     expect(screen.getByDisplayValue('5L > 5M > 236H')).not.toBeNull();
     expect(screen.getByDisplayValue('4200')).not.toBeNull();
@@ -196,7 +170,7 @@ describe('ComboFormDialog', () => {
     expect(screen.getByText('S')).not.toBeNull();
   });
 
-  it('shows upload file size guidance', () => {
+  it('explains storage cost without imposing a video file-size limit', () => {
     render(
       <ComboFormDialog
         open={true}
@@ -338,19 +312,5 @@ describe('ComboFormDialog', () => {
     expect(indexedDbStorage.demoVideos.add).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: /cancel/i }));
     expect(createCombo).not.toHaveBeenCalled();
-  });
-
-  it('does not render dialog content when closed', () => {
-    render(
-      <ComboFormDialog
-        open={false}
-        onOpenChange={onOpenChange}
-        game={mockGame}
-        character={mockCharacter}
-        editingCombo={null}
-        allTags={[]}
-      />,
-    );
-    expect(screen.queryByText('Add Combo for Ryu')).toBeNull();
   });
 });

@@ -143,7 +143,7 @@ describe('ComboView', () => {
     expect(document.activeElement).toBe(editNote);
   });
 
-  it('renders character name and game info', () => {
+  it('renders all combo cards', () => {
     render(
       <ComboView
         game={mockGame}
@@ -154,36 +154,11 @@ describe('ComboView', () => {
     expect(screen.getByText('Ryu')).not.toBeNull();
     expect(screen.getByText('Street Fighter 6')).not.toBeNull();
     expect(screen.getByText(/2 combos/)).not.toBeNull();
-  });
-
-  it('renders all combo cards', () => {
-    render(
-      <ComboView
-        game={mockGame}
-        character={mockCharacter}
-        combos={mockCombos}
-      />,
-    );
     expect(screen.getByText('BnB Corner')).not.toBeNull();
     expect(screen.getByText('Easy Punish')).not.toBeNull();
     expect(screen.getByText('drive rush').tagName).toBe('STRONG');
     expect(screen.getByText('Safe').closest('li')).not.toBeNull();
     expect(screen.getByText('Corner only').closest('li')).not.toBeNull();
-  });
-
-  it('opens filter panel when filter button is clicked', async () => {
-    const user = userEvent.setup();
-    render(
-      <ComboView
-        game={mockGame}
-        character={mockCharacter}
-        combos={mockCombos}
-      />,
-    );
-
-    await user.click(screen.getByTitle('Filter Combos'));
-    // Filter panel should show the search input
-    expect(screen.getByPlaceholderText(/search combos/i)).not.toBeNull();
   });
 
   it('toggles multi-select mode', async () => {

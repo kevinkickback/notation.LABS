@@ -8,7 +8,7 @@ import { loadBackupSelectionData } from '@/lib/application/backupCommands';
 import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 
 describe('streamed video backups', () => {
-  beforeEach(async () => { await Promise.all([db.games.clear(), db.characters.clear(), db.combos.clear(), db.demoVideos.clear(), db.settings.clear()]); });
+  beforeEach(async () => { await Promise.all(db.tables.map(table => table.clear())); });
   afterEach(() => { vi.restoreAllMocks(); });
   async function seed() {
     const gameId = await indexedDbStorage.games.add({ name: 'Export game', buttonLayout: ['A'] });

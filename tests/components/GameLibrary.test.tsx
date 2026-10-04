@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { GameLibrary } from '@/components/game/GameLibrary';
 import type { Game } from '@/lib/types';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useAppStore } from '@/lib/store';
 
 const { setSettingMock } = vi.hoisted(() => ({
   setSettingMock: vi.fn().mockResolvedValue(true),
@@ -100,6 +101,7 @@ const mockGames: Game[] = [
 describe('GameLibrary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppStore.getState().resetSelection();
     setSettingMock.mockResolvedValue(true);
   });
 
@@ -111,8 +113,9 @@ describe('GameLibrary', () => {
     ).not.toBeNull();
   });
 
-  it('renders all game cards with their names', () => {
+  it('shows the library heading, total, and game cards', () => {
     render(<GameLibrary games={mockGames} />);
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toMatch(/^Game Library\s*3$/);
     expect(screen.getByText('Street Fighter 6')).not.toBeNull();
     expect(screen.getByText('Guilty Gear Strive')).not.toBeNull();
     expect(screen.getByText('Tekken 8')).not.toBeNull();
@@ -169,6 +172,8 @@ describe('GameLibrary', () => {
       'game-1',
       true,
     );
+    expect(useAppStore.getState().selectedGameId).toBeNull();
+    expect(useAppStore.getState().selectedCharacterId).toBeNull();
   });
 
   it('places the favorite action before edit in list view', async () => {
@@ -190,43 +195,18 @@ describe('GameLibrary', () => {
     ).toBeTruthy();
   });
 
-  it('displays the game count badge', () => {
-    render(<GameLibrary games={mockGames} />);
-    expect(screen.getByText('3')).not.toBeNull();
-  });
-
-  it('shows the Game Library heading when games exist', () => {
-    render(<GameLibrary games={mockGames} />);
-    expect(screen.getByText('Game Library')).not.toBeNull();
-  });
-
-  it('opens the add game dialog when clicking Add Game', async () => {
-    const user = userEvent.setup();
-    render(<GameLibrary games={mockGames} />);
-
-    await user.click(screen.getByRole('button', { name: /add game/i }));
-    expect(screen.getByText('Add New Game')).not.toBeNull();
-  });
-
   it('uses native validation when adding a game without a name', async () => {
     const user = userEvent.setup();
 
     render(<GameLibrary games={mockGames} />);
 
     await user.click(screen.getByRole('button', { name: /add game/i }));
-    // Clear the default button layout and try to add
     const nameInput = screen.getByLabelText(/game name/i);
     await user.clear(nameInput);
     await user.click(screen.getByRole('button', { name: /^add game$/i }));
 
     expect((nameInput as HTMLInputElement).checkValidity()).toBe(false);
     expect(indexedDbStorage.games.add).not.toHaveBeenCalled();
-  });
-
-  it('toggles filter panel visibility', async () => {
-    render(<GameLibrary games={mockGames} />);
-
-    expect(screen.getByPlaceholderText('Search games...')).not.toBeNull();
   });
 
   it('filters games by search text', async () => {
@@ -238,18 +218,6 @@ describe('GameLibrary', () => {
 
     expect(screen.getByText('Tekken 8')).not.toBeNull();
     expect(screen.queryByText('Street Fighter 6')).toBeNull();
-    expect(screen.queryByText('Guilty Gear Strive')).toBeNull();
-  });
-
-  it('shows filtered count when searching', async () => {
-    const user = userEvent.setup();
-    render(<GameLibrary games={mockGames} />);
-
-    const searchInput = screen.getByPlaceholderText('Search games...');
-    await user.type(searchInput, 'street');
-
-    expect(screen.getByText('Street Fighter 6')).not.toBeNull();
-    expect(screen.queryByText('Tekken 8')).toBeNull();
     expect(screen.queryByText('Guilty Gear Strive')).toBeNull();
   });
 
