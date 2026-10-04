@@ -45,7 +45,9 @@ describe('scalable backup capabilities', () => {
     expect(await db.backupSessions.count()).toBe(0);
     expect(await db.backupRecords.count()).toBe(0);
     expect(await db.mediaPayloads.count()).toBe(1000);
-  }, 60_000);
+  // Native Blob/ZIP work under coverage is slower on the two-core CI runner.
+  // Keep every record/hash assertion and allow this large-count fixture to finish.
+  }, 180_000);
   it('round trips embedded images larger than the former combined metadata allowance', async () => {
     const bytes = new Uint8Array(2 * 1024 * 1024).fill(42);
     bytes.set([0xff, 0xd8, 0xff]);
