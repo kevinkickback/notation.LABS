@@ -16,6 +16,7 @@ test('keeps Settings a shared, viewport-safe height across categories', async ({
     expect(initial).not.toBeNull();
     for (const category of ['Colors', 'Notation', 'About', 'General']) {
       await page.getByRole('tab', { name: category, exact: true }).click();
+      await expect(dialog.getByRole('tabpanel', { name: category, exact: true })).toBeVisible();
       const box = await dialog.boundingBox();
       expect(Math.abs((box?.height ?? 0) - (initial?.height ?? 0))).toBeLessThan(1);
       expect(box?.y).toBeGreaterThanOrEqual(0);

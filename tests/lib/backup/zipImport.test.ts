@@ -10,7 +10,7 @@ const video = { id: 'demo', fileName: 'demo.mp4', mimeType: 'video/mp4', path: '
 
 describe('bounded ZIP imports', () => {
   beforeEach(async () => {
-    await Promise.all([db.games.clear(), db.characters.clear(), db.combos.clear(), db.settings.clear(), db.demoVideos.clear()]);
+    await Promise.all(db.tables.map(table => table.clear()));
     await indexedDbStorage.games.add({ name: 'Existing library', buttonLayout: ['A'] });
   });
 
@@ -72,8 +72,12 @@ describe('bounded ZIP imports', () => {
   });
 
   it('restores deflated legacy JSON backups inside ZIP files', async () => {
-    await importZipBackup(new Blob([await createBackupZip({ ...metadata, version: 2 })]));
-    await expectUnchanged();
+    const incoming = { id: 'incoming', name: 'Legacy game', buttonLayout: ['A'], createdAt: 1, updatedAt: 1 };
+    await importZipBackup(new Blob([await createBackupZip({ ...metadata, version: 2, games: [incoming] })]));
+    expect(await db.games.get(incoming.id)).toEqual({ ...incoming, notationProfile: 'standard' });
+    expect((await db.games.toArray()).map(game => game.name).sort()).toEqual(['Existing library', 'Legacy game']);
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
   });
 
   it('rejects duplicate filenames rather than choosing an arbitrary payload', async () => {

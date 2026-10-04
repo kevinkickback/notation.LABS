@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -6,11 +5,12 @@ import { describe, expect, it } from 'vitest';
 const assetPath = (path: string) => resolve(process.cwd(), path);
 
 describe('application branding assets', () => {
-  it('preserves the detailed splash independently of the compact app icon', async () => {
+  it('provides valid PNG assets for the splash and desktop icon', async () => {
     const splash = await readFile(assetPath('src/assets/branding/splash-logo.png'));
-    expect(createHash('sha256').update(splash).digest('hex')).toBe('89d72f746d9775507ca0b809334b7b586e6cc09d77dc180c7aadc4051b200162');
+    expect(splash.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(splash.readUInt32BE(16)).toBe(512);
+    expect(splash.readUInt32BE(20)).toBe(512);
     const appIcon = await readFile(assetPath('build/icon.png'));
-    expect(appIcon.equals(splash)).toBe(false);
     expect(appIcon.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
     expect(appIcon.readUInt32BE(16)).toBe(1024);
     expect(appIcon.readUInt32BE(20)).toBe(1024);

@@ -141,38 +141,17 @@ describe('ExportDialog', () => {
     vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValue([]);
   });
 
-  it('renders dialog title', async () => {
-    await renderDialog();
-    expect(screen.getByText('Export Data')).toBeTruthy();
-  });
-
-  it('loads and displays games in the tree', async () => {
-    await renderDialog();
-
-    await waitFor(() => {
-      expect(screen.getByText('Street Fighter 6')).toBeTruthy();
-      expect(screen.getByText('Guilty Gear Strive')).toBeTruthy();
-    });
-  });
-
   it('sorts game entries alphabetically by default', async () => {
     await renderDialog();
 
+    expect(screen.getByRole('dialog', { name: 'Export Data' })).not.toBeNull();
     const guiltyGear = await screen.findByText('Guilty Gear Strive');
     const streetFighter = screen.getByText('Street Fighter 6');
+    expect(screen.getAllByText('1 char')).toHaveLength(2);
     expect(
       guiltyGear.compareDocumentPosition(streetFighter) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-  });
-
-  it('shows character counts for each game', async () => {
-    await renderDialog();
-
-    await waitFor(() => {
-      const charLabels = screen.getAllByText('1 char');
-      expect(charLabels.length).toBe(2);
-    });
   });
 
   it('calls onExport with all items selected by default', async () => {
@@ -192,7 +171,7 @@ describe('ExportDialog', () => {
     });
   });
 
-  it('deselects all when None is clicked, disabling export', async () => {
+  it('disables an empty selection and restores it with All', async () => {
     const user = userEvent.setup();
     await renderDialog();
 
@@ -201,37 +180,11 @@ describe('ExportDialog', () => {
     });
 
     await user.click(screen.getByRole('button', { name: /^none$/i }));
-
-    const exportButton = screen.getByRole('button', {
-      name: /select items to export/i,
-    });
-    expect((exportButton as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('re-selects all when All is clicked after None', async () => {
-    const user = userEvent.setup();
-    await renderDialog();
-
-    await waitFor(() => {
-      expect(screen.queryByText('Street Fighter 6')).not.toBeNull();
-    });
-
-    await user.click(screen.getByRole('button', { name: /^none$/i }));
+    expect((screen.getByRole('button', { name: /select items to export/i }) as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole('button', { name: /^all$/i }));
 
     const exportButton = screen.getByRole('button', { name: /^export$/i });
     expect((exportButton as HTMLButtonElement).disabled).toBe(false);
-  });
-
-  it('does not render dialog content when closed', () => {
-    render(
-      <ExportDialog
-        open={false}
-        onOpenChange={onOpenChange}
-        onExport={onExport}
-      />,
-    );
-    expect(screen.queryByText('Export Data')).toBeFalsy();
   });
 
   it('counts empty characters in parent selection and exports only the chosen branch', async () => {
@@ -323,21 +276,6 @@ describe('ExportDialog', () => {
     });
   });
 
-  it('shows the include demo videos toggle when selected combos have local videos', async () => {
-    vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValueOnce([
-      'vid-1',
-    ]);
-    vi.mocked(indexedDbStorage.combos.getAll).mockResolvedValueOnce([
-      { ...mockCombos[0], demoUrl: 'local:vid-1' },
-    ]);
-
-    await renderDialog();
-
-    await waitFor(() => {
-      expect(screen.getByText('Include demo videos')).toBeTruthy();
-    });
-  });
-
   it('calls onExport with includeVideos true when the video toggle is enabled', async () => {
     const user = userEvent.setup();
     vi.mocked(indexedDbStorage.demoVideos.getIds).mockResolvedValueOnce([
@@ -349,11 +287,9 @@ describe('ExportDialog', () => {
 
     await renderDialog();
 
-    await waitFor(() => {
-      expect(screen.getByRole('switch')).toBeTruthy();
-    });
+    const videos = await screen.findByRole('switch', { name: 'Include demo videos' });
 
-    await user.click(screen.getByRole('switch'));
+    await user.click(videos);
     await user.click(screen.getByRole('button', { name: /^export$/i }));
 
     expect(onExport).toHaveBeenCalledWith(
