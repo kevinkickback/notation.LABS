@@ -48,7 +48,7 @@ export function ImportProgressModal({
               ? 'Saving the restored library. Please wait…'
               : phase === 'loading'
                 ? 'Reading backup archive…'
-                : phase === 'finalizing'
+                : phase === 'finalizing' || !isVideoPhase
                   ? 'Checking library records…'
                   : `Importing video ${current} of ${total}…`}
           </DialogDescription>

@@ -19,10 +19,15 @@ describe('scalable backup capabilities', () => {
   async function seed(count: number) {
     const gameId = await indexedDbStorage.games.add({ name: 'Large library', buttonLayout: ['A'] });
     const characterId = await indexedDbStorage.characters.add({ name: 'Character', gameId });
-    for (let index = 0; index < count; index++) {
-      await indexedDbStorage.demoVideos.add({ id: `video-${index}`, fileName: 'demo.mp4', mimeType: 'video/mp4', data: new Blob([new Uint8Array([index % 256, 42])], { type: 'video/mp4' }) });
-      await indexedDbStorage.combos.add({ name: `Combo ${index}`, characterId, notation: 'A', parsedNotation: [], tags: [], demoUrl: `local:video-${index}` });
-    }
+    // Fixture setup avoids repeatedly enumerating existing combos to choose one
+    // new sort position. The actual export and restore still process all videos.
+    const now = Date.now();
+    const indices = Array.from({ length: count }, (_, index) => index);
+    await db.transaction('rw', [db.mediaPayloads, db.demoVideos, db.combos], async () => {
+      await db.mediaPayloads.bulkAdd(indices.map(index => ({ id: `payload-${index}`, data: new Blob([new Uint8Array([index % 256, 42])], { type: 'video/mp4' }) })));
+      await db.demoVideos.bulkAdd(indices.map(index => ({ id: `video-${index}`, payloadId: `payload-${index}`, size: 2, fileName: 'demo.mp4', mimeType: 'video/mp4' })));
+      await db.combos.bulkAdd(indices.map(index => ({ id: `combo-${index}`, name: `Combo ${index}`, characterId, notation: 'A', parsedNotation: [], tags: [], demoUrl: `local:video-${index}`, sortOrder: index, createdAt: now, updatedAt: now })));
+    });
     return gameId;
   }
   it('exports and restores 1,000 distinct videos in one backup', async () => {

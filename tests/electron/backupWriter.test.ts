@@ -116,7 +116,7 @@ describe('streamed backup destination', () => {
 
   it.each([
     ['ENOSPC', 'out of space'],
-    ['EFBIG', 'NTFS or exFAT'],
+    ['EFBIG', 'destination that supports larger files'],
   ])('explains %s and cleans a failed output', async (code, message) => {
     const actual = await vi.importActual<typeof fsPromises>('node:fs/promises');
     vi.mocked(fsPromises.open).mockImplementationOnce(async (...args) => {

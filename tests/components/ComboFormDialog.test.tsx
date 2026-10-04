@@ -208,7 +208,8 @@ describe('ComboFormDialog', () => {
       />,
     );
 
-    expect(screen.getByText(/max file size:\s*50 mb/i)).not.toBeNull();
+    expect(screen.getByText(/larger videos need more free space/i)).not.toBeNull();
+    expect(screen.queryByText(/max file size/i)).toBeNull();
   });
 
   it('identifies combo descriptions as multiline Markdown fields', () => {

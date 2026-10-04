@@ -40,6 +40,24 @@ describe('bounded ZIP imports', () => {
     await expectUnchanged();
   });
 
+  it.each([true, false])('rejects missing legacy payloads even when includeVideos is %s', async (includeVideos) => {
+    const { path: _path, ...missingPayload } = video;
+    const bytes = await createBackupZip({ ...metadata, demoVideos: [missingPayload] });
+    await expect(importZipBackup(new Blob([bytes]), includeVideos)).rejects.toThrow(/include either dataBase64 or path/);
+    await expectUnchanged();
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
+  });
+
+  it('continues restoring legacy base64 payloads', async () => {
+    const { path: _path, ...header } = video;
+    const bytes = await createBackupZip({ ...metadata, demoVideos: [{ ...header, dataBase64: 'Kg==' }] });
+    await importZipBackup(new Blob([bytes]), true);
+    expect(await db.demoVideos.count()).toBe(1);
+    const restored = await indexedDbStorage.demoVideos.get(video.id);
+    expect(Array.from(new Uint8Array(await (restored?.data as Blob).arrayBuffer()))).toEqual([42]);
+  });
+
   it('reads large stored videos in slices rather than buffering the archive', async () => {
     const bytes = await createBackupZip({ ...metadata, demoVideos: [video] }, { [video.path]: new Uint8Array(2 * 1024 * 1024).fill(42) }, 'STORE');
     const file = new Blob([bytes]);

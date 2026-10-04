@@ -185,7 +185,7 @@ export class BackupWriter {
         );
       if (code === 'EFBIG')
         throw new Error(
-          'This drive cannot store a file this large. For backups above 4 GB, choose an NTFS or exFAT drive.',
+          'This drive cannot store a file this large. Choose a destination that supports larger files; FAT32 is limited to about 4 GB.',
         );
       throw error;
     }
