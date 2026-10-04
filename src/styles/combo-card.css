@@ -1,5 +1,5 @@
 .combo-card {
-  --combo-tag-color: color-mix(
+  --combo-demo-color: color-mix(
     in oklab,
     var(--accent-color, #3b82f6) 45%,
     var(--foreground)
@@ -20,7 +20,7 @@
     box-shadow 140ms;
 }
 .dark .combo-card {
-  --combo-tag-color: color-mix(
+  --combo-demo-color: color-mix(
     in oklab,
     var(--accent-color, #3b82f6) 35%,
     var(--foreground)
@@ -82,8 +82,8 @@
 }
 .combo-card-title {
   min-width: 0;
-  font-size: 16px;
-  line-height: 1.4;
+  font-size: 18px;
+  line-height: 1.25;
   font-weight: 650;
   letter-spacing: -0.35px;
   overflow-wrap: anywhere;
@@ -92,7 +92,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--combo-warning-color);
 }
@@ -116,8 +116,8 @@
   margin-right: 6px;
   gap: 5px;
   background: color-mix(in srgb, var(--accent-color, #3b82f6) 12%, var(--card));
-  color: var(--combo-tag-color);
-  font-size: 12px;
+  color: var(--combo-demo-color);
+  font-size: 13px;
 }
 .combo-card-notation {
   min-width: 0;
@@ -139,7 +139,7 @@
   overflow-wrap: anywhere;
 }
 .combo-card-notes > div {
-  font-size: 12px;
+  font-size: 13px;
 }
 .combo-card-metadata {
   display: flex;
@@ -162,7 +162,7 @@
 }
 .combo-card-stats {
   gap: 14px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted-foreground);
 }
 .combo-card-stats > :not(:last-child) {
@@ -172,6 +172,18 @@
 .combo-card-stats strong {
   font-weight: 550;
   color: var(--foreground);
+}
+.combo-card-stat {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.combo-card-stat-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 .combo-card-difficulty {
   --difficulty-color: var(--muted-foreground);
@@ -217,18 +229,14 @@
 .combo-card-tags button {
   max-width: 100%;
   padding: 3px 6px;
-  border: 1px solid
-    color-mix(in srgb, var(--accent-color, #3b82f6) 25%, var(--border));
+  border-width: 1px;
+  border-style: solid;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--accent-color, #3b82f6) 12%, var(--card));
-  color: var(--combo-tag-color);
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 18px;
   cursor: pointer;
   overflow-wrap: anywhere;
   transition: background 120ms;
-}
-.combo-card-tags button:hover {
-  background: color-mix(in srgb, var(--accent-color, #3b82f6) 18%, var(--card));
 }
 .combo-card button:focus-visible {
   outline: 2px solid var(--accent-color, #3b82f6);

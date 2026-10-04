@@ -26,6 +26,15 @@
   --combo-hold: oklch(0.55 0.17 75);
   --combo-hold-outline: oklch(0.16 0.03 265);
 
+  --tag-blue: #1e40af;
+  --tag-teal: #115e59;
+  --tag-green: #166534;
+  --tag-amber: #854d0e;
+  --tag-orange: #9a3412;
+  --tag-rose: #9f1239;
+  --tag-violet: #5b21b6;
+  --tag-cyan: #155e75;
+
   --radius: 0.5rem;
 }
 
@@ -54,6 +63,15 @@
 
   --combo-hold: oklch(0.82 0.16 85);
   --combo-hold-outline: oklch(0.16 0.03 265);
+
+  --tag-blue: #93c5fd;
+  --tag-teal: #5eead4;
+  --tag-green: #86efac;
+  --tag-amber: #fde68a;
+  --tag-orange: #fdba74;
+  --tag-rose: #fda4af;
+  --tag-violet: #c4b5fd;
+  --tag-cyan: #67e8f9;
 }
 
 @theme inline {
