@@ -1,6 +1,5 @@
 import { ArrowClockwiseIcon } from '@phosphor-icons/react';
 import { useId } from 'react';
-import { toast } from 'sonner';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { ButtonIcon } from '@/components/combo/icons/ButtonIcon';
 import { MotionIcon } from '@/components/combo/icons/MotionIcon';
@@ -10,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
+import { notify } from '@/lib/notifications';
 import { parseComboNotation } from '@/lib/parser';
 import type {
   DisplayMode,
@@ -252,7 +252,7 @@ export function NotationSettings() {
                   size="sm"
                   onClick={() => {
                     updateSetting('comboScale', 1);
-                    toast.success('Combo size reset to default');
+                    notify.success('Combo size reset to default');
                   }}
                   className="gap-1.5"
                 >

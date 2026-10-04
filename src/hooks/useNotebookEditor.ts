@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { useSubmission } from '@/hooks/useSubmission';
 import { updateCharacter } from '@/lib/application/characterCommands';
 import { updateGame } from '@/lib/application/gameCommands';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { externalHttpsUrlSchema } from '@/lib/schemas';
 import type { CharacterLink } from '@/lib/types';
 import { hasModalOverlay } from '@/lib/uiFocus';
@@ -181,11 +181,11 @@ export function useNotebookEditor(
       {
         onSuccess: () => {
           finishNoteEditing(restoreFocus);
-          toast.success('Note updated');
+          notify.success('Note updated');
         },
         onError: (error) => {
           reportError('EntityNotebook.saveNote', error);
-          toast.error('Failed to update note');
+          notify.error('Failed to update note');
         },
       },
     );
@@ -222,7 +222,7 @@ export function useNotebookEditor(
         onSuccess: () => finishResourceEditing(restoreFocus),
         onError: (error) => {
           reportError('EntityNotebook.saveResource', error);
-          toast.error('Failed to save resource');
+          notify.error('Failed to save resource');
         },
       },
     );
@@ -246,7 +246,7 @@ export function useNotebookEditor(
         },
         onError: (error) => {
           reportError('EntityNotebook.removeResource', error);
-          toast.error('Failed to remove resource');
+          notify.error('Failed to remove resource');
         },
       },
     );

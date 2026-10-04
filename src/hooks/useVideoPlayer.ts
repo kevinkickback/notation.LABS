@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { useMediaRequest } from '@/hooks/useMediaRequest';
 import { reportError, toUserMessage } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { externalHttpsUrlSchema } from '@/lib/schemas';
 import {
   getLocalVideoId,
@@ -46,12 +46,12 @@ export function useVideoPlayer(
         {
           onSuccess: (next) => {
             if (next) setMedia(next);
-            else toast.error('Video file not found');
+            else notify.error('Video file not found');
           },
           onDiscard: releaseMedia,
           onError: (error) => {
             reportError('useVideoPlayer.handleWatchDemo', error);
-            toast.error(toUserMessage(error));
+            notify.error(toUserMessage(error));
           },
         },
       );

@@ -77,6 +77,8 @@ export type UpdateState =
 export type UpdateStatus = UpdateState & {
   revision: number;
   availabilityEventId: number;
+  /** Stable for a state transition, including subsequent metadata-only snapshots. */
+  eventId: string | null;
 };
 
 export const INITIAL_UPDATE_STATUS: UpdateStatus = {
@@ -84,6 +86,7 @@ export const INITIAL_UPDATE_STATUS: UpdateStatus = {
   update: null,
   revision: 0,
   availabilityEventId: 0,
+  eventId: null,
 };
 
 export interface CurrentChangelog {

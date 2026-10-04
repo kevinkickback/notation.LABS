@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import type { Session, WebContents } from 'electron';
 
 const mkdirSyncMock = vi.fn();
 
@@ -158,6 +161,40 @@ afterEach(() => {
 });
 
 describe('electron main process wiring', () => {
+  for (const serverUrl of [undefined, 'http://localhost:5173']) {
+    it(`grants only clipboard writes from the live app's main frame (${serverUrl ? 'development' : 'packaged'})`, async () => {
+      if (serverUrl) vi.stubEnv('VITE_DEV_SERVER_URL', serverUrl);
+      const context = await loadMainModule();
+      await context.appEvents.ready();
+      const check = context.sessionMock.defaultSession.setPermissionCheckHandler.mock.calls[0][0] as NonNullable<Parameters<Session['setPermissionCheckHandler']>[0]>;
+      const request = context.sessionMock.defaultSession.setPermissionRequestHandler.mock.calls[0][0] as NonNullable<Parameters<Session['setPermissionRequestHandler']>[0]>;
+      const window = context.browserWindows[0];
+      const contents = window.webContents as unknown as WebContents;
+      const requestingUrl = serverUrl ? `${serverUrl}/` : pathToFileURL(resolve('dist/index.html')).href;
+      const details = { isMainFrame: true, requestingUrl };
+      expect(check(contents, 'clipboard-sanitized-write', '', details)).toBe(true);
+      const callback = vi.fn();
+      request(contents, 'clipboard-sanitized-write', callback, details);
+      expect(callback).toHaveBeenLastCalledWith(true);
+      request(contents, 'clipboard-read', callback, details);
+      expect(callback).toHaveBeenLastCalledWith(false);
+      for (const permission of ['clipboard-read', 'deprecated-sync-clipboard-read', 'media', 'notifications'] as const) {
+        expect(check(contents, permission, '', details)).toBe(false);
+      }
+      expect(check(null, 'clipboard-sanitized-write', '', details)).toBe(false);
+      expect(check({} as WebContents, 'clipboard-sanitized-write', '', details)).toBe(false);
+      expect(check(contents, 'clipboard-sanitized-write', '', { ...details, isMainFrame: false })).toBe(false);
+      expect(check(contents, 'clipboard-sanitized-write', '', { isMainFrame: true })).toBe(false);
+      expect(check(contents, 'clipboard-sanitized-write', '', { ...details, requestingUrl: 'https://example.com/' })).toBe(false);
+      expect(check(contents, 'clipboard-sanitized-write', '', { ...details, requestingUrl: `${requestingUrl}other` })).toBe(false);
+      window.webContents.isDestroyed.mockReturnValue(true);
+      expect(check(contents, 'clipboard-sanitized-write', '', details)).toBe(false);
+      window.webContents.isDestroyed.mockReturnValue(false);
+      window.isDestroyed.mockReturnValue(true);
+      expect(check(contents, 'clipboard-sanitized-write', '', details)).toBe(false);
+    });
+  }
+
   it('initializes the app on ready and exposes update IPC handlers', async () => {
     const context = await loadMainModule();
 

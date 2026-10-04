@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import {
   createBackupTo,
   importJsonBackup,
@@ -14,6 +13,7 @@ import { openBackupSink } from '@/lib/backup/platformSave';
 import type { BackupFilter } from '@/lib/backup/selectionClosure';
 import { MAX_JSON_BACKUP_BYTES } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import type { ZipImportProgress } from '@/lib/storage/indexedDbStorage';
 
 export interface BackupImportOptions {
@@ -66,13 +66,13 @@ export function useBackupTransfer() {
         },
         controller.signal,
       );
-      toast.success(
+      notify.success(
         format === 'zip' ? 'Data exported with demo videos' : 'Data exported',
       );
     } catch (error) {
       if (!controller.signal.aborted) {
         reportError('backup.export', error);
-        toast.error(toUserMessage(error));
+        notify.error(toUserMessage(error));
       }
     } finally {
       setExportProgress(null);
@@ -119,7 +119,7 @@ export function useBackupTransfer() {
           progress,
           controller.signal,
         );
-      toast.success(
+      notify.success(
         options.includeSettings
           ? 'Data imported. Settings were replaced from backup.'
           : 'Data imported. Current settings were preserved.',
@@ -127,7 +127,7 @@ export function useBackupTransfer() {
     } catch (error) {
       if (!controller.signal.aborted) {
         reportError('backup.import', error);
-        toast.error(`Failed to import data: ${toUserMessage(error)}`);
+        notify.error(`Failed to import data: ${toUserMessage(error)}`);
       }
     } finally {
       setImportProgress(null);

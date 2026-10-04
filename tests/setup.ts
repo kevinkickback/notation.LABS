@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, vi } from 'vitest';
+import 'fake-indexeddb/auto';
 
 // jest-dom matchers removed; using only Vitest and Testing Library
 

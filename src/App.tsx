@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { CharacterView } from '@/components/character/CharacterView';
 import { ComboView } from '@/components/combo/ComboView';
 import { GameLibrary } from '@/components/game/GameLibrary';
@@ -15,6 +14,7 @@ import {
 } from '@/context/SettingsContext';
 import { useUpdater } from '@/context/UpdaterContext';
 import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
+import { notify } from '@/lib/notifications';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 
@@ -34,7 +34,9 @@ function App() {
   useEffect(() => {
     if (availabilityEventId === 0 || updateStatus.status !== 'available')
       return;
-    toast.info(`Update v${updateStatus.update?.version} available`, {
+    notify.update(`Update v${updateStatus.update?.version} available`, {
+      operationId: `update:${updateStatus.update?.version}`,
+      history: false,
       action: {
         label: 'View',
         onClick: () => showAvailableUpdate(),

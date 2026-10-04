@@ -14,11 +14,21 @@
   font-size: 0.8125rem;
 }
 .workspace-status {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.workspace-status-message {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 14px;
   min-width: 0;
+}
+.notification-history {
+  max-height: min(480px, var(--radix-popover-content-available-height));
 }
 .workspace-version {
   flex-shrink: 0;

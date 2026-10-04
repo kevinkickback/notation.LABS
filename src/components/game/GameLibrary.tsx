@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import { useSettings } from '@/context/SettingsContext';
@@ -15,6 +14,7 @@ import { useSelection } from '@/hooks/useSelection';
 import { setGameFavorite } from '@/lib/application/gameCommands';
 import { compareEntityNames, compareFavoritesFirst } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { useAppStore } from '@/lib/store';
 import type { Game } from '@/lib/types';
 import { GameFormDialog } from './GameFormDialog';
@@ -102,7 +102,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
       await setGameFavorite(game.id, !game.favorite);
     } catch (error) {
       reportError('GameLibrary.toggleFavorite', error);
-      toast.error('Failed to update favorite');
+      notify.error('Failed to update favorite');
     }
   };
 

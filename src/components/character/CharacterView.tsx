@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
 import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
 import {
@@ -20,6 +19,7 @@ import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import { useSelection } from '@/hooks/useSelection';
 import { setCharacterFavorite } from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 import { CharacterFormDialog } from './CharacterFormDialog';
@@ -90,7 +90,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       await setCharacterFavorite(character.id, !character.favorite);
     } catch (error) {
       reportError('CharacterView.toggleFavorite', error);
-      toast.error('Failed to update favorite');
+      notify.error('Failed to update favorite');
     }
   };
 

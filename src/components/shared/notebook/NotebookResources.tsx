@@ -6,7 +6,6 @@ import {
   TrashIcon,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +13,7 @@ import {
   getResourceDomain,
   type NotebookEditor,
 } from '@/hooks/useNotebookEditor';
+import { notify } from '@/lib/notifications';
 import { externalHttpsUrlSchema } from '@/lib/schemas';
 import type { CharacterLink } from '@/lib/types';
 
@@ -174,7 +174,7 @@ export function NotebookResources({
                   onClick={(event) => {
                     if (!canOpen) {
                       event.preventDefault();
-                      toast.error(
+                      notify.error(
                         'This saved resource uses HTTP. Edit it to use HTTPS before opening.',
                       );
                     }

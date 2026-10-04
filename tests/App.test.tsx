@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { useAppStore } from '@/lib/store';
 import { INITIAL_UPDATE_STATUS } from '@/lib/updater/ipcContract';
 import { updateDetails, updateSnapshot } from './helpers/updater';
+vi.mock('@/components/shared/NotificationHistory', () => ({ NotificationHistory: () => null }));
 
 const mocks = vi.hoisted(() => ({
   useLiveQuery: vi.fn(),

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { app, BrowserWindow, net, shell } from 'electron';
 import {
   autoUpdater,
@@ -35,6 +36,10 @@ let isPortableMode = false;
 let initialized = false;
 
 function publish(state: UpdateState): UpdateStatus {
+  const transition =
+    state.status !== currentStatus.status ||
+    state.update?.version !== currentStatus.update?.version ||
+    state.error !== currentStatus.error;
   const announcesUpdate =
     state.status === 'available' &&
     (currentStatus.status === 'checking' ||
@@ -42,6 +47,7 @@ function publish(state: UpdateState): UpdateStatus {
   currentStatus = {
     ...state,
     revision: currentStatus.revision + 1,
+    eventId: transition ? randomUUID() : currentStatus.eventId,
     availabilityEventId:
       currentStatus.availabilityEventId + (announcesUpdate ? 1 : 0),
   };
