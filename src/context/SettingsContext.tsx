@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +21,7 @@ import { getAccentAppearance } from '@/lib/accentAppearance';
 import { initializeApplication } from '@/lib/application/initializeApplication';
 import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { UserSettings } from '@/lib/types';
 
@@ -122,7 +122,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setInitializationError(toUserMessage(err));
         reportError('SettingsProvider.init', err);
-        toast.error(`Failed to load saved settings: ${toUserMessage(err)}`);
+        notify.error(`Failed to load saved settings: ${toUserMessage(err)}`);
       });
     return () => {
       cancelled = true;
@@ -200,7 +200,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           return next;
         });
         reportError('SettingsProvider.setSetting', error);
-        toast.error(`Failed to save setting: ${toUserMessage(error)}`);
+        notify.error(`Failed to save setting: ${toUserMessage(error)}`);
         return false;
       }
     },

@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useUpdater } from '@/context/UpdaterContext';
 import { reportError } from '@/lib/errors';
 import type { UpdateStatus } from '@/lib/updater/ipcContract';
+import { NotificationHistory } from './NotificationHistory';
 
 function updateLabel(
   update: UpdateStatus,
@@ -82,30 +83,33 @@ export function WorkspaceStatus() {
       : undefined);
 
   return (
-    <output className="workspace-status" aria-live="polite">
-      <span className="workspace-version" title="App version">
-        v{version}
-      </span>
-      {displayedStatus === 'available' || displayedStatus === 'downloaded' ? (
-        <button
-          type="button"
-          onClick={() => showAvailableUpdate(status.update)}
-          className="update-status"
-          data-attention="true"
-          data-state={updateState}
-          title={detail}
-        >
-          {updateMessage}
-        </button>
-      ) : updateMessage ? (
-        <span
-          className="update-status"
-          data-state={offlineMessage ? 'offline' : updateState}
-          title={detail}
-        >
-          {updateMessage}
+    <div className="workspace-status">
+      <output className="workspace-status-message" aria-live="polite">
+        <span className="workspace-version" title="App version">
+          v{version}
         </span>
-      ) : null}
-    </output>
+        {displayedStatus === 'available' || displayedStatus === 'downloaded' ? (
+          <button
+            type="button"
+            onClick={() => showAvailableUpdate(status.update)}
+            className="update-status"
+            data-attention="true"
+            data-state={updateState}
+            title={detail}
+          >
+            {updateMessage}
+          </button>
+        ) : updateMessage ? (
+          <span
+            className="update-status"
+            data-state={offlineMessage ? 'offline' : updateState}
+            title={detail}
+          >
+            {updateMessage}
+          </span>
+        ) : null}
+      </output>
+      <NotificationHistory />
+    </div>
   );
 }

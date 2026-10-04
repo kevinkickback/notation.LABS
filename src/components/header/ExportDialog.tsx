@@ -4,7 +4,6 @@ import {
   SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useId, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -22,6 +21,7 @@ import { loadBackupSelectionData } from '@/lib/application/backupCommands';
 import type { BackupExportProgress } from '@/lib/backup/exportContract';
 import { compareEntityNames } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { getLocalVideoId } from '@/lib/storage/indexedDbStorage';
 import {
   createExportSelection,
@@ -155,7 +155,7 @@ export function ExportDialog({
           createExportSelection({ games: [], characters: [], combos: [] }),
         );
         setLoading(false);
-        toast.error('Failed to load export data');
+        notify.error('Failed to load export data');
       });
     return () => {
       active = false;

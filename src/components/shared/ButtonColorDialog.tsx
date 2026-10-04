@@ -1,6 +1,5 @@
 import { PlusIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ColorPickerRow } from '@/components/ui/ColorPickerRow';
 import {
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { updateGame } from '@/lib/application/gameCommands';
+import { notify } from '@/lib/notifications';
 import type { Game } from '@/lib/types';
 
 const DEFAULT_BTN_PALETTE = [
@@ -72,10 +72,10 @@ export function ButtonColorDialog({
         buttonLayout: tempButtonLayout,
         buttonColors: colorsToSave,
       });
-      toast.success('Button colors updated');
+      notify.success('Button colors updated');
       onOpenChange(false);
     } catch {
-      toast.error('Failed to update colors');
+      notify.error('Failed to update colors');
     }
   };
 

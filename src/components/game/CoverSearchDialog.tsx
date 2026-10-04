@@ -1,6 +1,5 @@
 import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
 import { useMemo } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useCachedSearch } from '@/hooks/useCachedSearch';
 import { useMediaRequest } from '@/hooks/useMediaRequest';
+import { notify } from '@/lib/notifications';
 import {
   downloadIgdbCover,
   getIgdbCoverUrl,
@@ -72,9 +72,9 @@ export function CoverSearchDialog({
     await run(imageId, (signal) => downloadIgdbCover(imageId, signal), {
       onSuccess: (dataUrl) => {
         if (dataUrl) onCoverSelect(dataUrl);
-        else toast.error('Failed to download cover (no available sizes)');
+        else notify.error('Failed to download cover (no available sizes)');
       },
-      onError: () => toast.error('Failed to download cover'),
+      onError: () => notify.error('Failed to download cover'),
     });
   };
 

@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { toast } from 'sonner';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { FormSection } from '@/components/shared/FormSection';
 import { RequiredBadge } from '@/components/shared/RequiredBadge';
@@ -38,6 +37,7 @@ import { useSubmission } from '@/hooks/useSubmission';
 import { createCombo, updateCombo } from '@/lib/application/comboCommands';
 import { reportError } from '@/lib/errors';
 import { extractYouTubeVideoId, fetchYouTubeTitle } from '@/lib/media/youtube';
+import { notify } from '@/lib/notifications';
 import { parseComboNotation } from '@/lib/parser';
 import {
   type DemoVideo,
@@ -166,7 +166,7 @@ export function ComboFormDialog({
 
   const handleSubmit = async () => {
     if (!name.trim() || !notation.trim()) {
-      toast.error('Name and notation are required');
+      notify.error('Name and notation are required', { history: false });
       return;
     }
 
@@ -187,12 +187,12 @@ export function ComboFormDialog({
       },
       {
         onSuccess: () => {
-          toast.success(editingCombo ? 'Combo updated' : 'Combo added');
+          notify.success(editingCombo ? 'Combo updated' : 'Combo added');
           onOpenChange(false);
         },
         onError: (error) => {
           reportError('ComboFormDialog.handleSubmit', error);
-          toast.error(
+          notify.error(
             editingCombo ? 'Failed to update combo' : 'Failed to add combo',
           );
         },
@@ -209,15 +209,15 @@ export function ComboFormDialog({
     e.target.value = '';
     if (!file) return;
 
-    if (file.size > SOFT_WARN_VIDEO_SIZE_BYTES) {
-      toast.warning(
-        `This video will use ${(file.size / 1024 / 1024).toFixed(1)} MB of local storage.`,
-      );
+    if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
+      notify.error('Unsupported video format', { history: false });
+      return;
     }
 
-    if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
-      toast.error('Unsupported video format');
-      return;
+    if (file.size > SOFT_WARN_VIDEO_SIZE_BYTES) {
+      notify.warning(
+        `This video will use ${(file.size / 1024 / 1024).toFixed(1)} MB of local storage.`,
+      );
     }
 
     await loadVideo(file.name, () => Promise.resolve(file), {
@@ -237,7 +237,7 @@ export function ComboFormDialog({
       },
       onError: (err) => {
         reportError('ComboFormDialog.handleVideoFileChange', err);
-        toast.error('Failed to read video file');
+        notify.error('Failed to read video file');
       },
     });
   };

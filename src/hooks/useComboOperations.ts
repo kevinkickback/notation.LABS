@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
 import {
   duplicateCombo,
   markCombosOutdated,
 } from '@/lib/application/comboCommands';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import type { Combo } from '@/lib/types';
 
 /**
@@ -22,10 +22,10 @@ export function useComboOperations() {
   const handleDuplicate = useCallback(async (combo: Combo) => {
     try {
       await duplicateCombo(combo);
-      toast.success('Combo duplicated');
+      notify.success('Combo duplicated');
     } catch (err) {
       reportError('useComboOperations.handleDuplicate', err);
-      toast.error('Failed to duplicate combo');
+      notify.error('Failed to duplicate combo');
     }
   }, []);
 
@@ -34,12 +34,12 @@ export function useComboOperations() {
       if (selectedIds.size === 0) return;
       try {
         await markCombosOutdated([...selectedIds], outdated);
-        toast.success(
+        notify.success(
           `${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} marked as ${outdated ? 'outdated' : 'current'}`,
         );
       } catch (err) {
         reportError('useComboOperations.handleBulkMarkOutdated', err);
-        toast.error('Failed to update combos');
+        notify.error('Failed to update combos');
       }
     },
     [],

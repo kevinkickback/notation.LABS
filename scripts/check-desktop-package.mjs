@@ -163,9 +163,54 @@ try {
   await page
     .getByRole('button', { name: 'Edit Packaged smoke game' })
     .waitFor();
+  const bell = page.locator('.notification-bell');
+  await bell.click();
+  await page
+    .getByRole('dialog', { name: 'Notifications', exact: true })
+    .getByText('Game added', { exact: true })
+    .waitFor();
+  await page.keyboard.press('Escape');
   await page.reload();
   await page
     .getByRole('button', { name: 'Edit Packaged smoke game' })
+    .waitFor();
+  assert.equal(
+    await page
+      .locator('[data-sonner-toast]')
+      .filter({ hasText: 'Game added' })
+      .count(),
+    0,
+  );
+  await bell.click();
+  await page
+    .getByRole('dialog', { name: 'Notifications', exact: true })
+    .getByText('Game added', { exact: true })
+    .waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page
+    .getByRole('button', { name: 'Choose backup file', exact: true })
+    .click();
+  await (await chooser).setFiles({
+    name: 'invalid-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{invalid'),
+  });
+  await page
+    .locator('[data-sonner-toast]')
+    .filter({ hasText: 'Failed to import data:' })
+    .waitFor();
+  await bell.click();
+  await page
+    .getByRole('dialog', { name: 'Notifications', exact: true })
+    .locator('li')
+    .filter({ hasText: 'Failed to import data:' })
+    .getByRole('button', { name: 'Copy error' })
+    .click();
+  await page
+    .locator('[data-sonner-toast]')
+    .filter({ hasText: 'Error copied' })
     .waitFor();
   console.log(
     JSON.stringify({
@@ -174,6 +219,7 @@ try {
       archiveBytes: (await stat(archive)).size,
       archiveEntries: entries.length,
       persistence: 'passed',
+      notificationHistory: 'passed',
       preload: 'passed',
       updaterResources: 'passed',
       securityFuses: 'passed',

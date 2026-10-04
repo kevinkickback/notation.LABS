@@ -126,6 +126,16 @@ rows. Their size sliders expose one stop per distinct layout at the observed con
 Window resizing and notebook docking recalculate choices without rewriting the saved target size.
 Character columns retain the v1.8.0 width multiplier and current portrait aspect ratios.
 
+Notification emitters share one typed helper for temporary feedback and best-effort device history.
+Dexie retains the newest 100 entries for 30 days, outside library backups. Warnings, errors, and
+updates start unread; routine confirmations do not light the footer bell. Validation prompts and
+continuous progress stay out of history. Operation IDs update an existing entry without replaying
+saved messages; update actions resolve current updater state. Storage or clipboard failures use
+diagnostics and temporary feedback without recursively creating history or failing library writes.
+The footer panel uses the existing Radix focus and positioning primitives, with scrollable content.
+Electron permits sanitized clipboard writes only from the live app's main frame at its configured
+renderer URL. Clipboard reads, embedded pages, and unrelated permissions remain denied.
+
 Styling imports Tailwind once through `src/main.css`. `src/styles/theme.css` owns the app's light and
 dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings provider
 applies the `.dark` class, font, and custom accent, and notifications read the same theme preference.
@@ -242,6 +252,7 @@ collection; an empty manifest alone would make Electron Builder fall back to the
 After building, run `npm run package:check -- <packaged-executable>` against the unpacked executable
 (inside `Contents/MacOS` on macOS). This checks the archive, app identity, updater resources, security
 fuses, preload, and persisted edits in the real production binary, using a fresh profile under `.tmp`.
+It also verifies saved notification history survives a reload without replaying the completed action.
 The check connects to Chromium for testing without enabling the Node inspector or changing the binary.
 
 Publish an approved draft with:

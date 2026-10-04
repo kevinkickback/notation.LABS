@@ -5,6 +5,7 @@ import type {
   VideoReference,
 } from '@/lib/backup/archiveContract';
 import { migrateLegacyNotationProfile } from '@/lib/notationProfiles';
+import type { NotificationEntry } from '@/lib/notifications/types';
 import type {
   Character,
   Combo,
@@ -35,6 +36,7 @@ export const db = new Dexie('FightingGameComboTracker') as Dexie & {
   mediaPayloads: EntityTable<MediaPayload, 'id'>;
   backupSessions: EntityTable<BackupSession, 'id'>;
   backupRecords: EntityTable<StagedBackupRecord, 'id'>;
+  notifications: EntityTable<NotificationEntry, 'id'>;
 };
 
 db.version(1).stores({
@@ -117,3 +119,6 @@ db.version(7).stores({
   backupSessions: 'id, updatedAt',
   backupRecords: 'id, sessionId, [sessionId+kind+entityId], payloadId',
 });
+
+// Device-only history is intentionally outside library snapshots and backups.
+db.version(8).stores({ notifications: 'id, createdAt' });

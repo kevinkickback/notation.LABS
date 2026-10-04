@@ -5,6 +5,7 @@ import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
 import type { UpdateDetails, UpdateStatus } from '@/lib/updater/ipcContract';
 
 import { updateDetails, updateSnapshot } from '../helpers/updater';
+vi.mock('@/components/shared/NotificationHistory', () => ({ NotificationHistory: () => null }));
 
 const updater = vi.hoisted(() => ({ status: { status: 'idle' } as UpdateStatus, knownUpdate: null as UpdateDetails | null, showAvailableUpdate: vi.fn() }));
 const originalElectronApi = window.electronAPI;

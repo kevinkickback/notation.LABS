@@ -1,6 +1,5 @@
 import { ArrowClockwiseIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +14,7 @@ import {
 import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { getGames, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE, DEFAULT_SETTINGS } from '@/lib/defaults';
+import { notify } from '@/lib/notifications';
 import type { Game, NotationColors } from '@/lib/types';
 
 const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
@@ -85,7 +85,7 @@ export function ColorCustomization() {
       await refreshGames();
     }
 
-    toast.success('Colors updated successfully');
+    notify.success('Colors updated successfully');
   };
 
   const handleReset = async () => {
@@ -113,7 +113,7 @@ export function ColorCustomization() {
       await refreshGames();
     }
 
-    toast.success('Colors reset to defaults');
+    notify.success('Colors reset to defaults');
   };
 
   return (

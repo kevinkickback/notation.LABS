@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { IpcMainInvokeEvent } from 'electron';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { IpcMainInvokeEvent, WebContents } from 'electron';
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
 import { BACKUP_CHANNELS } from '../src/lib/backup/exportContract';
 import { UPDATE_INVOKE_CHANNELS } from '../src/lib/updater/ipcContract';
@@ -232,6 +232,33 @@ function assertTrustedIpcSender(event: IpcMainInvokeEvent): void {
   }
 }
 
+function canWriteClipboard(
+  contents: WebContents | null,
+  permission: string,
+  details: { isMainFrame: boolean; requestingUrl?: string },
+): boolean {
+  if (
+    permission !== 'clipboard-sanitized-write' ||
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !contents ||
+    contents !== mainWindow.webContents ||
+    contents.isDestroyed() ||
+    !details.isMainFrame
+  )
+    return false;
+  try {
+    const rendererUrl =
+      process.env.VITE_DEV_SERVER_URL ??
+      pathToFileURL(join(__dirname, '../dist/index.html')).href;
+    return (
+      new URL(details.requestingUrl ?? '').href === new URL(rendererUrl).href
+    );
+  } catch {
+    return false;
+  }
+}
+
 app.on('ready', async () => {
   if (!hasInstanceLock) return;
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -273,12 +300,15 @@ app.on('ready', async () => {
   });
 
   session.defaultSession.setPermissionRequestHandler(
-    (_webContents, _permission, callback) => {
-      callback(false);
+    (contents, permission, callback, details) => {
+      callback(canWriteClipboard(contents, permission, details));
     },
   );
 
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler(
+    (contents, permission, _origin, details) =>
+      canWriteClipboard(contents, permission, details),
+  );
 
   await backupWriter.recover().catch(console.error);
   const mainWindowReady = createWindow();

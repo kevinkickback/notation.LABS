@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { deleteCombo, deleteCombos } from '@/lib/application/comboCommands';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 
 interface ComboDeleteOptions {
   confirmBeforeDelete: boolean;
@@ -17,11 +17,11 @@ export function useComboDelete({ confirmBeforeDelete }: ComboDeleteOptions) {
   const executeDelete = async (comboId: string) => {
     try {
       await deleteCombo(comboId);
-      toast.success('Combo deleted');
+      notify.success('Combo deleted');
       return true;
     } catch (err) {
       reportError('useComboDelete.executeDelete', err);
-      toast.error('Failed to delete combo');
+      notify.error('Failed to delete combo');
       return false;
     }
   };
@@ -37,13 +37,13 @@ export function useComboDelete({ confirmBeforeDelete }: ComboDeleteOptions) {
   const executeBulkDelete = async (selectedIds: Set<string>) => {
     try {
       await deleteCombos([...selectedIds]);
-      toast.success(
+      notify.success(
         `${selectedIds.size} combo${selectedIds.size > 1 ? 's' : ''} deleted`,
       );
       return true;
     } catch (err) {
       reportError('useComboDelete.executeBulkDelete', err);
-      toast.error('Failed to delete combos');
+      notify.error('Failed to delete combos');
       return false;
     }
   };

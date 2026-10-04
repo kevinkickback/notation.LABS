@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { EntityArtworkEditor } from '@/components/shared/EntityArtworkEditor';
 import { FormSection } from '@/components/shared/FormSection';
 import { RequiredBadge } from '@/components/shared/RequiredBadge';
@@ -26,6 +25,7 @@ import {
 } from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
 import { readImageFile } from '@/lib/media/images';
+import { notify } from '@/lib/notifications';
 import type { Character, Game } from '@/lib/types';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
 
@@ -112,7 +112,7 @@ export function CharacterFormDialog({
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      toast.error('Character name is required');
+      notify.error('Character name is required', { history: false });
       return;
     }
     await submit(
@@ -126,14 +126,14 @@ export function CharacterFormDialog({
       },
       {
         onSuccess: () => {
-          toast.success(
+          notify.success(
             editingCharacter ? 'Character updated' : 'Character added',
           );
           onOpenChange(false);
         },
         onError: (error) => {
           reportError('CharacterFormDialog.handleSubmit', error);
-          toast.error(
+          notify.error(
             editingCharacter
               ? 'Failed to update character'
               : 'Failed to add character',
@@ -152,7 +152,7 @@ export function CharacterFormDialog({
     void loadImage(file.name, (signal) => readImageFile(file, signal), {
       onSuccess: applyPortraitImage,
       onError: (error) =>
-        toast.error(
+        notify.error(
           error instanceof Error ? error.message : 'Failed to read image file',
         ),
     });
