@@ -4,6 +4,7 @@ import {
   getLocalVideoId,
   indexedDbStorage,
 } from '@/lib/storage/indexedDbStorage';
+import { uniqueTags } from '@/lib/tags';
 import type { Combo, Game } from '@/lib/types';
 
 export type ComboEditableInput = Omit<
@@ -45,6 +46,7 @@ export async function createCombo(
   return indexedDbStorage.combos.addWithVideo(
     {
       ...input,
+      tags: uniqueTags(input.tags),
       parsedNotation: deriveParsedNotation(input.notation, game),
     },
     video,
@@ -67,6 +69,7 @@ export async function updateCombo(
     comboId,
     {
       ...updates,
+      ...(updates.tags && { tags: uniqueTags(updates.tags) }),
       parsedNotation: deriveParsedNotation(notation, game),
     },
     video,

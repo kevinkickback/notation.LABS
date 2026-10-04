@@ -36,6 +36,7 @@ async function addCombo(
   page: Page,
   name: string,
   notation: string,
+  tags: string[] = [],
 ): Promise<void> {
   await page.getByRole('button', { name: /add combo/i }).click();
 
@@ -44,6 +45,11 @@ async function addCombo(
   await page
     .getByRole('textbox', { name: 'Notation', exact: true })
     .fill(notation);
+  for (const tag of tags) {
+    const input = page.getByLabel('Tags', { exact: true });
+    await input.fill(tag);
+    await input.press('Enter');
+  }
   await page.getByRole('button', { name: /^add combo$/i }).click();
 
   await expect(page.locator('h3', { hasText: name }).first()).toBeVisible();
@@ -88,8 +94,8 @@ test.describe('Core E2E Flows', () => {
   }) => {
     await navigateToComboView(page);
 
-    await addCombo(page, 'BnB Starter', '5L > 5M > 236H');
-    await addCombo(page, 'Anti Air Route', '2H > 623M');
+    await addCombo(page, 'BnB Starter', '5L > 5M > 236H', ['BnB', 'bnb']);
+    await addCombo(page, 'Anti Air Route', '2H > 623M', ['bNB']);
 
     await page.getByTitle('Filter Combos').click();
     await page.getByPlaceholder('Search combos...').fill('Anti Air');
@@ -98,6 +104,33 @@ test.describe('Core E2E Flows', () => {
       page.locator('h3', { hasText: 'Anti Air Route' }).first(),
     ).toBeVisible();
     await expect(page.locator('h3', { hasText: 'BnB Starter' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Clear', exact: true }).click();
+
+    // Older libraries and imports can contain different spellings and duplicates.
+    const savedTags = await page.evaluate(async () => {
+      const path = '/src/lib/storage/indexedDbStorage.ts';
+      const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+      const combos = await indexedDbStorage.combos.getAll();
+      const first = combos.find(combo => combo.name === 'BnB Starter');
+      const second = combos.find(combo => combo.name === 'Anti Air Route');
+      if (!first || !second) throw new Error('Missing saved tag fixtures');
+      await indexedDbStorage.combos.update(second.id, { tags: ['BNB', 'bnb'] });
+      return [first.tags, second.tags];
+    });
+    expect(savedTags).toEqual([['BnB'], ['BnB']]);
+    await page.reload();
+    await page.locator('h3', { hasText: 'E2E Fighter Game' }).click();
+    await page.locator('h3', { hasText: 'E2E Hero' }).click();
+    const legacy = page.getByRole('article', { name: 'Anti Air Route', exact: true });
+    await expect(legacy.getByRole('button', { name: /^Filter by/ })).toHaveCount(1);
+    await legacy.getByRole('button', { name: 'Filter by BNB', exact: true }).click();
+    const tagFilter = page.getByRole('button', { name: '#BnB', exact: true });
+    await expect(tagFilter).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: '#BNB', exact: true })).toHaveCount(0);
+    await expect(page.getByText('2 of 2 combos', { exact: true })).toBeVisible();
+    await tagFilter.press('Space');
+    await expect(tagFilter).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('article')).toHaveCount(2);
   });
 
   test('persists favorite games and keeps them first', async ({

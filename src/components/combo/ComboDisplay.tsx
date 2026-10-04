@@ -5,7 +5,7 @@ import {
   getButtonAccessibilityLabel,
   getMechanicAccessibilityLabel,
 } from '@/lib/notationProfiles';
-import type { ComboToken, Game } from '@/lib/types';
+import type { ComboToken, Game, NotationColors } from '@/lib/types';
 import {
   DIRECTION_MODIFIERS,
   DIRECTION_NAMES,
@@ -30,6 +30,7 @@ interface ComboDisplayProps {
   game?: Game;
   mode?: 'colored-text' | 'visual-icons';
   className?: string;
+  notationColors?: NotationColors;
 }
 
 export function ComboDisplay({
@@ -37,9 +38,10 @@ export function ComboDisplay({
   game,
   mode = 'colored-text',
   className = '',
+  notationColors,
 }: ComboDisplayProps) {
   const settings = useSettings();
-  const colors = settings.notationColors;
+  const colors = notationColors ?? settings.notationColors;
   const comboScale = settings.comboScale ?? 1;
   const iconStyle = settings.iconStyle ?? 'hexagon';
   const motionIconStyle = settings.motionIconStyle ?? 'joystick';

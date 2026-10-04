@@ -38,12 +38,18 @@ interface NotationGuideProps {
   activeGame?: Game;
 }
 
+const PREVIEW_COLORS = {
+  direction: 'var(--guide-input-color)',
+  separator: 'var(--muted-foreground)',
+};
+
 export function NotationGuide({
   open,
   onOpenChange,
   showTrigger = true,
   activeGame,
 }: NotationGuideProps) {
+  const { motionIconStyle } = useSettings();
   const initialProfile = activeGame?.notationProfile ?? 'standard';
   const [profile, setProfile] = useState<NotationProfile>(initialProfile);
   const [previewNotation, setPreviewNotation] = useState(
@@ -162,18 +168,20 @@ export function NotationGuide({
                     />
                   </div>
                   <div aria-live="polite" aria-atomic="true">
-                    <PreviewPanel label="Text">
+                    <PreviewPanel label="Text" surface="text">
                       <ComboDisplay
                         tokens={previewTokens}
                         game={previewGame}
                         mode="colored-text"
+                        notationColors={PREVIEW_COLORS}
                       />
                     </PreviewPanel>
-                    <PreviewPanel label="Icons">
+                    <PreviewPanel label="Icons" surface={motionIconStyle}>
                       <ComboDisplay
                         tokens={previewTokens}
                         game={previewGame}
                         mode="visual-icons"
+                        notationColors={PREVIEW_COLORS}
                       />
                     </PreviewPanel>
                   </div>
@@ -331,7 +339,10 @@ function MotionStyleCallout() {
           ? 'Joystick inputs show complete motion paths in a single diagram.'
           : 'Tekken tap and hold arrows use different shapes; neutral uses a star.'}
       </p>
-      <fieldset className="guide-motion-examples">
+      <fieldset
+        className="guide-motion-examples"
+        data-motion-style={offersJoystick ? 'joystick' : 'arrows'}
+      >
         <legend className="sr-only">
           {offersJoystick ? 'Joystick' : 'Arrow'} input examples
         </legend>
@@ -375,14 +386,18 @@ function IconExample({
 function PreviewPanel({
   label,
   children,
+  surface,
 }: {
   label: string;
   children: ReactNode;
+  surface: 'text' | 'joystick' | 'arrows';
 }) {
   return (
     <div className="guide-preview-output min-w-0">
       <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
-      {children}
+      <div className="guide-preview-surface" data-motion-style={surface}>
+        {children}
+      </div>
     </div>
   );
 }

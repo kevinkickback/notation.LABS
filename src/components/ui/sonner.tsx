@@ -47,13 +47,14 @@ const Toaster = ({
       visibleToasts={anchor ? 1 : 3}
       richColors
       toastOptions={{
+        classNames: { content: 'toast-message' },
         style: {
-          maxHeight: anchor
-            ? `${HISTORY_TOAST_HEIGHT}px`
-            : `max(48px, calc(100dvh - ${bottom + 16}px))`,
-          overflowY: 'auto',
+          // Reserve Sonner's padding and border; its outer swipe areas must not scroll.
+          '--toast-message-max-height': anchor
+            ? `${HISTORY_TOAST_HEIGHT - 34}px`
+            : `max(14px, calc(100dvh - ${bottom + 50}px))`,
           touchAction: 'pan-y',
-        },
+        } as CSSProperties,
       }}
       className="toaster group"
       style={
