@@ -4,7 +4,6 @@ import {
   SpinnerGapIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useId, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -19,8 +18,10 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { loadBackupSelectionData } from '@/lib/application/backupCommands';
+import type { BackupExportProgress } from '@/lib/backup/exportContract';
 import { compareEntityNames } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { getLocalVideoId } from '@/lib/storage/indexedDbStorage';
 import {
   createExportSelection,
@@ -29,11 +30,7 @@ import {
   toggleExportNode,
 } from './exportSelection';
 
-interface ExportProgressModalProps {
-  current: number;
-  total: number;
-  phase: 'videos' | 'finalizing' | 'committing';
-  bytesWritten: number;
+interface ExportProgressModalProps extends BackupExportProgress {
   onCancel: () => void;
 }
 export function ExportProgressModal({
@@ -42,6 +39,7 @@ export function ExportProgressModal({
   phase,
   bytesWritten,
   onCancel,
+  warning,
 }: ExportProgressModalProps) {
   const percent = total > 0 ? Math.round((current / total) * 100) : 0;
   return (
@@ -59,8 +57,10 @@ export function ExportProgressModal({
               ? 'Saving completed backup…'
               : phase === 'finalizing'
                 ? 'Finishing backup…'
-                : total === 0
-                  ? 'Preparing export…'
+                : phase === 'preparing' || total === 0
+                  ? total
+                    ? `Preparing library: ${current} of ${total}…`
+                    : 'Preparing export…'
                   : `Saving video ${Math.min(current + 1, total)} of ${total}…`}
           </DialogDescription>
         </DialogHeader>
@@ -83,6 +83,7 @@ export function ExportProgressModal({
             <span>{(bytesWritten / 1024 / 1024).toFixed(1)} MB written</span>
           </div>
         </output>
+        {warning && <p className="text-sm text-muted-foreground">{warning}</p>}
         <DialogFooter>
           <Button
             variant="outline"
@@ -144,7 +145,7 @@ export function ExportDialog({
       .then(([games, characters, combos, videos]) => {
         if (!active) return;
         setSelection(createExportSelection({ games, characters, combos }));
-        setHasLocalVideos(videos.length > 0);
+        setHasLocalVideos(videos > 0);
         setLoading(false);
       })
       .catch((err) => {
@@ -154,7 +155,7 @@ export function ExportDialog({
           createExportSelection({ games: [], characters: [], combos: [] }),
         );
         setLoading(false);
-        toast.error('Failed to load export data');
+        notify.error('Failed to load export data');
       });
     return () => {
       active = false;

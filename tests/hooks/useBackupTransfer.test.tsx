@@ -57,7 +57,7 @@ describe('backup transfers', () => {
     const { result } = renderHook(useBackupTransfer);
     let exporting!: Promise<void>;
     await act(async () => { exporting = result.current.exportBackup('zip', {}); });
-    expect(result.current.exportProgress).toMatchObject({ phase: 'videos' });
+    expect(result.current.exportProgress).toMatchObject({ phase: 'preparing' });
     await act(async () => { result.current.cancelExport(); await exporting; });
     expect(mocks.error).not.toHaveBeenCalled();
     expect(mocks.success).not.toHaveBeenCalled();
@@ -113,7 +113,8 @@ describe('backup transfers', () => {
     const file = Object.assign(new File(['{}'], 'backup.json', { type: 'application/json' }), { text: read });
     const { result } = renderHook(useBackupTransfer);
     await act(() => result.current.importFile(file, { includeVideos: false, includeSettings }));
-    expect(mocks.json).toHaveBeenCalledWith('{"games":[]}', false, includeSettings);
+    expect(mocks.json).toHaveBeenCalledWith(file, false, includeSettings, expect.any(Function), expect.any(AbortSignal));
+    expect(read).not.toHaveBeenCalled();
     expect(mocks.success).toHaveBeenCalledWith(includeSettings ? 'Data imported. Settings were replaced from backup.' : 'Data imported. Current settings were preserved.');
     expect(result.current.importProgress).toBeNull();
     expect(result.current.isBusy).toBe(false);
@@ -126,11 +127,45 @@ describe('backup transfers', () => {
     Object.defineProperty(oversized, 'size', { value: MAX_JSON_BACKUP_BYTES + 1 });
     const { result } = renderHook(useBackupTransfer);
     await act(() => result.current.importFile(zip, { includeVideos: true, includeSettings: false }));
-    expect(mocks.zip).toHaveBeenCalledWith(zip, true, false, expect.any(Function));
+    expect(mocks.zip).toHaveBeenCalledWith(zip, true, false, expect.any(Function), expect.any(AbortSignal));
     await act(() => result.current.importFile(oversized, { includeVideos: true, includeSettings: false }));
     expect(read).not.toHaveBeenCalled();
     expect(mocks.json).not.toHaveBeenCalled();
     expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining('too large'));
     expect(result.current.isBusy).toBe(false);
+  });
+  it.each(['cancel', 'unmount'] as const)('cancels an active import on %s and waits for its rollback', async action => {
+    let signal!: AbortSignal;
+    mocks.zip.mockImplementationOnce(async (_file, _videos, _settings, _progress, next: AbortSignal) => {
+      signal = next;
+      await new Promise<void>((_resolve, reject) => next.addEventListener('abort', () => reject(next.reason), { once: true }));
+    });
+    const { result, unmount } = renderHook(useBackupTransfer);
+    let importing!: Promise<void>;
+    await act(async () => { importing = result.current.importFile(new File(['zip'], 'backup.zip'), { includeVideos: true, includeSettings: false }); });
+    expect(result.current.isBusy).toBe(true);
+    if (action === 'unmount') unmount();
+    else act(() => result.current.cancelImport());
+    await act(async () => importing);
+    expect(signal.aborted).toBe(true);
+    expect(mocks.success).not.toHaveBeenCalled();
+    expect(mocks.error).not.toHaveBeenCalled();
+  });
+  it('does not cancel an import after atomic publication begins', async () => {
+    const committed = deferred<void>();
+    let signal!: AbortSignal;
+    mocks.zip.mockImplementationOnce(async (_file, _videos, _settings, progress, next: AbortSignal) => {
+      signal = next;
+      progress({ phase: 'committing', current: 1, total: 1 });
+      await committed.promise;
+    });
+    const { result, unmount } = renderHook(useBackupTransfer);
+    let importing!: Promise<void>;
+    await act(async () => { importing = result.current.importFile(new File(['zip'], 'backup.zip'), { includeVideos: true, includeSettings: false }); });
+    act(() => result.current.cancelImport());
+    unmount();
+    expect(signal.aborted).toBe(false);
+    await act(async () => { committed.resolve(); await importing; });
+    expect(mocks.success).toHaveBeenCalled();
   });
 });

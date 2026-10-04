@@ -1,5 +1,4 @@
 import { MagnifyingGlassIcon, SpinnerGapIcon } from '@phosphor-icons/react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useCachedSearch } from '@/hooks/useCachedSearch';
 import { useMediaRequest } from '@/hooks/useMediaRequest';
+import { notify } from '@/lib/notifications';
 import {
   downloadCharacterImage,
   searchCharacterImages,
@@ -62,10 +62,10 @@ export function CharacterSearchDialog({
         onSuccess: (dataUrl) => {
           if (dataUrl) {
             onImageSelect(dataUrl);
-            toast.success('Image applied');
-          } else toast.error('Failed to download image');
+            notify.success('Image applied');
+          } else notify.error('Failed to download image');
         },
-        onError: () => toast.error('Failed to download image'),
+        onError: () => notify.error('Failed to download image'),
       },
     );
   };

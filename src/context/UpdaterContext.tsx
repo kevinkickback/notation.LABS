@@ -7,11 +7,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import { toast } from 'sonner';
 import { ChangelogModal } from '@/components/updates/ChangelogModal';
 import { UpdateProgressModal } from '@/components/updates/UpdateProgressModal';
 import { useSettings } from '@/context/SettingsContext';
+import { recordNotification } from '@/lib/application/notificationCommands';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import {
   INITIAL_UPDATE_STATUS,
   type UpdateDetails,
@@ -73,8 +74,44 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   const receiveStatus = useCallback((next: UpdateStatus) => {
     if (next.revision <= latestStatus.current.revision)
       return latestStatus.current;
+    const previous = latestStatus.current;
+    const terminalChanged =
+      next.eventId !== previous.eventId ||
+      next.status !== previous.status ||
+      next.update?.version !== previous.update?.version ||
+      next.error !== previous.error;
     latestStatus.current = next;
     setStatus(next);
+    const event = next.eventId
+      ? { source: 'updater' as const, id: next.eventId }
+      : undefined;
+    if (terminalChanged && next.status === 'available') {
+      void recordNotification({
+        id: `update:${next.update.version}`,
+        message: `Update v${next.update.version} available`,
+        type: 'update',
+        action: { type: 'view-update' },
+        event,
+      });
+    } else if (terminalChanged && next.status === 'downloaded' && next.update) {
+      void recordNotification({
+        id: `update:${next.update.version}`,
+        message: `Update v${next.update.version} ready to install`,
+        type: 'update',
+        action: { type: 'view-update' },
+        event,
+      });
+    } else if (terminalChanged && next.status === 'error' && next.error) {
+      void recordNotification({
+        id: next.update
+          ? `update:${next.update.version}`
+          : `update-event:${next.eventId}`,
+        message: next.error,
+        type: 'error',
+        action: next.update ? { type: 'view-update' } : undefined,
+        event,
+      });
+    }
     if (
       ['downloading', 'downloaded', 'error', 'cancelled'].includes(next.status)
     )
@@ -159,7 +196,11 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   }, []);
   const showAvailableUpdate = useCallback(
     (update = latestStatus.current.update) => {
-      if (update?.status === 'downloaded') {
+      if (
+        update?.status === 'downloaded' ||
+        (latestStatus.current.status === 'downloading' &&
+          update === latestStatus.current.update)
+      ) {
         setProgressOpen(true);
         return;
       }
@@ -194,8 +235,17 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     setChangelogPresentation(null);
     if (!latestStatus.current.update?.isPortable) setProgressOpen(true);
     const result = await downloadUpdate();
-    if (!result.success)
-      toast.error(result.error ?? 'Could not start the update.');
+    if (!result.success) {
+      const update = latestStatus.current.update;
+      notify.error(result.error ?? 'Could not start the update.', {
+        history: !(
+          latestStatus.current.status === 'error' &&
+          latestStatus.current.error === result.error
+        ),
+        operationId: update ? `update:${update.version}` : undefined,
+        historyAction: update ? { type: 'view-update' } : undefined,
+      });
+    }
   }, [changelogPresentation, downloadUpdate]);
 
   return (

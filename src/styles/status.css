@@ -1,7 +1,6 @@
 /* The footer keeps update state visible without changing the main workspace. */
 .workspace-footer {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 20;
   flex-shrink: 0;
   min-height: 32px;
@@ -14,11 +13,21 @@
   font-size: 0.8125rem;
 }
 .workspace-status {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.workspace-status-message {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 14px;
   min-width: 0;
+}
+.notification-history {
+  max-height: min(480px, var(--radix-popover-content-available-height));
 }
 .workspace-version {
   flex-shrink: 0;

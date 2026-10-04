@@ -83,14 +83,19 @@ Release-note requests only enrich their matching update; closing an update dialo
 presentation, not the download state. Portable check failures are reported as errors, and installer
 checks cannot replace an active download or a ready installer.
 
-Backup transfers use one application command and destination contract for JSON and video ZIP
-exports. Storage reads a consistent record snapshot and video IDs; format codecs frame the backup
-and write bounded chunks; the browser or desktop destination owns saving. The transfer hook owns
-progress, cancellation, and the busy guard across imports and exports. Cancellation aborts pending
-writes before commit; closing a completed destination is not cancellable. Desktop saves use only
-the narrow streaming preload bridge and atomic temporary-file commit. Browsers without a save
-picker download a Blob assembled from chunks after completion. Both formats enforce their import
-size limits before committing a file.
+Backup transfers use one application command, destination contract, and bundled worker for JSON and
+ZIP. Storage captures a consistent record snapshot and pins immutable media; codecs stream bounded
+chunks and await destination writes. Imports stage validated records and payloads before atomically
+publishing references. The transfer hook owns progress, cancellation, and the busy guard in both
+directions. Cancellation rolls back before commit; final publication and destination replacement are
+not cancellable. Desktop saving uses the narrow preload bridge and an atomic temporary-file commit.
+Browser saving uses a native picker when available, otherwise a native streaming Blob download.
+See [backup formats and validation](backups.md) for compatibility, recovery, allocation budgets, and
+the separate packaged large-file validation procedure.
+Desktop image uploads and backup images share the existing record-allocation budget; the smaller
+2 MiB upload limit applies only to web uploads. ZIP export preserves valid legacy raster bytes and
+normalizes mislabeled raster types in the backup without changing source records. Validation errors
+cross the transfer boundary as readable messages rather than serialized schema issue arrays.
 
 Application initialization sets up preferences, then runs versioned notation maintenance. Preference
 reads and initialization do not rewrite combos. Maintenance commits derived combo tokens and the
@@ -120,6 +125,31 @@ retained combos stay available. Preference normalization can read both parent ta
 transaction, including older default-open settings; any write failure leaves the entire cascade
 unchanged for retry.
 
+Card grids use flexible columns to fill the content width, preserving empty slots in incomplete
+rows. Their size sliders expose one stop per distinct layout at the observed container width.
+Window resizing and notebook docking recalculate choices without rewriting the saved target size.
+Character columns retain the v1.8.0 width multiplier and current portrait aspect ratios.
+
+Notification emitters share one typed helper for temporary feedback and best-effort device history.
+Dexie retains the newest 100 entries for 30 days, outside library backups. Warnings, errors, and
+updates start unread; routine confirmations do not light the footer bell. Validation prompts and
+continuous progress stay out of history. Operation IDs update an existing entry without replaying
+saved messages; update actions resolve current updater state. Storage or clipboard failures use
+diagnostics and temporary feedback without recursively creating history or failing library writes.
+The footer panel uses the existing Radix focus and positioning primitives, with scrollable content.
+The workspace scroll area ends above the full-width status bar; notebook measurements use that same
+scroll owner. Temporary feedback appears at the bottom right above the footer or the open history
+panel. The open panel reserves space for one scrollable notice, and notification colors follow the
+current app theme.
+Update snapshots carry a stable state-event ID. A device-local cursor records consumed update events
+atomically with history and survives clearing/removal, so retained snapshots and delayed notes cannot
+recreate dismissed notices. New checks receive new identities, including across app restarts.
+Electron permits sanitized clipboard writes only from the live app's main frame at its configured
+renderer URL. Clipboard reads, embedded pages, and unrelated permissions remain denied.
+
+The renderer entry imports `src/main.css` once; HTML must not also load it as a stylesheet.
+Tailwind source discovery is limited to `src/`, with the HTML entry explicitly included by `@source`,
+so dependency watches do not walk the entire workspace during cold development startup.
 Styling imports Tailwind once through `src/main.css`. `src/styles/theme.css` owns the app's light and
 dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings provider
 applies the `.dark` class, font, and custom accent, and notifications read the same theme preference.
@@ -236,6 +266,7 @@ collection; an empty manifest alone would make Electron Builder fall back to the
 After building, run `npm run package:check -- <packaged-executable>` against the unpacked executable
 (inside `Contents/MacOS` on macOS). This checks the archive, app identity, updater resources, security
 fuses, preload, and persisted edits in the real production binary, using a fresh profile under `.tmp`.
+It also verifies saved notification history survives a reload without replaying the completed action.
 The check connects to Chromium for testing without enabling the Node inspector or changing the binary.
 
 Publish an approved draft with:

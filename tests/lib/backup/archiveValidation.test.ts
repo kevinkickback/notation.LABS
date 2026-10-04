@@ -1,0 +1,143 @@
+// @vitest-environment node
+import 'fake-indexeddb/auto';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { separateImage } from '@/lib/backup/archiveFormat';
+import { BACKUP_RECORD_BYTES, encodeBackupRecord } from '@/lib/backup/capabilities';
+import { db } from '@/lib/storage/database';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { importZipBackup } from '@/lib/storage/zipImport';
+import { createBackupZip, forgeZipSize } from '../../helpers/zip';
+import { MAX_EMBEDDED_IMAGE_BYTES } from '@/lib/media/images';
+import { captureBackup } from '../../helpers/backup';
+
+const game = { id: 'g', name: 'Incoming', buttonLayout: ['A'], notationProfile: 'standard' as const, createdAt: 1, updatedAt: 1 };
+const character = { id: 'c', gameId: 'g', name: 'Fighter', createdAt: 1, updatedAt: 1 };
+const video = { id: 'v', path: 'videos/v-0.bin', size: 3, fileName: 'demo.mp4', mimeType: 'video/mp4' };
+const combo = { id: 'b', characterId: 'c', name: 'Combo', notation: 'A', parsedNotation: [], tags: [], demoUrl: 'local:v', sortOrder: 0, createdAt: 1, updatedAt: 1 };
+const line = (value: unknown) => new TextEncoder().encode(`${JSON.stringify(value)}\n`);
+async function archive(overrides: Record<string, Uint8Array> = {}, counts = { games: 1, characters: 1, videos: 1, combos: 1 }) {
+  return new Blob([await createBackupZip({ version: 4, exported: '2026-10-03', counts }, {
+    'games.ndjson': line(game), 'characters.ndjson': line(character), 'videos.ndjson': line(video),
+    'combos.ndjson': line(combo), [video.path]: new Uint8Array([1, 2, 3]), ...overrides,
+  }, 'STORE')]);
+}
+beforeEach(async () => {
+  await Promise.all(db.tables.map(table => table.clear()));
+  await db.games.put({ ...game, notationProfile: 'standard', name: 'Existing' });
+});
+async function unchanged() {
+  expect((await db.games.get('g'))?.name).toBe('Existing');
+  expect(await db.combos.count()).toBe(0);
+  expect(await db.mediaPayloads.count()).toBe(0);
+  expect(await db.backupSessions.count()).toBe(0);
+  expect(await db.backupRecords.count()).toBe(0);
+}
+describe('version 4 validation and rollback', () => {
+  it.each(['games', 'characters'] as const)('checks the restored %s size when correcting a longer legacy MIME label', kind => {
+    const image = `data:image/png;base64,/9j/${'A'.repeat(4096)}`;
+    const empty = kind === 'games' ? { ...game, logoImage: image, notes: '' } : { ...character, portraitImage: image, notes: '' };
+    const record = { ...empty, notes: 'x'.repeat(BACKUP_RECORD_BYTES - encodeBackupRecord(empty).byteLength) };
+    expect(encodeBackupRecord(record).byteLength).toBe(BACKUP_RECORD_BYTES);
+    expect(() => separateImage(record, 'images/g-0.bin')).toThrow('Cannot export the image for');
+    const fitting = { ...record, notes: record.notes.slice(1) };
+    const separated = separateImage(fitting, 'images/g-0.bin');
+    expect(separated.record).toMatchObject({ image: { mimeType: 'image/jpeg' } });
+    expect(encodeBackupRecord(separated.record).byteLength).toBeLessThan(BACKUP_RECORD_BYTES);
+  }, 20000);
+  it('decodes only the raster header when producing an image descriptor', () => {
+    const image = `data:image/jpeg;base64,/9j/${'A'.repeat(4096)}`;
+    const decode = vi.spyOn(globalThis, 'atob');
+    try {
+      const separated = separateImage({ ...game, notationProfile: 'standard' as const, logoImage: image }, 'images/g-0.bin');
+      expect(separated.record).toMatchObject({ image: { path: 'images/g-0.bin', mimeType: 'image/jpeg' } });
+      expect(decode.mock.calls.every(([value]) => value.length <= 24)).toBe(true);
+      expect(separated.blob?.size).toBe(3075);
+      expect(decode.mock.calls.some(([value]) => value.length > 24)).toBe(true);
+    } finally { decode.mockRestore(); }
+  });
+  it.each(['games', 'characters'] as const)('validates inline image signatures and supported types in %s', async kind => {
+    const images = ['data:image/jpeg;base64,AQID', 'data:text/html;base64,AQID', 'data:image/png;base64,/9j/AA=='];
+    for (const image of images) {
+      const row = kind === 'games' ? { ...game, logoImage: image } : { ...character, portraitImage: image };
+      await expect(importZipBackup(await archive({ [`${kind}.ndjson`]: line(row) }), false)).rejects.toThrow(/invalid image/);
+      await unchanged();
+    }
+  });
+
+  it('accepts validated inline images and preserves external image URLs', async () => {
+    const image = 'data:image/jpeg;base64,/9j/AA==';
+    const external = 'https://example.com/portrait.png';
+    await importZipBackup(await archive({ 'games.ndjson': line({ ...game, logoImage: image }), 'characters.ndjson': line({ ...character, portraitImage: external }) }), false);
+    expect((await db.games.get(game.id))?.logoImage).toBe(image);
+    expect((await db.characters.get(character.id))?.portraitImage).toBe(external);
+  });
+
+  it('rejects invalid inline images during export too and cleans the snapshot', async () => {
+    await db.games.update('g', { logoImage: 'data:image/jpeg;base64,AQID' });
+    await expect(captureBackup(true)).rejects.toThrow(/Cannot export the image for "Existing"/);
+    await unchanged();
+  });
+
+  it('rejects an oversized image declaration before allocating its payload and cleans staging', async () => {
+    const path = 'images/g-0.bin';
+    const bytes = new Uint8Array(await (await archive({
+      'games.ndjson': line({ ...game, image: { path, mimeType: 'image/png' } }),
+      [path]: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    })).arrayBuffer());
+    forgeZipSize(bytes, path, MAX_EMBEDDED_IMAGE_BYTES + 1);
+    await expect(importZipBackup(new Blob([bytes]), true)).rejects.toThrow(/memory budget/);
+    await unchanged();
+  });
+
+  it('round-trips existing large images and corrects a legacy MIME label without changing source records', async () => {
+    const bytes = new Uint8Array(3 * 1024 * 1024 + 1).fill(42);
+    bytes.set([0xff, 0xd8, 0xff]);
+    const image = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+    const mislabeled = 'data:image/png;base64,/9j/AA==';
+    await db.games.update('g', { logoImage: image });
+    await db.characters.put({ ...character, portraitImage: mislabeled });
+    await indexedDbStorage.demoVideos.add({ id: 'local-video', data: new Uint8Array([1, 2, 3]).buffer, mimeType: 'video/mp4', fileName: 'demo.mp4' });
+    await db.combos.put({ ...combo, demoUrl: 'local:local-video' });
+    const backup = await captureBackup(true);
+    expect((await db.games.get('g'))?.logoImage).toBe(image);
+    expect((await db.characters.get('c'))?.portraitImage).toBe(mislabeled);
+    await Promise.all(db.tables.map(table => table.clear()));
+    await importZipBackup(backup, true);
+    expect((await db.games.get('g'))?.logoImage).toBe(image);
+    expect((await db.characters.get('c'))?.portraitImage).toBe('data:image/jpeg;base64,/9j/AA==');
+    expect((await db.combos.get('b'))?.demoUrl).toBe('local:local-video');
+    expect(await db.demoVideos.count()).toBe(1);
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
+  });
+
+  it('imports a large valid inline image within the shared record budget', async () => {
+    const bytes = new Uint8Array(3 * 1024 * 1024).fill(42);
+    bytes.set([0xff, 0xd8, 0xff]);
+    const image = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+    await importZipBackup(await archive({ 'games.ndjson': line({ ...game, logoImage: image }) }), false);
+    expect((await db.games.get('g'))?.logoImage).toBe(image);
+  });
+
+  it.each([
+    ['duplicate records', { 'games.ndjson': new TextEncoder().encode(JSON.stringify(game) + '\n' + JSON.stringify(game) + '\n') }],
+    ['orphaned characters', { 'characters.ndjson': line({ ...character, gameId: 'missing' }) }],
+    ['orphaned combos', { 'combos.ndjson': line({ ...combo, characterId: 'missing' }) }],
+    ['unsafe paths', { 'videos.ndjson': line({ ...video, path: '../demo.mp4' }) }],
+    ['inconsistent sizes', { 'videos.ndjson': line({ ...video, size: 2 }) }],
+  ] as const)('rejects %s without publishing staged records', async (_name, files) => {
+    await expect(importZipBackup(await archive(files), true)).rejects.toThrow();
+    await unchanged();
+  });
+  it('rejects a count mismatch after media staging and releases its payload', async () => {
+    await expect(importZipBackup(await archive({}, { games: 1, characters: 1, videos: 1, combos: 2 }), true)).rejects.toThrow(/count/);
+    await unchanged();
+  });
+  it('cancels after payload bytes arrive while preserving the previous library', async () => {
+    const controller = new AbortController();
+    await expect(importZipBackup(await archive(), true, false, progress => {
+      if (progress.phase === 'videos' && progress.current === 1) controller.abort();
+    }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    await unchanged();
+  });
+});

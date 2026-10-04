@@ -1,3 +1,4 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { createBackupTo } from '@/lib/application/backupCommands';
 import JSZip from 'jszip';
@@ -22,15 +23,17 @@ describe('streamed video backups', () => {
     await seed();
     const readAll = vi.spyOn(db.demoVideos, 'toArray');
     const selection = await loadBackupSelectionData();
-    expect(selection[3]).toHaveLength(3);
-    expect(selection[3][0]).toEqual(expect.any(String));
+    expect(selection[3]).toBe(3);
+    expect(Object.keys(selection[0][0])).toEqual(['id', 'name']);
+    expect(selection[2][0]).not.toHaveProperty('parsedNotation');
+    expect(selection[2][0]).not.toHaveProperty('notation');
     expect(readAll).not.toHaveBeenCalled();
   });
   it('applies backpressure, uses bounded chunks and preserves a readable backup', async () => {
     const gameId = await seed();
     const parts: Uint8Array[] = [];
     let writing = false;
-    const readVideo = vi.spyOn(db.demoVideos, 'get');
+    const readVideo = vi.spyOn(db.mediaPayloads, 'get');
     const readAll = vi.spyOn(db.demoVideos, 'toArray');
     const close = vi.fn(() => Promise.resolve());
     const abort = vi.fn(() => Promise.resolve());
@@ -54,9 +57,10 @@ describe('streamed video backups', () => {
     const blob = new Blob(parts.map(part => new Uint8Array(part)));
     const zip = await JSZip.loadAsync(await blob.arrayBuffer(), { checkCRC32: true });
     const metadata = JSON.parse(await zip.file('backup.json')!.async('string'));
-    expect(metadata.version).toBe(3);
-    expect(metadata.demoVideos).toHaveLength(3);
-    const videoDescriptor = metadata.demoVideos.find((video: { id: string }) => video.id === 'video-2');
+    expect(metadata.version).toBe(4);
+    expect(metadata.counts.videos).toBe(3);
+    const videos = (await zip.file('videos.ndjson')!.async('string')).trim().split('\n').map(line => JSON.parse(line));
+    const videoDescriptor = videos.find((video: { id: string }) => video.id === 'video-2');
     const restoredVideo = await zip.file(videoDescriptor.path)!.async('uint8array');
     expect(restoredVideo.byteLength).toBe(BACKUP_CHUNK_BYTES * 2 + 7);
     expect(restoredVideo.every(byte => byte === 3)).toBe(true);
@@ -136,7 +140,7 @@ describe('streamed video backups', () => {
     const abort = vi.fn(async () => undefined);
     const close = vi.fn(async () => undefined);
     const write = vi.fn(async () => undefined);
-    vi.spyOn(db.games, 'toArray').mockRejectedValueOnce(new Error('unavailable database'));
+    vi.spyOn(db.games, 'orderBy').mockImplementationOnce(() => { throw new Error('unavailable database'); });
     await expect(createBackupTo({ write, abort, close }, 'json')).rejects.toThrow('unavailable database');
     expect(abort).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();

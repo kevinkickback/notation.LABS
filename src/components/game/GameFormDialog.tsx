@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { EntityArtworkEditor } from '@/components/shared/EntityArtworkEditor';
 import { FormSection } from '@/components/shared/FormSection';
 import { RequiredBadge } from '@/components/shared/RequiredBadge';
@@ -23,11 +22,12 @@ import { useSubmission } from '@/hooks/useSubmission';
 import { createGame, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import { readImageFile } from '@/lib/media/images';
+import { ImageValidationError, readImageFile } from '@/lib/media/images';
 import {
   getNotationProfileDefinition,
   NOTATION_PROFILES,
 } from '@/lib/notationProfiles';
+import { notify } from '@/lib/notifications';
 import type { Game, NotationProfile } from '@/lib/types';
 import { CoverSearchDialog } from './CoverSearchDialog';
 
@@ -175,7 +175,7 @@ export function GameFormDialog({
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      toast.error('Game name is required');
+      notify.error('Game name is required', { history: false });
       return;
     }
     await submit(
@@ -189,12 +189,12 @@ export function GameFormDialog({
       },
       {
         onSuccess: () => {
-          toast.success(editingGame ? 'Game updated' : 'Game added');
+          notify.success(editingGame ? 'Game updated' : 'Game added');
           closeDialog();
         },
         onError: (error) => {
           reportError('GameFormDialog.handleSubmit', error);
-          toast.error(
+          notify.error(
             editingGame ? 'Failed to update game' : 'Failed to add game',
           );
         },
@@ -211,8 +211,9 @@ export function GameFormDialog({
     void loadImage(file.name, (signal) => readImageFile(file, signal), {
       onSuccess: applyCoverImage,
       onError: (error) =>
-        toast.error(
+        notify.error(
           error instanceof Error ? error.message : 'Failed to read image file',
+          { history: !(error instanceof ImageValidationError) },
         ),
     });
   };

@@ -1,5 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
+import type {
+  BackupSession,
+  StagedBackupRecord,
+  VideoReference,
+} from '@/lib/backup/archiveContract';
 import { migrateLegacyNotationProfile } from '@/lib/notationProfiles';
+import type { NotificationEntry } from '@/lib/notifications/types';
 import type {
   Character,
   Combo,
@@ -10,9 +16,15 @@ import type {
 
 export interface DemoVideo {
   id: string;
-  data: ArrayBuffer;
+  data: ArrayBuffer | Blob;
   mimeType: string;
   fileName: string;
+}
+
+export interface MediaPayload {
+  id: string;
+  data: Blob;
+  sessionId?: string;
 }
 
 export const db = new Dexie('FightingGameComboTracker') as Dexie & {
@@ -20,7 +32,12 @@ export const db = new Dexie('FightingGameComboTracker') as Dexie & {
   characters: EntityTable<Character, 'id'>;
   combos: EntityTable<Combo, 'id'>;
   settings: EntityTable<UserSettings & { id: number }, 'id'>;
-  demoVideos: EntityTable<DemoVideo, 'id'>;
+  demoVideos: EntityTable<DemoVideo | VideoReference, 'id'>;
+  mediaPayloads: EntityTable<MediaPayload, 'id'>;
+  backupSessions: EntityTable<BackupSession, 'id'>;
+  backupRecords: EntityTable<StagedBackupRecord, 'id'>;
+  notifications: EntityTable<NotificationEntry, 'id'>;
+  notificationCursors: EntityTable<{ id: 'updater'; eventId: string }, 'id'>;
 };
 
 db.version(1).stores({
@@ -92,3 +109,18 @@ db.version(6)
       .toCollection()
       .modify((game: LegacyGame) => migrateLegacyNotationProfile(game)),
   );
+
+// Payload bytes are immutable. Library metadata and transfer snapshots hold their references.
+// Legacy buffers migrate one video at a time, outside the schema upgrade transaction.
+db.version(7).stores({
+  combos:
+    'id, characterId, name, notation, description, createdAt, updatedAt, *tags, sortOrder, [characterId+id]',
+  demoVideos: 'id, payloadId, [id+payloadId]',
+  mediaPayloads: 'id, sessionId, [sessionId+id]',
+  backupSessions: 'id, updatedAt',
+  backupRecords: 'id, sessionId, [sessionId+kind+entityId], payloadId',
+});
+
+// Device-only history is intentionally outside library snapshots and backups.
+db.version(8).stores({ notifications: 'id, createdAt' });
+db.version(9).stores({ notificationCursors: 'id' });

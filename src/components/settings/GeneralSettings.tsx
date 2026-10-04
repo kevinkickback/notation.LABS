@@ -6,7 +6,6 @@ import {
   WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -23,6 +22,7 @@ import { useUpdater } from '@/context/UpdaterContext';
 import { getAccentAppearance } from '@/lib/accentAppearance';
 import { FONT_OPTIONS } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import type { FontFamily } from '@/lib/types';
 
 export function GeneralSettings() {
@@ -84,12 +84,14 @@ export function GeneralSettings() {
       }
 
       if (status.status === 'error') {
-        toast.error(status.error || 'Could not check for updates.');
+        notify.error(status.error || 'Could not check for updates.', {
+          history: false,
+        });
         return;
       }
     } catch {
       setFailedCheckRevision(updaterStatus.revision);
-      toast.error('Could not check for updates. Please try again.');
+      notify.error('Could not check for updates. Please try again.');
     }
   };
 
@@ -146,7 +148,7 @@ export function GeneralSettings() {
     } catch (err) {
       dismissChangelog();
       reportError('GeneralSettings.handleViewCurrentChangelog', err);
-      toast.error('Failed to load changelog');
+      notify.error('Failed to load changelog');
     } finally {
       setChangelogLoading(false);
     }
@@ -288,7 +290,7 @@ export function GeneralSettings() {
                 checked={settings.autoUpdate ?? true}
                 onCheckedChange={(v) => {
                   void setSetting('autoUpdate', v);
-                  toast.success(
+                  notify.success(
                     v ? 'Auto-update enabled' : 'Auto-update disabled',
                   );
                 }}
@@ -366,7 +368,7 @@ export function GeneralSettings() {
               checked={settings.confirmBeforeDelete ?? true}
               onCheckedChange={(v) => {
                 void setSetting('confirmBeforeDelete', v);
-                toast.success(
+                notify.success(
                   v
                     ? 'Delete confirmation enabled'
                     : 'Delete confirmation disabled',

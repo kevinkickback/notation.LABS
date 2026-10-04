@@ -1,8 +1,20 @@
+import { z } from 'zod';
+
 /**
  * Converts unknown thrown values into a user-safe error message.
  */
 export function toUserMessage(err: unknown): string {
-  if (err instanceof Error && err.message.trim().length > 0) {
+  if (err instanceof z.ZodError)
+    return (
+      err.issues[0]?.message ||
+      'Some data is invalid or unsupported. Check it and try again.'
+    );
+  const known =
+    err instanceof Error ||
+    (typeof DOMException !== 'undefined' && err instanceof DOMException);
+  if (known && err.name === 'QuotaExceededError')
+    return 'Local storage is full. Free up space and retry. Browser storage can be smaller in a private window; use a regular window or the desktop app for larger libraries.';
+  if (known && err.message.trim().length > 0) {
     return err.message;
   }
 

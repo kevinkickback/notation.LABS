@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { ButtonColorDialog } from '@/components/shared/ButtonColorDialog';
 import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
 import {
@@ -9,6 +8,7 @@ import {
 } from '@/components/shared/EntityNotebook';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import { useSettings } from '@/context/SettingsContext';
+import { useCardGrid } from '@/hooks/useCardGrid';
 import { useCharacterComboStatistics } from '@/hooks/useCharacterComboStatistics';
 import { useCharacterDelete } from '@/hooks/useCharacterDelete';
 import { useCharacterFilters } from '@/hooks/useCharacterFilters';
@@ -19,6 +19,7 @@ import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import { useSelection } from '@/hooks/useSelection';
 import { setCharacterFavorite } from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 import { CharacterFormDialog } from './CharacterFormDialog';
@@ -43,6 +44,11 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 
   const selection = useSelection();
   const viewMode = useCharacterViewMode(settings.characterCardSize);
+  const grid = useCardGrid(
+    viewMode.cardSize,
+    viewMode.viewMode === 'grid',
+    4 / 3,
+  );
   const deleteState = useCharacterDelete();
   const operations = useCharacterOperations();
 
@@ -84,7 +90,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
       await setCharacterFavorite(character.id, !character.favorite);
     } catch (error) {
       reportError('CharacterView.toggleFavorite', error);
-      toast.error('Failed to update favorite');
+      notify.error('Failed to update favorite');
     }
   };
 
@@ -165,7 +171,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
               onSortByChange={filters.setSortBy}
               viewMode={viewMode.viewMode}
               onViewModeChange={viewMode.setViewMode}
-              cardSize={viewMode.cardSize}
+              cardLayout={grid.layout}
               onCardSizeChange={viewMode.handleCardSizeChange}
               onToggleSelect={selection.toggleSelectionMode}
               onOpenColorDialog={() => setColorDialogOpen(true)}
@@ -187,6 +193,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
 
       {characters.length > 0 && (
         <div
+          ref={grid.ref}
           className={
             viewMode.viewMode === 'list'
               ? 'flex flex-col gap-3'
@@ -195,7 +202,7 @@ export function CharacterView({ game, characters }: CharacterViewProps) {
           style={
             viewMode.viewMode === 'grid'
               ? {
-                  gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
+                  gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${Math.round((viewMode.cardSize * 4) / 3)}px), 1fr))`,
                 }
               : undefined
           }

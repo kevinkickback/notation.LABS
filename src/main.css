@@ -1,5 +1,5 @@
 /** biome-ignore-all lint/suspicious/noUnknownAtRules: Tailwind CSS v4 directives */
-@import "tailwindcss";
+@import "tailwindcss" source(".");
 @import "./styles/theme.css";
 @import "./index.css";
 @import "tw-animate-css";
@@ -10,6 +10,8 @@
 @import "./styles/combo-card.css";
 @import "./styles/notebook.css";
 @import "./styles/status.css";
+
+@source "../index.html";
 
 @custom-variant dark (&:is(.dark *));
 

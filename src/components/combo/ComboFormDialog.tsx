@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { toast } from 'sonner';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { FormSection } from '@/components/shared/FormSection';
 import { RequiredBadge } from '@/components/shared/RequiredBadge';
@@ -36,9 +35,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMediaRequest } from '@/hooks/useMediaRequest';
 import { useSubmission } from '@/hooks/useSubmission';
 import { createCombo, updateCombo } from '@/lib/application/comboCommands';
-import { MAX_VIDEO_SIZE_BYTES } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
 import { extractYouTubeVideoId, fetchYouTubeTitle } from '@/lib/media/youtube';
+import { notify } from '@/lib/notifications';
 import { parseComboNotation } from '@/lib/parser';
 import {
   type DemoVideo,
@@ -167,7 +166,7 @@ export function ComboFormDialog({
 
   const handleSubmit = async () => {
     if (!name.trim() || !notation.trim()) {
-      toast.error('Name and notation are required');
+      notify.error('Name and notation are required', { history: false });
       return;
     }
 
@@ -188,12 +187,12 @@ export function ComboFormDialog({
       },
       {
         onSuccess: () => {
-          toast.success(editingCombo ? 'Combo updated' : 'Combo added');
+          notify.success(editingCombo ? 'Combo updated' : 'Combo added');
           onOpenChange(false);
         },
         onError: (error) => {
           reportError('ComboFormDialog.handleSubmit', error);
-          toast.error(
+          notify.error(
             editingCombo ? 'Failed to update combo' : 'Failed to add combo',
           );
         },
@@ -210,28 +209,23 @@ export function ComboFormDialog({
     e.target.value = '';
     if (!file) return;
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      toast.error(
-        'Video exceeds 50 MB limit. Please compress the file and try again.',
-      );
+    if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
+      notify.error('Unsupported video format', { history: false });
       return;
     }
 
     if (file.size > SOFT_WARN_VIDEO_SIZE_BYTES) {
-      toast.warning('Large files may affect app performance.');
+      notify.warning(
+        `This video will use ${(file.size / 1024 / 1024).toFixed(1)} MB of local storage.`,
+      );
     }
 
-    if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
-      toast.error('Unsupported video format');
-      return;
-    }
-
-    await loadVideo(file.name, () => file.arrayBuffer(), {
-      onSuccess: (buffer) => {
+    await loadVideo(file.name, () => Promise.resolve(file), {
+      onSuccess: (blob) => {
         const videoId = generateId();
         setPendingVideo({
           id: videoId,
-          data: buffer,
+          data: blob,
           mimeType: file.type,
           fileName: file.name,
         });
@@ -243,7 +237,7 @@ export function ComboFormDialog({
       },
       onError: (err) => {
         reportError('ComboFormDialog.handleVideoFileChange', err);
-        toast.error('Failed to read video file');
+        notify.error('Failed to read video file');
       },
     });
   };
@@ -501,7 +495,7 @@ export function ComboFormDialog({
                   )}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Max file size: 50 MB.
+                  Stored locally. Larger videos need more free space.
                 </p>
                 {demoUrl && (
                   <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">

@@ -1,4 +1,5 @@
-import type { Character, Combo, Game, UserSettings } from '@/lib/types';
+import type { UserSettings } from '@/lib/types';
+import type { BackupRecordKind } from './archiveContract';
 
 export const BACKUP_FORMATS = {
   json: { mimeType: 'application/json', extension: '.json' },
@@ -6,25 +7,25 @@ export const BACKUP_FORMATS = {
 } as const;
 export type BackupFormat = keyof typeof BACKUP_FORMATS;
 export interface BackupSnapshot {
-  records: {
-    games: Game[];
-    characters: Character[];
-    combos: Combo[];
-    settings?: UserSettings;
-  };
-  videoIds: string[];
+  sessionId: string;
+  counts: Record<BackupRecordKind, number>;
+  settings?: UserSettings;
+  estimatedBytes: number;
 }
 
 export interface BackupSink {
+  availableBytes?: number;
   write: (chunk: Uint8Array) => Promise<void>;
   close: () => Promise<void>;
   abort: () => Promise<void>;
 }
 export interface BackupExportProgress {
-  phase: 'videos' | 'finalizing' | 'committing';
+  phase: 'preparing' | 'videos' | 'finalizing' | 'committing';
   current: number;
   total: number;
   bytesWritten: number;
+  estimatedBytes?: number;
+  warning?: string;
 }
 export const BACKUP_CHUNK_BYTES = 256 * 1024;
 export const BACKUP_CHANNELS = {
@@ -32,10 +33,12 @@ export const BACKUP_CHANNELS = {
   write: 'backup:write',
   finish: 'backup:finish',
   abort: 'backup:abort',
+  capacity: 'backup:capacity',
 } as const;
 export interface BackupBridge {
   beginBackup: (filename: string, mimeType: string) => Promise<string | null>;
   writeBackupChunk: (id: string, chunk: Uint8Array) => Promise<void>;
   finishBackup: (id: string) => Promise<void>;
   abortBackup: (id: string) => Promise<void>;
+  getBackupCapacity: (id: string) => Promise<number | null>;
 }

@@ -54,6 +54,7 @@ describe('Electron preload bridge', () => {
     await api.writeBackupChunk('session', buffer);
     await api.finishBackup('session');
     await api.abortBackup('session');
+    await api.getBackupCapacity('session');
 
     expect(mocks.invoke.mock.calls).toEqual([
       ['update:check'],
@@ -68,6 +69,7 @@ describe('Electron preload bridge', () => {
       ['backup:write', 'session', buffer],
       ['backup:finish', 'session'],
       ['backup:abort', 'session'],
+      ['backup:capacity', 'session'],
     ]);
   });
 

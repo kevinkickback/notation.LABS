@@ -1,3 +1,4 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBackupZip } from '../../helpers/zip';
@@ -5,6 +6,8 @@ import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import type { BackupImportData, Character, Combo, Game } from '@/lib/types';
+import { importJsonBackup } from '@/lib/storage/jsonImport';
+import { importZipBackup } from '@/lib/storage/zipImport';
 
 const game: Game = { id: 'game', name: 'Stored game', buttonLayout: ['LP'], notationProfile: 'standard', createdAt: 1, updatedAt: 1 };
 const character: Character = { id: 'character', gameId: game.id, name: 'Stored fighter', createdAt: 1, updatedAt: 1 };
@@ -34,6 +37,29 @@ describe.each(['json', 'zip'] as const)('atomic %s backup application', format =
     });
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it('allows cancellation while staging legacy records before atomic publication', async () => {
+    const controller = new AbortController();
+    const add = db.backupRecords.add.bind(db.backupRecords);
+    vi.spyOn(db.backupRecords, 'add').mockImplementation((...args) => add(...args).then(id => {
+      controller.abort();
+      return id;
+    }));
+    const phases: string[] = [];
+    const report = (progress: { phase: string }) => phases.push(progress.phase);
+    const metadata = data({ games: [{ ...game, name: 'Changed' }] });
+    const operation = format === 'json'
+      ? importJsonBackup(JSON.stringify(metadata), false, false, report, controller.signal)
+      : importZipBackup(new Blob([await createBackupZip({ ...metadata, version: 3 })]), false, false, report, controller.signal);
+    await expect(operation).rejects.toMatchObject({ name: 'AbortError' });
+    expect(phases).toContain('finalizing');
+    expect(phases).not.toContain('committing');
+    expect(await db.games.get(game.id)).toEqual(game);
+    expect(await db.characters.get(character.id)).toEqual(character);
+    expect(await db.combos.get(combo.id)).toEqual(combo);
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
+  });
 
   it('rederives imported tokens without rewriting retained combos or trusting the imported marker', async () => {
     const write = vi.spyOn(db.combos, 'bulkPut');

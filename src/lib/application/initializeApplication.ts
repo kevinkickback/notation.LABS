@@ -1,3 +1,4 @@
+import { recoverIdleBackupSessions } from '@/lib/storage/backupSessionRepository';
 import {
   ensureCurrentNotation,
   type ReparseLifecycle,
@@ -8,5 +9,6 @@ export async function initializeApplication(
   lifecycle?: ReparseLifecycle,
 ): Promise<void> {
   await settingsRepository.init();
+  await recoverIdleBackupSessions();
   await ensureCurrentNotation(lifecycle);
 }

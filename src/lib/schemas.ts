@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+// IDs are lookup keys, not user-authored document content. Bound key/filename
+// memory independently from media size and the number of library records.
+export const entityIdSchema = z.string().max(4096);
+export const mediaFileNameSchema = z.string().max(4096);
+export const mediaTypeSchema = z.string().max(255);
+
 export const comboTokenSchema = z.object({
   type: z.enum([
     'direction',
@@ -48,7 +54,7 @@ export const externalHttpsUrlSchema = externalHttpUrlSchema.pipe(
 );
 
 const gameFields = {
-  id: z.string(),
+  id: entityIdSchema,
   name: z.string(),
   logoImage: z.string().optional(),
   coverZoom: coverZoomSchema.optional(),
@@ -75,14 +81,14 @@ export const legacyGameSchema = z.object({
 });
 
 export const characterLinkSchema = z.object({
-  id: z.string(),
+  id: entityIdSchema,
   url: externalHttpUrlSchema,
   label: z.string(),
 });
 
 export const characterSchema = z.object({
-  id: z.string(),
-  gameId: z.string(),
+  id: entityIdSchema,
+  gameId: entityIdSchema,
   name: z.string(),
   portraitImage: z.string().optional(),
   portraitZoom: coverZoomSchema.optional(),
@@ -98,8 +104,8 @@ export const characterSchema = z.object({
 });
 
 export const comboSchema = z.object({
-  id: z.string(),
-  characterId: z.string(),
+  id: entityIdSchema,
+  characterId: entityIdSchema,
   name: z.string(),
   notation: z.string(),
   parsedNotation: z.array(comboTokenSchema),
@@ -169,11 +175,14 @@ export const settingsSchema = z.object({
   motionIconStyle: z.enum(['joystick', 'arrows']).default('joystick'),
 });
 
-const demoVideoSchema = z
-  .object({
-    id: z.string(),
-    fileName: z.string(),
-    mimeType: z.string(),
+export const videoHeaderSchema = z.object({
+  id: entityIdSchema,
+  fileName: mediaFileNameSchema,
+  mimeType: mediaTypeSchema,
+});
+
+const demoVideoSchema = videoHeaderSchema
+  .extend({
     dataBase64: z.string().optional(),
     path: z.string().optional(),
   })

@@ -17,7 +17,15 @@ export async function deleteEntityCascade(
   await db.transaction(
     'rw',
     // Notebook normalization may read both parent tables when migrating old preferences.
-    [db.games, db.characters, db.combos, db.demoVideos, db.settings],
+    [
+      db.games,
+      db.characters,
+      db.combos,
+      db.demoVideos,
+      db.settings,
+      db.mediaPayloads,
+      db.backupRecords,
+    ],
     async () => {
       const characterIds =
         kind === 'game'

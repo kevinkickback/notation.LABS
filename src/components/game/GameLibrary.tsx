@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { DestructiveConfirmationDialog } from '@/components/shared/DestructiveConfirmationDialog';
 import { SelectionToolbar } from '@/components/shared/SelectionToolbar';
 import { useSettings } from '@/context/SettingsContext';
+import { useCardGrid } from '@/hooks/useCardGrid';
 import { useGameDelete } from '@/hooks/useGameDelete';
 import { useGameFilters } from '@/hooks/useGameFilters';
 import { useGameOperations } from '@/hooks/useGameOperations';
@@ -14,6 +14,7 @@ import { useSelection } from '@/hooks/useSelection';
 import { setGameFavorite } from '@/lib/application/gameCommands';
 import { compareEntityNames, compareFavoritesFirst } from '@/lib/entitySorting';
 import { reportError } from '@/lib/errors';
+import { notify } from '@/lib/notifications';
 import { useAppStore } from '@/lib/store';
 import type { Game } from '@/lib/types';
 import { GameFormDialog } from './GameFormDialog';
@@ -37,6 +38,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
   const filters = useGameFilters();
   const viewMode = useGameViewMode(settings.gameCardSize);
+  const grid = useCardGrid(viewMode.cardSize, viewMode.viewMode === 'grid');
   const deleteState = useGameDelete();
   const operations = useGameOperations();
 
@@ -100,7 +102,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
       await setGameFavorite(game.id, !game.favorite);
     } catch (error) {
       reportError('GameLibrary.toggleFavorite', error);
-      toast.error('Failed to update favorite');
+      notify.error('Failed to update favorite');
     }
   };
 
@@ -208,7 +210,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
                 onSortByChange={filters.setSortBy}
                 viewMode={viewMode.viewMode}
                 onViewModeChange={viewMode.setViewMode}
-                cardSize={viewMode.cardSize}
+                cardLayout={grid.layout}
                 onCardSizeChange={viewMode.handleCardSizeChange}
                 onToggleSelect={() => setIsSelecting(true)}
                 onAddGame={() => operations.openAddDialog()}
@@ -218,6 +220,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
 
           {/* Games Grid/List */}
           <div
+            ref={grid.ref}
             className={
               viewMode.viewMode === 'list'
                 ? 'flex flex-col gap-3'
@@ -226,7 +229,7 @@ export function GameLibrary({ games }: GameLibraryProps) {
             style={
               viewMode.viewMode === 'grid'
                 ? {
-                    gridTemplateColumns: `repeat(auto-fill, minmax(0, min(100%, ${viewMode.cardSize}px)))`,
+                    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${viewMode.cardSize}px), 1fr))`,
                   }
                 : undefined
             }

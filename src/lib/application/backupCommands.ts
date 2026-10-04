@@ -3,21 +3,20 @@ import type {
   BackupFormat,
   BackupSink,
 } from '@/lib/backup/exportContract';
-import { writeJsonBackup, writeZipBackup } from '@/lib/backup/exportPipeline';
 import type { BackupFilter } from '@/lib/backup/selectionClosure';
-import { loadBackupSnapshot } from '@/lib/storage/backupSnapshot';
+import { writeBackup } from '@/lib/backup/transferCore';
+import {
+  canUseTransferWorker,
+  runTransferWorker,
+} from '@/lib/backup/workerClient';
+import { readBackupSelection } from '@/lib/storage/backupSnapshot';
 import {
   indexedDbStorage,
   type ZipImportProgress,
 } from '@/lib/storage/indexedDbStorage';
 
 export function loadBackupSelectionData() {
-  return Promise.all([
-    indexedDbStorage.games.getAll(),
-    indexedDbStorage.characters.getAll(),
-    indexedDbStorage.combos.getAll(),
-    indexedDbStorage.demoVideos.getIds(),
-  ]);
+  return readBackupSelection();
 }
 
 export async function createBackupTo(
@@ -29,52 +28,97 @@ export async function createBackupTo(
 ): Promise<void> {
   try {
     signal?.throwIfAborted();
-    const snapshot = await loadBackupSnapshot(filter);
-    const progress =
-      format === 'zip'
-        ? await writeZipBackup(
-            snapshot,
-            indexedDbStorage.demoVideos.get,
-            sink.write,
-            onProgress,
-            signal,
-          )
-        : await writeJsonBackup(
-            snapshot.records,
-            sink.write,
-            onProgress,
-            signal,
-          );
+    const report = (progress: BackupExportProgress) =>
+      onProgress?.({
+        ...progress,
+        warning:
+          sink.availableBytes !== undefined &&
+          progress.estimatedBytes !== undefined &&
+          sink.availableBytes < progress.estimatedBytes
+            ? 'The selected drive may not have enough free space for this backup.'
+            : progress.warning,
+      });
+    const progress = canUseTransferWorker()
+      ? await runTransferWorker(
+          { type: 'start', direction: 'export', format, filter },
+          sink.write,
+          report,
+          undefined,
+          signal,
+        )
+      : await writeBackup(format, sink.write, filter, report, signal);
     signal?.throwIfAborted();
-    // Once closing starts the file-system commit cannot safely be cancelled.
+    if (!progress)
+      throw new Error('Backup processor returned no export result');
     onProgress?.({ ...progress, phase: 'committing' });
     await sink.close();
   } catch (error) {
-    await sink.abort().catch(() => {
-      // Preserve the transfer failure when destination cleanup also fails.
-    });
+    await sink.abort().catch(() => {});
     throw error;
   }
 }
 
-export function importJsonBackup(
-  data: string,
+export async function importJsonBackup(
+  data: string | Blob,
   includeVideos: boolean,
   includeSettings: boolean,
+  onProgress?: (progress: ZipImportProgress) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return indexedDbStorage.import(data, includeVideos, includeSettings);
+  if (canUseTransferWorker()) {
+    await runTransferWorker(
+      {
+        type: 'start',
+        direction: 'import',
+        format: 'json',
+        data,
+        includeVideos,
+        includeSettings,
+      },
+      undefined,
+      undefined,
+      onProgress,
+      signal,
+    );
+  } else {
+    await indexedDbStorage.import(
+      typeof data === 'string' ? data : await data.text(),
+      includeVideos,
+      includeSettings,
+      onProgress,
+      signal,
+    );
+  }
 }
 
-export function importZipBackup(
+export async function importZipBackup(
   file: Blob,
   includeVideos: boolean,
   includeSettings: boolean,
   onProgress?: (progress: ZipImportProgress) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  return indexedDbStorage.importZip(
-    file,
-    includeVideos,
-    includeSettings,
-    onProgress,
-  );
+  if (canUseTransferWorker()) {
+    await runTransferWorker(
+      {
+        type: 'start',
+        direction: 'import',
+        format: 'zip',
+        data: file,
+        includeVideos,
+        includeSettings,
+      },
+      undefined,
+      undefined,
+      onProgress,
+      signal,
+    );
+  } else
+    await indexedDbStorage.importZip(
+      file,
+      includeVideos,
+      includeSettings,
+      onProgress,
+      signal,
+    );
 }

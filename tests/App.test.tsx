@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { useAppStore } from '@/lib/store';
 import { INITIAL_UPDATE_STATUS } from '@/lib/updater/ipcContract';
 import { updateDetails, updateSnapshot } from './helpers/updater';
+vi.mock('@/components/shared/NotificationHistory', () => ({ NotificationHistory: () => null }));
 
 const mocks = vi.hoisted(() => ({
   useLiveQuery: vi.fn(),
@@ -89,7 +90,6 @@ vi.mock('@/components/header/Header', () => ({ Header: () => <header>Header</hea
 vi.mock('@/components/header/BreadcrumbBar', () => ({
   BreadcrumbBar: () => <nav>Breadcrumbs</nav>,
 }));
-vi.mock('@/components/ui/sonner', () => ({ Toaster: () => null }));
 
 vi.mock('@/components/updates/ChangelogModal', () => ({
   ChangelogModal: ({
@@ -159,7 +159,7 @@ function installElectronApi(overrides: Partial<Window['electronAPI']> = {}) {
     getAppVersion: vi.fn().mockResolvedValue('1.8.0'),
     getCurrentChangelog: vi.fn(),
 
-    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
+    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(), getBackupCapacity: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }

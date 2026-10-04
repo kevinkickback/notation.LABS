@@ -18,8 +18,8 @@ export function haveSameGameNotation(
 /** Derived tokens always come from the current parent game, never backup metadata. */
 export function parseComboRecords(
   combos: Combo[],
-  games: Game[],
-  characters: Character[],
+  games: Array<Pick<Game, 'id' | 'buttonLayout' | 'notationProfile'>>,
+  characters: Array<Pick<Character, 'id' | 'gameId'>>,
 ): Combo[] {
   const gamesById = new Map(games.map((game) => [game.id, game]));
   const characterGames = new Map(

@@ -44,6 +44,19 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      // Generated HTML reports must not reload an active development workspace.
+      // Packaged validation profiles also contain locked databases.
+      watch: {
+        ignored: [
+          '**/.tmp/**',
+          '**/release/**',
+          '**/dist/**',
+          '**/dist-electron/**',
+          '**/coverage/**',
+          '**/test-results/**',
+          '**/playwright-report/**',
+        ],
+      },
       proxy: {
         '/api/igdb': {
           target:

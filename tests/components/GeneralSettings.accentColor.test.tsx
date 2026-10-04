@@ -100,7 +100,7 @@ describe('GeneralSettings accent color', () => {
         changelog: 'Notes',
       }),
 
-    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
+    beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(), getBackupCapacity: vi.fn().mockResolvedValue(null),
     };
   });
 

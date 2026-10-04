@@ -6,10 +6,12 @@ import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { INITIAL_UPDATE_STATUS, type UpdateStatus } from '@/lib/updater/ipcContract';
 import { updateDetails, updateSnapshot } from '../helpers/updater';
 
-const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
+const { reportErrorMock, recordNotificationMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn(), recordNotificationMock: vi.fn() }));
 const settings = { ...DEFAULT_SETTINGS };
 vi.mock('@/context/SettingsContext', () => ({ useSettings: () => settings }));
 vi.mock('@/lib/errors', () => ({ reportError: reportErrorMock }));
+vi.mock('@/lib/application/notificationCommands', () => ({ recordNotification: recordNotificationMock }));
+vi.mock('@/components/shared/NotificationHistory', () => ({ NotificationHistory: () => null }));
 
 function StatusProbe() {
   const { status, availabilityEventId, showAvailableUpdate, checkForUpdate } = useUpdater();
@@ -39,17 +41,62 @@ describe('UpdaterProvider', () => {
       cancelUpdate: vi.fn(), installUpdate: vi.fn(), getUpdateStatus: vi.fn().mockResolvedValue(INITIAL_UPDATE_STATUS),
       setAutoCheck, getAppVersion: vi.fn().mockResolvedValue('1.8.0'), getCurrentChangelog: vi.fn(),
       onUpdateStatus: callback => { listener = callback; return unsubscribe; },
-      beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
+      beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(), getBackupCapacity: vi.fn().mockResolvedValue(null),
     };
   });
   afterEach(() => { vi.restoreAllMocks(); window.electronAPI = originalApi; });
 
   function emit(status: UpdateStatus) { act(() => listener?.(status)); }
+
+  it('records terminal update states without recording progress and reopens the current download', async () => {
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    emit(updateSnapshot({ status: 'downloading', update: available, progress: { percentage: 20, bytesPerSecond: 10, transferred: 20, total: 100 } }, 1));
+    expect(recordNotificationMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
+    expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Download interrupted' }, 2));
+    expect(recordNotificationMock).toHaveBeenLastCalledWith({ id: 'update:2.0.0', type: 'error', message: 'Download interrupted', action: { type: 'view-update' }, event: { source: 'updater', id: 'fixture:2' } });
+    emit(updateSnapshot({ status: 'downloaded', update: updateDetails({ status: 'downloaded' }) }, 3));
+    expect(recordNotificationMock).toHaveBeenLastCalledWith({ id: 'update:2.0.0', type: 'update', message: 'Update v2.0.0 ready to install', action: { type: 'view-update' }, event: { source: 'updater', id: 'fixture:3' } });
+    emit(updateSnapshot({ status: 'downloaded', update: updateDetails({ status: 'downloaded' }) }, 2));
+    expect(recordNotificationMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts delayed release notes without recording the same terminal event again', async () => {
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Download failed' }, 1, 0, 'failure'));
+    recordNotificationMock.mockClear();
+    emit(updateSnapshot({ status: 'error', update: { ...available, changelog: 'Delayed notes' }, error: 'Download failed' }, 2, 0, 'failure'));
+    expect(recordNotificationMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
+    expect(screen.getByText('Delayed notes')).toBeTruthy();
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Another failure' }, 3, 0, 'new-failure'));
+    expect(recordNotificationMock).toHaveBeenCalledOnce();
+  });
   async function mountFooter() {
     const view = render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);
     await waitFor(() => expect(listener).not.toBeNull());
     return view;
   }
+
+  it('records a distinct terminal event when its intermediate status arrives too late', async () => {
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    const failure = { status: 'error' as const, update: null, error: 'Check failed' };
+    emit(updateSnapshot(failure, 2, 0, 'first-check'));
+    recordNotificationMock.mockClear();
+    emit(updateSnapshot(failure, 4, 0, 'second-check'));
+    expect(recordNotificationMock).toHaveBeenCalledWith({
+      id: 'update-event:second-check', type: 'error', message: 'Check failed', action: undefined,
+      event: { source: 'updater', id: 'second-check' },
+    });
+    emit(updateSnapshot({ status: 'checking', update: null }, 3, 0, 'checking'));
+    emit(updateSnapshot(failure, 5, 0, 'second-check'));
+    expect(recordNotificationMock).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('status').textContent).toBe('error');
+  });
 
   it('keeps the main-process update details through an offline check error', async () => {
     const network = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);

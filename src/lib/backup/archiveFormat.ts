@@ -1,0 +1,118 @@
+import { z } from 'zod';
+import {
+  ImageValidationError,
+  inspectImageDataUrl,
+  isImageDataUrl,
+  MAX_EMBEDDED_IMAGE_BYTES,
+} from '@/lib/media/images';
+import {
+  characterSchema,
+  comboSchema,
+  gameSchema,
+  settingsSchema,
+  videoHeaderSchema,
+} from '@/lib/schemas';
+import type { Character, Game } from '@/lib/types';
+import { base64ToArrayBuffer } from './base64';
+import { BACKUP_RECORD_BYTES, encodeBackupRecord } from './capabilities';
+
+const sizeSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const archiveManifestSchema = z.object({
+  version: z.literal(4),
+  exported: z.string(),
+  counts: z.object({
+    games: sizeSchema,
+    characters: sizeSchema,
+    combos: sizeSchema,
+    videos: sizeSchema,
+  }),
+  settings: settingsSchema.optional(),
+});
+export const archiveImageSchema = z.object({
+  path: z.string().regex(/^images\/[gc]-\d+\.bin$/),
+  mimeType: z.enum([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+  ]),
+});
+const inlineImageSchema = z
+  .string()
+  .refine(
+    (value) =>
+      !/^data:/i.test(value) || isImageDataUrl(value, MAX_EMBEDDED_IMAGE_BYTES),
+    'Backup contains an unsupported or invalid image',
+  )
+  .optional();
+export const archiveGameSchema = gameSchema.extend({
+  logoImage: inlineImageSchema,
+  image: archiveImageSchema.optional(),
+});
+export const archiveCharacterSchema = characterSchema.extend({
+  portraitImage: inlineImageSchema,
+  image: archiveImageSchema.optional(),
+});
+export const archiveComboSchema = comboSchema;
+export const archiveVideoSchema = videoHeaderSchema.extend({
+  path: z.string().regex(/^videos\/v-\d+\.bin$/),
+  size: sizeSchema,
+});
+export type ArchiveVideo = z.infer<typeof archiveVideoSchema>;
+
+export function separateImage<T extends Game | Character>(
+  record: T,
+  path: string,
+) {
+  const source =
+    'logoImage' in record
+      ? record.logoImage
+      : 'portraitImage' in record
+        ? record.portraitImage
+        : undefined;
+  if (typeof source !== 'string' || !/^data:/i.test(source))
+    return { record, blob: undefined };
+  const invalidImage = () =>
+    new ImageValidationError(
+      `Cannot export the image for "${record.name}": it is unsupported, damaged, or too large to process safely. Replace it and try again.`,
+    );
+  const embedded = inspectImageDataUrl(source, MAX_EMBEDDED_IMAGE_BYTES);
+  if (!embedded) throw invalidImage();
+  // Older providers could label JPEG bytes as PNG. Keep the bytes and correct only the backup label.
+  const { mimeType, encoded } = embedded;
+  const correctionBytes = mimeType.length - embedded.declaredMimeType.length;
+  if (
+    correctionBytes > 0 &&
+    encodeBackupRecord(record).byteLength + correctionBytes >
+      BACKUP_RECORD_BYTES
+  )
+    throw invalidImage();
+  const image = archiveImageSchema.parse({ path, mimeType });
+  const wire = {
+    ...record,
+    logoImage: undefined,
+    portraitImage: undefined,
+    image,
+  };
+  return {
+    record: wire,
+    get blob() {
+      return new Blob([base64ToArrayBuffer(encoded)], { type: mimeType });
+    },
+  };
+}
+
+export function imageDataUrl(bytes: Uint8Array, mimeType: string): string {
+  if (bytes.byteLength > MAX_EMBEDDED_IMAGE_BYTES)
+    throw new ImageValidationError(
+      'Backup image needs too much memory to process safely',
+    );
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 32768)
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+  const url = `data:${mimeType};base64,${btoa(binary)}`;
+  if (!isImageDataUrl(url, MAX_EMBEDDED_IMAGE_BYTES))
+    throw new Error('Backup contains an unsupported or invalid image');
+  return url;
+}
