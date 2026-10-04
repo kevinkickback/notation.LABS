@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { separateImage } from '@/lib/backup/archiveFormat';
+import { BACKUP_RECORD_BYTES, encodeBackupRecord } from '@/lib/backup/capabilities';
 import { db } from '@/lib/storage/database';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { importZipBackup } from '@/lib/storage/zipImport';
@@ -9,7 +10,7 @@ import { createBackupZip, forgeZipSize } from '../../helpers/zip';
 import { MAX_EMBEDDED_IMAGE_BYTES } from '@/lib/media/images';
 import { captureBackup } from '../../helpers/backup';
 
-const game = { id: 'g', name: 'Incoming', buttonLayout: ['A'], notationProfile: 'standard', createdAt: 1, updatedAt: 1 };
+const game = { id: 'g', name: 'Incoming', buttonLayout: ['A'], notationProfile: 'standard' as const, createdAt: 1, updatedAt: 1 };
 const character = { id: 'c', gameId: 'g', name: 'Fighter', createdAt: 1, updatedAt: 1 };
 const video = { id: 'v', path: 'videos/v-0.bin', size: 3, fileName: 'demo.mp4', mimeType: 'video/mp4' };
 const combo = { id: 'b', characterId: 'c', name: 'Combo', notation: 'A', parsedNotation: [], tags: [], demoUrl: 'local:v', sortOrder: 0, createdAt: 1, updatedAt: 1 };
@@ -32,6 +33,17 @@ async function unchanged() {
   expect(await db.backupRecords.count()).toBe(0);
 }
 describe('version 4 validation and rollback', () => {
+  it.each(['games', 'characters'] as const)('checks the restored %s size when correcting a longer legacy MIME label', kind => {
+    const image = `data:image/png;base64,/9j/${'A'.repeat(4096)}`;
+    const empty = kind === 'games' ? { ...game, logoImage: image, notes: '' } : { ...character, portraitImage: image, notes: '' };
+    const record = { ...empty, notes: 'x'.repeat(BACKUP_RECORD_BYTES - encodeBackupRecord(empty).byteLength) };
+    expect(encodeBackupRecord(record).byteLength).toBe(BACKUP_RECORD_BYTES);
+    expect(() => separateImage(record, 'images/g-0.bin')).toThrow('Cannot export the image for');
+    const fitting = { ...record, notes: record.notes.slice(1) };
+    const separated = separateImage(fitting, 'images/g-0.bin');
+    expect(separated.record).toMatchObject({ image: { mimeType: 'image/jpeg' } });
+    expect(encodeBackupRecord(separated.record).byteLength).toBeLessThan(BACKUP_RECORD_BYTES);
+  }, 20000);
   it('decodes only the raster header when producing an image descriptor', () => {
     const image = `data:image/jpeg;base64,/9j/${'A'.repeat(4096)}`;
     const decode = vi.spyOn(globalThis, 'atob');

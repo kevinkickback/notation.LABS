@@ -14,6 +14,7 @@ import {
 } from '@/lib/schemas';
 import type { Character, Game } from '@/lib/types';
 import { base64ToArrayBuffer } from './base64';
+import { BACKUP_RECORD_BYTES, encodeBackupRecord } from './capabilities';
 
 const sizeSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const archiveManifestSchema = z.object({
@@ -72,13 +73,21 @@ export function separateImage<T extends Game | Character>(
         : undefined;
   if (typeof source !== 'string' || !/^data:/i.test(source))
     return { record, blob: undefined };
-  const embedded = inspectImageDataUrl(source, MAX_EMBEDDED_IMAGE_BYTES);
-  if (!embedded)
-    throw new ImageValidationError(
+  const invalidImage = () =>
+    new ImageValidationError(
       `Cannot export the image for "${record.name}": it is unsupported, damaged, or too large to process safely. Replace it and try again.`,
     );
+  const embedded = inspectImageDataUrl(source, MAX_EMBEDDED_IMAGE_BYTES);
+  if (!embedded) throw invalidImage();
   // Older providers could label JPEG bytes as PNG. Keep the bytes and correct only the backup label.
   const { mimeType, encoded } = embedded;
+  const correctionBytes = mimeType.length - embedded.declaredMimeType.length;
+  if (
+    correctionBytes > 0 &&
+    encodeBackupRecord(record).byteLength + correctionBytes >
+      BACKUP_RECORD_BYTES
+  )
+    throw invalidImage();
   const image = archiveImageSchema.parse({ path, mimeType });
   const wire = {
     ...record,
