@@ -74,7 +74,7 @@ export function ExportProgressModal({
             className="h-2 bg-muted overflow-hidden rounded-sm"
           >
             <div
-              className="h-full bg-primary transition-all"
+              className="h-full bg-accent-text transition-all"
               style={{ width: `${percent}%` }}
             />
           </div>

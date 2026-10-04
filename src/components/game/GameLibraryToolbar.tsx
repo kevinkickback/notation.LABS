@@ -72,12 +72,12 @@ export function GameLibraryToolbar({
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className={`relative flex items-center gap-1 bg-muted h-9 px-3 ${isSortActive ? 'text-primary' : ''}`}
+            className={`relative flex items-center gap-1 bg-muted h-9 px-3 ${isSortActive ? 'text-accent-text' : ''}`}
           >
             <span className="text-xs">Sort</span>
             <CaretDownIcon className="w-3.5 h-3.5 opacity-60" />
             {isSortActive && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-accent-text rounded-full" />
             )}
           </Button>
         </DropdownMenuTrigger>
@@ -88,7 +88,7 @@ export function GameLibraryToolbar({
                 key={value}
                 onClick={() => onSortByChange(value)}
                 data-active={sortBy === value}
-                className="data-[active=true]:bg-accent"
+                className="data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
               >
                 {label}
               </DropdownMenuItem>

@@ -141,6 +141,9 @@ export function ColorCustomization({
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Displayed colors adjust to stay readable in each theme.
+      </p>
       <Card>
         <CardContent>
           <div className="flex items-center gap-4">
@@ -188,7 +191,7 @@ export function ColorCustomization({
                         setSeparatorHex(currentHex);
                       }
                     }}
-                    className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+                    className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-accent-text"
                   />
                 );
               })()}
@@ -277,7 +280,7 @@ export function ColorCustomization({
                             }));
                           }
                         }}
-                        className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+                        className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-accent-text"
                       />
                     </div>
                     <Button

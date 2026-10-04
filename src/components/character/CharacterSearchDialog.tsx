@@ -137,7 +137,7 @@ export function CharacterSearchDialog({
                   <button
                     key={result.imageUrl}
                     type="button"
-                    className="relative rounded-lg border-2 border-border bg-muted overflow-hidden text-left transition-colors hover:border-primary focus-visible:border-primary focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="relative rounded-lg border-2 border-border bg-muted overflow-hidden text-left transition-colors hover:border-accent-text focus-visible:border-accent-text focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     onClick={() => handleImageSelect(result)}
                     disabled={!!downloading}
                     aria-label={`Select image: ${result.title}`}

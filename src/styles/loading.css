@@ -31,7 +31,7 @@
   font-weight: 700;
 }
 .startup-brand h1 span {
-  color: var(--accent-color, #3b82f6);
+  color: var(--accent-text);
 }
 .startup-brand p {
   margin-top: 8px;
@@ -54,11 +54,11 @@
   background: var(--muted);
 }
 .startup-progress progress::-webkit-progress-value {
-  background: var(--accent-color, #3b82f6);
+  background: var(--accent-text);
   transition: width 200ms ease;
 }
 .startup-progress progress::-moz-progress-bar {
-  background: var(--accent-color, #3b82f6);
+  background: var(--accent-text);
 }
 .startup-progress output {
   display: flex;
@@ -70,7 +70,7 @@
   color: var(--muted-foreground);
 }
 .startup-progress svg {
-  color: var(--accent-color, #3b82f6);
+  color: var(--accent-text);
 }
 .startup-error {
   margin-top: 28px;

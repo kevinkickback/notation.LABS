@@ -37,7 +37,7 @@
   flex-shrink: 0;
 }
 .notebook-toggle:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: 3px;
   border-radius: var(--radius-md);
 }
@@ -215,7 +215,7 @@
   color: var(--muted-foreground);
 }
 .notebook-resource-list a:hover strong {
-  color: var(--accent-color, #3b82f6);
+  color: var(--accent-text);
 }
 .notebook-resource-list li > div {
   display: flex;
@@ -501,7 +501,7 @@ body:has([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"])
   border-radius: var(--radius-sm);
 }
 .notebook-move-handle:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 .notebook-drawer[data-moving="true"],
@@ -541,11 +541,11 @@ body:has(.notebook-drawer[data-moving="true"]) {
 }
 .notebook-floating-resize-handle:hover::after,
 .notebook-floating-resize-handle:focus-visible::after {
-  border-color: var(--accent-color, #3b82f6);
+  border-color: var(--accent-text);
   opacity: 1;
 }
 .notebook-floating-resize-handle:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: -3px;
 }
 body:has(.notebook-drawer[data-resizing="true"]) {
@@ -556,7 +556,7 @@ body:has(.notebook-drawer[data-resizing="true"]) {
   position: fixed;
   z-index: 49;
   pointer-events: none;
-  border: 2px solid var(--accent-color, #3b82f6);
+  border: 2px solid var(--accent-text);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--accent-color, #3b82f6) 12%, transparent);
   padding: 16px;
@@ -567,11 +567,11 @@ body:has(.notebook-drawer[data-resizing="true"]) {
 .notebook-resize-handle:hover::after,
 .notebook-resize-handle:focus-visible::after,
 .notebook-docked[data-resizing="true"] .notebook-resize-handle::after {
-  background: var(--accent-color, #3b82f6);
+  background: var(--accent-text);
   opacity: 1;
 }
 .notebook-resize-handle:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 body:has(.notebook-docked[data-resizing="true"]) {

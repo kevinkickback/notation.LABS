@@ -1,6 +1,17 @@
 /** biome-ignore-all lint/suspicious/noUnknownAtRules: Tailwind CSS v4 theme directives */
 
 :root {
+  --readable-color-min: 0;
+  --readable-color-max: 0.4;
+  --accent-text: oklch(
+    from var(--accent-color, #3b82f6)
+      clamp(var(--readable-color-min), l, var(--readable-color-max)) c h
+  );
+  --notation-surface: var(--muted);
+  --motion-joystick-filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000);
+  --success: #166534;
+  --warning: #875a00;
+  --error: #991b1b;
   --background: oklch(0.93 0.01 265);
   --foreground: oklch(0.13 0.03 265);
 
@@ -20,7 +31,7 @@
   --destructive-foreground: oklch(0.99 0 0);
 
   --border: oklch(0.78 0.02 265);
-  --input: oklch(0.82 0.02 265);
+  --input: oklch(0.56 0.02 265);
   --ring: oklch(0.48 0.26 285);
 
   --combo-hold: oklch(0.55 0.17 75);
@@ -39,6 +50,12 @@
 }
 
 .dark {
+  --readable-color-min: 0.75;
+  --readable-color-max: 1;
+  --motion-joystick-filter: none;
+  --success: #86efac;
+  --warning: #fde047;
+  --error: #fca5a5;
   --background: oklch(0.15 0.02 265);
   --foreground: oklch(0.98 0 0);
 
@@ -52,13 +69,13 @@
   --secondary-foreground: oklch(0.95 0 0);
 
   --muted: oklch(0.25 0.015 265);
-  --muted-foreground: oklch(0.65 0.02 265);
+  --muted-foreground: oklch(0.7 0.02 265);
 
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(1 0 0);
 
   --border: oklch(0.3 0.02 265);
-  --input: oklch(0.35 0.025 265);
+  --input: oklch(0.56 0.025 265);
   --ring: oklch(0.65 0.24 285);
 
   --combo-hold: oklch(0.82 0.16 85);
@@ -90,6 +107,8 @@
   /* Accent color customization */
   --color-primary: var(--accent-color, #3b82f6);
   --color-primary-foreground: var(--accent-foreground, #000);
+  --color-accent-text: var(--accent-text);
+  --color-success: var(--success);
   --color-accent: var(--accent-color, #3b82f6);
   --color-accent-foreground: var(--accent-foreground, #000);
   --color-secondary: var(--secondary);

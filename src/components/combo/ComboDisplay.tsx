@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo } from 'react';
 import { getTokenColor } from '@/components/combo/comboDisplayUtils';
 import { useSettings } from '@/context/SettingsContext';
+import { readableColor } from '@/lib/colorContrast';
 import {
   getButtonAccessibilityLabel,
   getMechanicAccessibilityLabel,
@@ -85,14 +86,15 @@ export function ComboDisplay({
       notationProfile === 'tekken' &&
       token.type === 'direction' &&
       token.value.toLowerCase() === 'n';
-    const color =
+    const color = readableColor(
       !isDescriptiveBracket &&
-      !isParenUnknown &&
-      !isStructuralParen &&
-      !isTekkenNeutral &&
-      groupColor
+        !isParenUnknown &&
+        !isStructuralParen &&
+        !isTekkenNeutral &&
+        groupColor
         ? groupColor
-        : getTokenColor(token, colors, game?.buttonColors);
+        : getTokenColor(token, colors, game?.buttonColors),
+    );
 
     if (token.type === 'repeat-start') {
       if (!repeatParenIndices.has(idx)) return null;
@@ -100,7 +102,7 @@ export function ComboDisplay({
         <span
           key={idx}
           style={{
-            color: REPEAT_PAREN_COLOR,
+            color: readableColor(REPEAT_PAREN_COLOR),
             fontSize: `${1.125 * comboScale}rem`,
           }}
           className="font-medium tracking-tight"
@@ -118,7 +120,7 @@ export function ComboDisplay({
           {showParen && (
             <span
               style={{
-                color: REPEAT_PAREN_COLOR,
+                color: readableColor(REPEAT_PAREN_COLOR),
                 fontSize: `${1.125 * comboScale}rem`,
               }}
               className="font-medium tracking-tight"
@@ -128,7 +130,7 @@ export function ComboDisplay({
           )}
           <sup
             style={{
-              color: REPEAT_PAREN_COLOR,
+              color: readableColor(REPEAT_PAREN_COLOR),
               fontSize: `${0.75 * comboScale}rem`,
             }}
             className="font-medium ml-0.5"
@@ -160,7 +162,7 @@ export function ComboDisplay({
               : isDescriptiveBracket
                 ? 'font-medium tracking-tight whitespace-pre mr-1'
                 : 'font-medium tracking-tight whitespace-pre'
-        }${isStructuralParen ? ' opacity-60' : ''}`}
+        }`}
       >
         {token.rawValue}
       </span>
@@ -179,14 +181,15 @@ export function ComboDisplay({
       notationProfile === 'tekken' &&
       token.type === 'direction' &&
       token.value.toLowerCase() === 'n';
-    const color =
+    const color = readableColor(
       !isDescriptiveBracket &&
-      !isParenUnknown &&
-      !isStructuralParen &&
-      !isTekkenNeutral &&
-      groupColor
+        !isParenUnknown &&
+        !isStructuralParen &&
+        !isTekkenNeutral &&
+        groupColor
         ? groupColor
-        : getTokenColor(token, colors, game?.buttonColors);
+        : getTokenColor(token, colors, game?.buttonColors),
+    );
 
     if (token.type === 'repeat-start') {
       if (!repeatParenIndices.has(idx)) return null;
@@ -194,7 +197,7 @@ export function ComboDisplay({
         <span
           key={idx}
           style={{
-            color: REPEAT_PAREN_COLOR,
+            color: readableColor(REPEAT_PAREN_COLOR),
             fontSize: `${1.125 * comboScale}rem`,
           }}
           className="font-medium"
@@ -212,7 +215,7 @@ export function ComboDisplay({
           {showParen && (
             <span
               style={{
-                color: REPEAT_PAREN_COLOR,
+                color: readableColor(REPEAT_PAREN_COLOR),
                 fontSize: `${1.125 * comboScale}rem`,
               }}
               className="font-medium"
@@ -222,7 +225,7 @@ export function ComboDisplay({
           )}
           <sup
             style={{
-              color: REPEAT_PAREN_COLOR,
+              color: readableColor(REPEAT_PAREN_COLOR),
               fontSize: `${0.75 * comboScale}rem`,
             }}
             className="font-medium ml-0.5"
@@ -365,7 +368,7 @@ export function ComboDisplay({
                 <span
                   aria-hidden="true"
                   style={{ color, fontSize: `${1.1 * comboScale}rem` }}
-                  className="font-medium opacity-60"
+                  className="font-medium"
                 >
                   {delimitedButton.leadingDelimiter}
                 </span>
@@ -382,7 +385,7 @@ export function ComboDisplay({
                 <span
                   aria-hidden="true"
                   style={{ color, fontSize: `${1.1 * comboScale}rem` }}
-                  className="font-medium opacity-60"
+                  className="font-medium"
                 >
                   {delimitedButton.trailingDelimiter}
                 </span>
@@ -416,7 +419,7 @@ export function ComboDisplay({
                   ? 'Start required omitted input'
                   : 'End required omitted input'
               }
-              className="font-medium opacity-60"
+              className="font-medium"
               style={{ color, fontSize: `${1.1 * comboScale}rem` }}
             >
               {token.value}
@@ -426,7 +429,7 @@ export function ComboDisplay({
         return (
           <span
             key={idx}
-            className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : isDescriptiveBracketAnnotation(token) ? ' mr-1' : ''}${isStructuralParen ? ' opacity-60' : ''}`}
+            className={`font-medium tracking-tight${token.value.startsWith('(') ? ' mx-1' : isDescriptiveBracketAnnotation(token) ? ' mr-1' : ''}`}
             style={{ color, fontSize: `${1.25 * comboScale}rem` }}
           >
             {token.value}
@@ -447,7 +450,7 @@ export function ComboDisplay({
         return (
           <span
             key={idx}
-            className="font-bold opacity-50 mx-1"
+            className="font-bold mx-1"
             style={{ color, fontSize: `${1.5 * comboScale}rem` }}
           >
             {TEKKEN_EXPLICIT_MOVE_BOUNDARIES.has(token.value) ||
@@ -472,7 +475,7 @@ export function ComboDisplay({
   if (mode === 'colored-text') {
     return (
       <div
-        className={`flex flex-wrap items-center font-mono ${className}`}
+        className={`combo-display flex flex-wrap items-center font-mono ${className}`}
         style={{ fontSize: `${1.125 * comboScale}rem` }}
       >
         {indexedGroups.map((group, groupIdx) => {
@@ -490,7 +493,9 @@ export function ComboDisplay({
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+    <div
+      className={`combo-display flex flex-wrap items-center gap-2 ${className}`}
+    >
       {indexedGroups.map((group, groupIdx) => {
         const groupKey = `${groupIdx}-${group.tokens.map(({ token }) => token.value).join('')}`;
         return (

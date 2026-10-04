@@ -284,10 +284,7 @@
   text-align: center;
   font-size: 12px;
   line-height: 1.5;
-  color: #875a00;
-}
-.dark .settings-color-hint {
-  color: #fde047;
+  color: var(--warning);
 }
 .settings-done {
   grid-column: 3;
@@ -409,7 +406,7 @@
   background: transparent;
 }
 .guide-profile-tabs [data-state="active"] {
-  box-shadow: inset 0 -2px 0 var(--accent-color, #3b82f6);
+  box-shadow: inset 0 -2px 0 var(--accent-text);
 }
 .guide-workspace {
   display: grid;
@@ -425,7 +422,7 @@
   padding: 24px;
 }
 .guide-reference:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 .guide-live-preview {
@@ -545,7 +542,7 @@
   );
 }
 .guide-examples button:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
 }
 .guide-preview-output {
   min-height: 64px;
@@ -561,15 +558,12 @@
   border-bottom: 0;
 }
 .guide-live-preview {
-  --guide-input-color: #bdceef;
+  --guide-input-color: var(--muted-foreground);
 }
 .guide-preview-surface {
   padding: 12px;
   border-radius: var(--radius-md);
-  background: var(--muted);
-}
-:root:not(.dark) .guide-live-preview {
-  --guide-input-color: oklch(0.38 0.08 265);
+  background: var(--notation-surface);
 }
 :root:not(.dark) .guide-live-preview [data-motion-style="arrows"] {
   background: color-mix(in srgb, var(--muted) 30%, var(--card));
