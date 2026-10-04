@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { isImageDataUrl } from '@/lib/media/images';
+import {
+  ImageValidationError,
+  inspectImageDataUrl,
+  isImageDataUrl,
+  MAX_EMBEDDED_IMAGE_BYTES,
+} from '@/lib/media/images';
 import {
   characterSchema,
   comboSchema,
@@ -34,7 +39,8 @@ export const archiveImageSchema = z.object({
 const inlineImageSchema = z
   .string()
   .refine(
-    (value) => !/^data:/i.test(value) || isImageDataUrl(value),
+    (value) =>
+      !/^data:/i.test(value) || isImageDataUrl(value, MAX_EMBEDDED_IMAGE_BYTES),
     'Backup contains an unsupported or invalid image',
   )
   .optional();
@@ -63,13 +69,16 @@ export function separateImage<T extends Game | Character>(
       : 'portraitImage' in record
         ? record.portraitImage
         : undefined;
-  inlineImageSchema.parse(source);
-  if (!isImageDataUrl(source)) return { record, blob: undefined };
-  const comma = source.indexOf(',');
-  const mimeType = source.slice(5, source.indexOf(';'));
-  const bytes = Uint8Array.from(atob(source.slice(comma + 1)), (char) =>
-    char.charCodeAt(0),
-  );
+  if (typeof source !== 'string' || !/^data:/i.test(source))
+    return { record, blob: undefined };
+  const embedded = inspectImageDataUrl(source, MAX_EMBEDDED_IMAGE_BYTES);
+  if (!embedded)
+    throw new ImageValidationError(
+      `Cannot export the image for "${record.name}": it is unsupported, damaged, or too large to process safely. Replace it and try again.`,
+    );
+  // Older providers could label JPEG bytes as PNG. Keep the bytes and correct only the backup label.
+  const { mimeType, encoded } = embedded;
+  const bytes = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
   const image = archiveImageSchema.parse({ path, mimeType });
   const wire = {
     ...record,
@@ -81,11 +90,15 @@ export function separateImage<T extends Game | Character>(
 }
 
 export function imageDataUrl(bytes: Uint8Array, mimeType: string): string {
+  if (bytes.byteLength > MAX_EMBEDDED_IMAGE_BYTES)
+    throw new ImageValidationError(
+      'Backup image needs too much memory to process safely',
+    );
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 32768)
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
   const url = `data:${mimeType};base64,${btoa(binary)}`;
-  if (!isImageDataUrl(url))
+  if (!isImageDataUrl(url, MAX_EMBEDDED_IMAGE_BYTES))
     throw new Error('Backup contains an unsupported or invalid image');
   return url;
 }

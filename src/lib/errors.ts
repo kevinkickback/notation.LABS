@@ -1,7 +1,14 @@
+import { z } from 'zod';
+
 /**
  * Converts unknown thrown values into a user-safe error message.
  */
 export function toUserMessage(err: unknown): string {
+  if (err instanceof z.ZodError)
+    return (
+      err.issues[0]?.message ||
+      'Some data is invalid or unsupported. Check it and try again.'
+    );
   const known =
     err instanceof Error ||
     (typeof DOMException !== 'undefined' && err instanceof DOMException);

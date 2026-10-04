@@ -20,13 +20,14 @@ import {
   BACKUP_DIRECTORY_BYTES,
   BACKUP_MANIFEST_BYTES,
   BackupDirectoryBudget,
+  encodeBackupRecord,
 } from '@/lib/backup/capabilities';
 import { storageWarning } from '@/lib/backup/capacity';
 import { BACKUP_CHUNK_BYTES } from '@/lib/backup/exportContract';
 import { normalizeBackupImport } from '@/lib/backup/importPipeline';
 import { ndjsonWriter } from '@/lib/backup/recordStreams';
 import { parseComboRecords } from '@/lib/comboParsing';
-import { MAX_IMAGE_SIZE_BYTES } from '@/lib/media/images';
+import { MAX_EMBEDDED_IMAGE_BYTES } from '@/lib/media/images';
 import { normalizeGameNotationProfile } from '@/lib/notationProfiles';
 import { importDataSchema } from '@/lib/schemas';
 import {
@@ -406,16 +407,14 @@ async function stageZipBackup(
             const image = imageDataUrl(
               await boundedEntry(
                 requiredEntry(source.path),
-                MAX_IMAGE_SIZE_BYTES,
+                MAX_EMBEDDED_IMAGE_BYTES,
                 signal,
               ),
               source.mimeType,
             );
             if (row.kind === 'games') row.value.logoImage = image;
             else if (row.kind === 'characters') row.value.portraitImage = image;
-            row.bytes = new TextEncoder().encode(
-              JSON.stringify(row.value),
-            ).byteLength;
+            row.bytes = encodeBackupRecord(row.value).byteLength;
             await db.backupRecords.put(row);
           }
       }

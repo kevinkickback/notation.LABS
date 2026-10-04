@@ -92,6 +92,10 @@ not cancellable. Desktop saving uses the narrow preload bridge and an atomic tem
 Browser saving uses a native picker when available, otherwise a native streaming Blob download.
 See [backup formats and validation](backups.md) for compatibility, recovery, allocation budgets, and
 the separate packaged large-file validation procedure.
+Desktop image uploads and backup images share the existing record-allocation budget; the smaller
+2 MiB upload limit applies only to web uploads. ZIP export preserves valid legacy raster bytes and
+normalizes mislabeled raster types in the backup without changing source records. Validation errors
+cross the transfer boundary as readable messages rather than serialized schema issue arrays.
 
 Application initialization sets up preferences, then runs versioned notation maintenance. Preference
 reads and initialization do not rewrite combos. Maintenance commits derived combo tokens and the

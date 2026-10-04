@@ -1,7 +1,16 @@
 import { z } from 'zod';
+import { MAX_JSON_BACKUP_BYTES } from '@/lib/defaults';
 import { externalHttpUrlSchema } from '@/lib/schemas';
 
 export const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+// Stored images are base64 fields within the existing bounded record format.
+export const MAX_EMBEDDED_IMAGE_BYTES = Math.floor(
+  (MAX_JSON_BACKUP_BYTES * 3) / 4,
+);
+export const imageUploadByteBudget = () =>
+  typeof window !== 'undefined' && window.electronAPI
+    ? MAX_EMBEDDED_IMAGE_BYTES
+    : MAX_IMAGE_SIZE_BYTES;
 export class ImageValidationError extends Error {}
 const signatures = [
   ['image/jpeg', [0xff, 0xd8, 0xff]],
@@ -11,42 +20,62 @@ const signatures = [
   ['image/bmp', [0x42, 0x4d]],
 ] as const;
 
-function matchesImageType(type: string, bytes: Uint8Array): boolean {
-  const signature = signatures.find(([mime]) => mime === type)?.[1];
-  if (!signature?.every((byte, index) => bytes[index] === byte)) return false;
+function imageMimeType(bytes: Uint8Array) {
+  const type = signatures.find(([, signature]) =>
+    signature.every((byte, index) => bytes[index] === byte),
+  )?.[0];
   if (type === 'image/gif') {
-    return (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61;
+    if (!((bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61))
+      return undefined;
   }
   if (type === 'image/webp') {
-    return [0x57, 0x45, 0x42, 0x50].every(
-      (byte, index) => bytes[index + 8] === byte,
-    );
+    if (
+      ![0x57, 0x45, 0x42, 0x50].every(
+        (byte, index) => bytes[index + 8] === byte,
+      )
+    )
+      return undefined;
   }
-  return true;
+  return type;
 }
 
-export function isImageDataUrl(value: unknown): value is string {
+/** Inspect bounded raster data; callers decide whether a legacy MIME label can be corrected. */
+export function inspectImageDataUrl(
+  value: unknown,
+  maximumBytes = MAX_IMAGE_SIZE_BYTES,
+) {
   if (
     typeof value !== 'string' ||
-    value.length > Math.ceil(MAX_IMAGE_SIZE_BYTES / 3) * 4 + 32
+    value.length > Math.ceil(maximumBytes / 3) * 4 + 32
   )
-    return false;
+    return undefined;
   const match =
     /^data:(image\/(?:jpeg|png|gif|webp|bmp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(
       value,
     );
-  if (!match || match[2].length % 4 !== 0) return false;
+  if (!match || match[2].length % 4 !== 0) return undefined;
   const encoded = match[2];
   const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
-  if ((encoded.length / 4) * 3 - padding > MAX_IMAGE_SIZE_BYTES) return false;
+  if ((encoded.length / 4) * 3 - padding > maximumBytes) return undefined;
   try {
     const header = Uint8Array.from(atob(encoded.slice(0, 24)), (char) =>
       char.charCodeAt(0),
     );
-    return matchesImageType(match[1], header);
+    const mimeType = imageMimeType(header);
+    return mimeType
+      ? { mimeType, declaredMimeType: match[1], encoded }
+      : undefined;
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+export function isImageDataUrl(
+  value: unknown,
+  maximumBytes = MAX_IMAGE_SIZE_BYTES,
+): value is string {
+  const image = inspectImageDataUrl(value, maximumBytes);
+  return image !== undefined && image.mimeType === image.declaredMimeType;
 }
 
 export async function readImageFile(
@@ -54,11 +83,16 @@ export async function readImageFile(
   signal: AbortSignal,
 ): Promise<string> {
   signal.throwIfAborted();
-  if (file.size > MAX_IMAGE_SIZE_BYTES)
-    throw new ImageValidationError('Image must be under 2MB');
+  const budget = imageUploadByteBudget();
+  if (file.size > budget)
+    throw new ImageValidationError(
+      budget === MAX_IMAGE_SIZE_BYTES
+        ? 'Image must be under 2MB'
+        : 'This image needs too much memory to save safely. Choose a smaller file.',
+    );
   const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   signal.throwIfAborted();
-  if (!matchesImageType(file.type, header))
+  if (imageMimeType(header) !== file.type)
     throw new ImageValidationError('Unsupported or invalid image file');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -66,7 +100,7 @@ export async function readImageFile(
     const cleanup = () => signal.removeEventListener('abort', abort);
     reader.onload = () => {
       cleanup();
-      if (isImageDataUrl(reader.result)) resolve(reader.result);
+      if (isImageDataUrl(reader.result, budget)) resolve(reader.result);
       else
         reject(new ImageValidationError('Unsupported or invalid image file'));
     };
@@ -84,7 +118,9 @@ export async function readImageFile(
 }
 
 const imageResponseSchema = z.object({
-  dataUrl: z.string().refine(isImageDataUrl),
+  dataUrl: z
+    .string()
+    .refine((value) => isImageDataUrl(value, imageUploadByteBudget())),
 });
 
 export async function fetchImageAsBase64(

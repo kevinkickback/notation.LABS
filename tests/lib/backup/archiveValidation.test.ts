@@ -2,8 +2,10 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/lib/storage/database';
+import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { importZipBackup } from '@/lib/storage/zipImport';
-import { createBackupZip } from '../../helpers/zip';
+import { createBackupZip, forgeZipSize } from '../../helpers/zip';
+import { MAX_EMBEDDED_IMAGE_BYTES } from '@/lib/media/images';
 import { captureBackup } from '../../helpers/backup';
 
 const game = { id: 'g', name: 'Incoming', buttonLayout: ['A'], notationProfile: 'standard', createdAt: 1, updatedAt: 1 };
@@ -29,10 +31,8 @@ async function unchanged() {
   expect(await db.backupRecords.count()).toBe(0);
 }
 describe('version 4 validation and rollback', () => {
-  it.each(['games', 'characters'] as const)('validates inline image signatures and size in %s', async kind => {
-    const oversized = new Uint8Array(2 * 1024 * 1024 + 1).fill(42);
-    oversized.set([0xff, 0xd8, 0xff]);
-    const images = ['data:image/jpeg;base64,AQID', 'data:text/html;base64,AQID', `data:image/jpeg;base64,${Buffer.from(oversized).toString('base64')}`];
+  it.each(['games', 'characters'] as const)('validates inline image signatures and supported types in %s', async kind => {
+    const images = ['data:image/jpeg;base64,AQID', 'data:text/html;base64,AQID', 'data:image/png;base64,/9j/AA=='];
     for (const image of images) {
       const row = kind === 'games' ? { ...game, logoImage: image } : { ...character, portraitImage: image };
       await expect(importZipBackup(await archive({ [`${kind}.ndjson`]: line(row) }), false)).rejects.toThrow(/invalid image/);
@@ -50,8 +50,49 @@ describe('version 4 validation and rollback', () => {
 
   it('rejects invalid inline images during export too and cleans the snapshot', async () => {
     await db.games.update('g', { logoImage: 'data:image/jpeg;base64,AQID' });
-    await expect(captureBackup(true)).rejects.toThrow(/invalid image/);
+    await expect(captureBackup(true)).rejects.toThrow(/Cannot export the image for "Existing"/);
     await unchanged();
+  });
+
+  it('rejects an oversized image declaration before allocating its payload and cleans staging', async () => {
+    const path = 'images/g-0.bin';
+    const bytes = new Uint8Array(await (await archive({
+      'games.ndjson': line({ ...game, image: { path, mimeType: 'image/png' } }),
+      [path]: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    })).arrayBuffer());
+    forgeZipSize(bytes, path, MAX_EMBEDDED_IMAGE_BYTES + 1);
+    await expect(importZipBackup(new Blob([bytes]), true)).rejects.toThrow(/memory budget/);
+    await unchanged();
+  });
+
+  it('round-trips existing large images and corrects a legacy MIME label without changing source records', async () => {
+    const bytes = new Uint8Array(3 * 1024 * 1024 + 1).fill(42);
+    bytes.set([0xff, 0xd8, 0xff]);
+    const image = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+    const mislabeled = 'data:image/png;base64,/9j/AA==';
+    await db.games.update('g', { logoImage: image });
+    await db.characters.put({ ...character, portraitImage: mislabeled });
+    await indexedDbStorage.demoVideos.add({ id: 'local-video', data: new Uint8Array([1, 2, 3]).buffer, mimeType: 'video/mp4', fileName: 'demo.mp4' });
+    await db.combos.put({ ...combo, demoUrl: 'local:local-video' });
+    const backup = await captureBackup(true);
+    expect((await db.games.get('g'))?.logoImage).toBe(image);
+    expect((await db.characters.get('c'))?.portraitImage).toBe(mislabeled);
+    await Promise.all(db.tables.map(table => table.clear()));
+    await importZipBackup(backup, true);
+    expect((await db.games.get('g'))?.logoImage).toBe(image);
+    expect((await db.characters.get('c'))?.portraitImage).toBe('data:image/jpeg;base64,/9j/AA==');
+    expect((await db.combos.get('b'))?.demoUrl).toBe('local:local-video');
+    expect(await db.demoVideos.count()).toBe(1);
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
+  });
+
+  it('imports a large valid inline image within the shared record budget', async () => {
+    const bytes = new Uint8Array(3 * 1024 * 1024).fill(42);
+    bytes.set([0xff, 0xd8, 0xff]);
+    const image = `data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`;
+    await importZipBackup(await archive({ 'games.ndjson': line({ ...game, logoImage: image }) }), false);
+    expect((await db.games.get('g'))?.logoImage).toBe(image);
   });
 
   it.each([
