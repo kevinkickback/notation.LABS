@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -16,10 +15,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { SettingsPresentationProvider } from '@/context/SettingsPresentation';
 import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
-import { getAccentAppearance } from '@/lib/accentAppearance';
 import { initializeApplication } from '@/lib/application/initializeApplication';
-import { DEFAULT_SETTINGS, getFontFamilyCSS } from '@/lib/defaults';
+import { DEFAULT_SETTINGS } from '@/lib/defaults';
 import { reportError, toUserMessage } from '@/lib/errors';
 import { notify } from '@/lib/notifications';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
@@ -31,20 +30,11 @@ const INITIAL_SETTINGS: UserSettings = {
   autoUpdate: false,
 };
 
-const SettingsContext = createContext<UserSettings>(INITIAL_SETTINGS);
 const SettingsInitializationContext = createContext({
   initialized: true,
   isReparsing: false,
   error: null as string | null,
   retry: () => {},
-});
-const SettingsActionsContext = createContext({
-  setSettings: async (_updates: Partial<UserSettings>) => false,
-  setSetting: async <K extends keyof UserSettings>(
-    _key: K,
-    _value: UserSettings[K],
-  ) => false,
-  setNotesPanelOpen: async (_entityId: string, _isOpen: boolean) => {},
 });
 
 function ReparseProgressModal() {
@@ -221,53 +211,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [queueSettingsWrite],
   );
 
-  useLayoutEffect(() => {
-    const accent = getAccentAppearance(currentSettings.accentColor);
-    document.documentElement.style.setProperty(
-      '--app-font-family',
-      getFontFamilyCSS(currentSettings.fontFamily),
-    );
-    document.documentElement.style.setProperty(
-      '--accent-color',
-      accent.background,
-    );
-    document.documentElement.style.setProperty(
-      '--accent-foreground',
-      accent.foreground,
-    );
-    document.documentElement.classList.toggle(
-      'dark',
-      currentSettings.colorTheme === 'dark',
-    );
-  }, [
-    currentSettings.fontFamily,
-    currentSettings.accentColor,
-    currentSettings.colorTheme,
-  ]);
-
   return (
-    <SettingsActionsContext.Provider
-      value={{ setSetting, setSettings, setNotesPanelOpen }}
+    <SettingsPresentationProvider
+      settings={currentSettings}
+      actions={{ setSetting, setSettings, setNotesPanelOpen }}
     >
-      <SettingsContext.Provider value={currentSettings}>
-        <SettingsInitializationContext.Provider
-          value={{
-            initialized:
-              initialized && settings !== undefined && !settingsReadError,
-            isReparsing,
-            error: initializationError ?? settingsReadError,
-            retry: retryInitialization,
-          }}
-        >
-          {children}
-          {isReparsing && initialized && <ReparseProgressModal />}
-        </SettingsInitializationContext.Provider>
-      </SettingsContext.Provider>
-    </SettingsActionsContext.Provider>
+      <SettingsInitializationContext.Provider
+        value={{
+          initialized:
+            initialized && settings !== undefined && !settingsReadError,
+          isReparsing,
+          error: initializationError ?? settingsReadError,
+          retry: retryInitialization,
+        }}
+      >
+        {children}
+        {isReparsing && initialized && <ReparseProgressModal />}
+      </SettingsInitializationContext.Provider>
+    </SettingsPresentationProvider>
   );
 }
 
-export const useSettings = () => useContext(SettingsContext);
-export const useSettingsActions = () => useContext(SettingsActionsContext);
+export { useSettings, useSettingsActions } from './SettingsPresentation';
 export const useSettingsInitialization = () =>
   useContext(SettingsInitializationContext);

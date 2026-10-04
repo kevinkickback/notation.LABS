@@ -37,14 +37,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  SettingsProvider,
-  useSettings,
-  useSettingsActions,
-} from '@/context/SettingsContext';
+import { useSettings, useSettingsActions } from '@/context/SettingsContext';
 import { parseComboNotation } from '@/lib/parser';
 import { hasTag } from '@/lib/tags';
 import type { Combo, Game } from '@/lib/types';
+import { PreviewSettingsProvider } from './PreviewSettingsProvider';
 import '@/main.css';
 import './preview.css';
 
@@ -577,7 +574,7 @@ function SampleEditor({
 const root = document.getElementById('root');
 if (root)
   createRoot(root).render(
-    <SettingsProvider>
+    <PreviewSettingsProvider>
       <Preview />
-    </SettingsProvider>,
+    </PreviewSettingsProvider>,
   );

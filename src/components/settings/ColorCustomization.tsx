@@ -36,6 +36,7 @@ export function ColorCustomization({
   >({});
   const [tempButtonLayout, setTempButtonLayout] = useState<string[]>([]);
   const [newButtonName, setNewButtonName] = useState('');
+  const [separatorHex, setSeparatorHex] = useState<string>();
   const [hexEdits, setHexEdits] = useState<Record<string, string>>({});
 
   const refreshGames = useCallback(async () => {
@@ -111,6 +112,7 @@ export function ColorCustomization({
 
   const handleReset = async () => {
     setTempColors(DEFAULT_COLORS);
+    setSeparatorHex(undefined);
     if (!(await setSetting('notationColors', DEFAULT_COLORS))) return;
 
     if (selectedGameId && selectedGame) {
@@ -160,10 +162,7 @@ export function ColorCustomization({
                   value={tempColors.separator}
                   onChange={(e) => {
                     handleColorChange('separator', e.target.value);
-                    setHexEdits((prev) => ({
-                      ...prev,
-                      separator: e.target.value,
-                    }));
+                    setSeparatorHex(e.target.value);
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
@@ -174,13 +173,8 @@ export function ColorCustomization({
                   <input
                     type="text"
                     aria-label="Separator color hex"
-                    value={hexEdits.separator ?? currentHex}
-                    onChange={(e) =>
-                      setHexEdits((prev) => ({
-                        ...prev,
-                        separator: e.target.value,
-                      }))
-                    }
+                    value={separatorHex ?? currentHex}
+                    onChange={(e) => setSeparatorHex(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') e.currentTarget.blur();
                     }}
@@ -189,12 +183,9 @@ export function ColorCustomization({
                       if (!val.startsWith('#')) val = `#${val}`;
                       if (/^#[0-9a-fA-F]{6}$/.test(val)) {
                         handleColorChange('separator', val);
-                        setHexEdits((prev) => ({ ...prev, separator: val }));
+                        setSeparatorHex(val);
                       } else {
-                        setHexEdits((prev) => ({
-                          ...prev,
-                          separator: currentHex,
-                        }));
+                        setSeparatorHex(currentHex);
                       }
                     }}
                     className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
