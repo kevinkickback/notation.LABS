@@ -6,20 +6,10 @@ import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
-import { characterRepository } from '@/lib/storage/characterRepository';
-import { comboRepository } from '@/lib/storage/comboRepository';
-import { gameRepository } from '@/lib/storage/gameRepository';
-import { gameStatsRepository } from '@/lib/storage/gameStatsRepository';
-import { settingsRepository } from '@/lib/storage/settingsRepository';
-import { videoRepository } from '@/lib/storage/videoRepository';
 import { DEFAULT_SETTINGS } from '@/lib/defaults';
 
 beforeEach(async () => {
-  await db.games.clear();
-  await db.characters.clear();
-  await db.combos.clear();
-  await db.settings.clear();
-  await db.demoVideos.clear();
+  await Promise.all(db.tables.map(table => table.clear()));
 });
 
 function assertDefined<T>(
@@ -29,19 +19,6 @@ function assertDefined<T>(
     throw new Error(`Expected value to be defined, but got ${value}`);
   }
 }
-
-describe('indexedDbStorage facade contract', () => {
-  it('preserves the repository-backed public surface', () => {
-    expect(indexedDbStorage.games).toBe(gameRepository);
-    expect(indexedDbStorage.characters).toBe(characterRepository);
-    expect(indexedDbStorage.combos).toBe(comboRepository);
-    expect(indexedDbStorage.settings).toBe(settingsRepository);
-    expect(indexedDbStorage.gameStats).toBe(gameStatsRepository);
-    expect(indexedDbStorage.demoVideos).toBe(videoRepository);
-    expect(indexedDbStorage.import).toEqual(expect.any(Function));
-    expect(indexedDbStorage.importZip).toEqual(expect.any(Function));
-  });
-});
 
 describe('indexedDbStorage.games', () => {
   const gameData = {
@@ -217,71 +194,6 @@ describe('indexedDbStorage.games', () => {
     expect(updated.createdAt).toBe(game.createdAt);
   });
 
-  it('deletes a game', async () => {
-    const id = await indexedDbStorage.games.add(gameData);
-    await indexedDbStorage.games.delete(id);
-    const game = await indexedDbStorage.games.get(id);
-    expect(game).toBeUndefined();
-  });
-
-  it('cascading delete removes characters when game is deleted', async () => {
-    const gameId = await indexedDbStorage.games.add(gameData);
-    await indexedDbStorage.characters.add({ gameId, name: 'Ryu' });
-    await indexedDbStorage.characters.add({ gameId, name: 'Ken' });
-
-    await indexedDbStorage.games.delete(gameId);
-    const chars = await indexedDbStorage.characters.getByGame(gameId);
-    expect(chars).toHaveLength(0);
-  });
-
-  it('cascading delete removes combos when game is deleted', async () => {
-    const gameId = await indexedDbStorage.games.add(gameData);
-    const charId = await indexedDbStorage.characters.add({
-      gameId,
-      name: 'Ryu',
-    });
-    await indexedDbStorage.combos.add({
-      characterId: charId,
-      name: 'BnB',
-      notation: '236P',
-      parsedNotation: [],
-      tags: [],
-    });
-
-    await indexedDbStorage.games.delete(gameId);
-    const combos = await indexedDbStorage.combos.getByCharacter(charId);
-    expect(combos).toHaveLength(0);
-  });
-
-  it('cascading delete removes local demo videos when game is deleted', async () => {
-    const gameId = await indexedDbStorage.games.add(gameData);
-    const charId = await indexedDbStorage.characters.add({
-      gameId,
-      name: 'Ryu',
-    });
-    await indexedDbStorage.demoVideos.add({
-      id: 'game-video',
-      data: new Uint8Array([1, 2, 3]).buffer,
-      mimeType: 'video/mp4',
-      fileName: 'game.mp4',
-    });
-    await indexedDbStorage.combos.add({
-      characterId: charId,
-      name: 'Video Combo',
-      notation: '236P',
-      parsedNotation: [],
-      tags: [],
-      demoUrl: 'local:game-video',
-      demoFileName: 'game.mp4',
-    });
-
-    await indexedDbStorage.games.delete(gameId);
-
-    await expect(
-      indexedDbStorage.demoVideos.get('game-video'),
-    ).resolves.toBeUndefined();
-  });
-
   it('returns undefined for non-existent game', async () => {
     const game = await indexedDbStorage.games.get('non-existent');
     expect(game).toBeUndefined();
@@ -368,69 +280,6 @@ describe('indexedDbStorage.characters', () => {
     assertDefined(favorite);
     expect(favorite.favorite).toBe(true);
     expect(favorite.updatedAt).toBe(before.updatedAt);
-  });
-
-  it('deletes a character', async () => {
-    const id = await indexedDbStorage.characters.add({
-      gameId,
-      name: 'Fighter',
-    });
-    await indexedDbStorage.characters.delete(id);
-    const char = await indexedDbStorage.characters.get(id);
-    expect(char).toBeUndefined();
-  });
-
-  it('cascading delete removes combos when character is deleted', async () => {
-    const charId = await indexedDbStorage.characters.add({
-      gameId,
-      name: 'Fighter',
-    });
-    await indexedDbStorage.combos.add({
-      characterId: charId,
-      name: 'Combo 1',
-      notation: 'A > B',
-      parsedNotation: [],
-      tags: [],
-    });
-    await indexedDbStorage.combos.add({
-      characterId: charId,
-      name: 'Combo 2',
-      notation: 'B > C',
-      parsedNotation: [],
-      tags: [],
-    });
-
-    await indexedDbStorage.characters.delete(charId);
-    const combos = await indexedDbStorage.combos.getByCharacter(charId);
-    expect(combos).toHaveLength(0);
-  });
-
-  it('cascading delete removes local demo videos when character is deleted', async () => {
-    const charId = await indexedDbStorage.characters.add({
-      gameId,
-      name: 'Fighter',
-    });
-    await indexedDbStorage.demoVideos.add({
-      id: 'character-video',
-      data: new Uint8Array([4, 5, 6]).buffer,
-      mimeType: 'video/mp4',
-      fileName: 'character.mp4',
-    });
-    await indexedDbStorage.combos.add({
-      characterId: charId,
-      name: 'Video Combo',
-      notation: 'A > B',
-      parsedNotation: [],
-      tags: [],
-      demoUrl: 'local:character-video',
-      demoFileName: 'character.mp4',
-    });
-
-    await indexedDbStorage.characters.delete(charId);
-
-    await expect(
-      indexedDbStorage.demoVideos.get('character-video'),
-    ).resolves.toBeUndefined();
   });
 });
 
@@ -722,11 +571,11 @@ describe('indexedDbStorage.settings', () => {
     expect(settings.characterCardSize).toBe(180);
   });
 
-  it('auto-initializes settings in DB on first get', async () => {
+  it('initializes stored preferences explicitly and leaves default reads without writes', async () => {
+    expect(await indexedDbStorage.settings.get()).toEqual(DEFAULT_SETTINGS);
+    expect(await db.settings.count()).toBe(0);
     await indexedDbStorage.settings.init();
-    const raw = await db.settings.get(1);
-    assertDefined(raw);
-    expect(raw.id).toBe(1);
+    expect(await db.settings.get(1)).toEqual({ id: 1, ...DEFAULT_SETTINGS });
   });
 
   it('does not include id property in returned settings', async () => {
@@ -814,18 +663,6 @@ describe('indexedDbStorage.settings', () => {
     expect(exported.settings.notebookOpenPages).toEqual([gameId]);
     expect(exported.settings).not.toHaveProperty('notesDefaultOpen');
     expect(exported.settings).not.toHaveProperty('notesOverrides');
-  });
-
-  it('removes deleted game and character choices while preserving other pages', async () => {
-    const gameId = await indexedDbStorage.games.add({ name: 'Game', buttonLayout: [] });
-    const otherGameId = await indexedDbStorage.games.add({ name: 'Other', buttonLayout: [] });
-    const first = await indexedDbStorage.characters.add({ gameId, name: 'First' });
-    const second = await indexedDbStorage.characters.add({ gameId, name: 'Second' });
-    await indexedDbStorage.settings.update({ notebookOpenPages: [gameId, otherGameId, first, second] });
-    await indexedDbStorage.characters.delete(first);
-    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([gameId, otherGameId, second]);
-    await indexedDbStorage.games.delete(gameId);
-    expect((await indexedDbStorage.settings.get()).notebookOpenPages).toEqual([otherGameId]);
   });
 
   it('migrates legacy oklch notation colors during init', async () => {

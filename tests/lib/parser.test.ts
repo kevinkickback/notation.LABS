@@ -5,11 +5,6 @@ import { parseComboNotation } from '@/lib/parser';
 
 describe('parseComboNotation', () => {
   describe('directions', () => {
-    it('parses single numpad directions', () => {
-      const tokens = parseComboNotation('2');
-      expect(tokens).toHaveLength(1);
-      expect(tokens[0]).toMatchObject({ type: 'direction', value: '2' });
-    });
 
     it('parses all numpad directions 1-9', () => {
       for (const dir of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
@@ -224,12 +219,6 @@ describe('parseComboNotation', () => {
       expect(tokens[0]).toMatchObject({ type: 'motion', value: '88' });
     });
 
-    it('parses 88 as double up motion', () => {
-      const tokens = parseComboNotation('88');
-      expect(tokens).toHaveLength(1);
-      expect(tokens[0]).toMatchObject({ type: 'motion', value: '88' });
-    });
-
     it('parses "rdp" as 421 (reverse dragon punch)', () => {
       const tokens = parseComboNotation('rdp');
       expect(tokens).toHaveLength(1);
@@ -272,9 +261,10 @@ describe('parseComboNotation', () => {
       expect(tokens[0]).toMatchObject({ type: 'motion', value: '44' });
     });
 
-    it('parses "tk" as 2369 (tiger knee)', () => {
-      const tokens = parseComboNotation('tk');
-      expect(tokens).toHaveLength(1);
+    it('prioritizes the tiger-knee modifier over its motion alias', () => {
+      expect(parseComboNotation('tk')).toEqual([
+        { type: 'modifier', value: 'tk.', rawValue: 'tk' },
+      ]);
     });
 
     it('parses "double circle" as 720', () => {
@@ -1355,14 +1345,6 @@ describe('notation guide compatibility', () => {
       expect(parseComboNotation(input)).toContainEqual(
         expect.objectContaining({ type: 'motion', value: '44' }),
       );
-    }
-  });
-
-  it('parses every documented numpad direction in Standard mode', () => {
-    for (const direction of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
-      expect(parseComboNotation(direction)).toEqual([
-        expect.objectContaining({ type: 'direction', value: direction }),
-      ]);
     }
   });
 

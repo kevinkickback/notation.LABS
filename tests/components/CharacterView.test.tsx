@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CharacterView } from '@/components/character/CharacterView';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
+import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
 
 const { setSettingMock } = vi.hoisted(() => ({
@@ -105,6 +106,7 @@ const mockCharacters: Character[] = [
 describe('CharacterView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppStore.getState().setSelectedGame(mockGame.id);
     setSettingMock.mockResolvedValue(true);
   });
 
@@ -145,6 +147,8 @@ describe('CharacterView', () => {
       'char-1',
       false,
     );
+    expect(useAppStore.getState().selectedGameId).toBe(mockGame.id);
+    expect(useAppStore.getState().selectedCharacterId).toBeNull();
   });
 
   it('supports multi-select bulk delete for characters', async () => {

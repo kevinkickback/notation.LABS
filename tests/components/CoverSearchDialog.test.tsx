@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { CoverSearchDialog } from '@/components/game/CoverSearchDialog';
 
 const defaultProps = {
@@ -8,100 +8,55 @@ const defaultProps = {
   onCoverSelect: () => { },
 };
 
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
 describe('CoverSearchDialog', () => {
   beforeEach(() => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [],
-    });
+    }));
   });
 
-  it('renders and performs a search', async () => {
-    render(<CoverSearchDialog open={true} {...defaultProps} />);
-    expect(screen.getByPlaceholderText(/search for a game/i)).not.toBeNull();
-    fireEvent.change(screen.getByPlaceholderText(/search for a game/i), {
-      target: { value: 'Tekken' },
-    });
-    fireEvent.click(screen.getAllByRole('button')[0]);
-    await waitFor(() => {
-      expect(screen.getByText(/no covers found/i)).not.toBeNull();
-    });
-  });
-
-  it('uses cached results on reopen with the same query without re-fetching', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => [],
-    });
-    global.fetch = fetchMock;
-
-    const { rerender } = render(<CoverSearchDialog open={true} {...defaultProps} />);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    await act(async () => {
-      rerender(<CoverSearchDialog open={false} {...defaultProps} />);
-      rerender(<CoverSearchDialog open={true} {...defaultProps} />);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    });
+  it('reuses successful results after reopening and empty results on retry', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [{ id: 1, name: 'Street Fighter result', coverImageId: 'cover' }] })
+      .mockResolvedValueOnce({ ok: true, json: async () => [] });
+    vi.stubGlobal('fetch', fetchMock);
+    let view!: ReturnType<typeof render>;
+    await act(async () => { view = render(<CoverSearchDialog open {...defaultProps} />); });
+    expect(screen.getByRole('button', { name: 'Select cover for Street Fighter result' })).not.toBeNull();
+    const search = screen.getByRole('button', { name: 'Search covers' });
+    fireEvent.click(search);
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Game search query' }), { target: { value: 'Tekken' } });
+    fireEvent.click(search);
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(screen.getByText('No covers found')).not.toBeNull();
+    expect(fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body).query)).toEqual(['Street Fighter', 'Tekken']);
+    fireEvent.click(search);
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    view.rerender(<CoverSearchDialog open={false} {...defaultProps} />);
+    await act(async () => { view.rerender(<CoverSearchDialog open {...defaultProps} />); });
+    expect(screen.getByRole('button', { name: 'Select cover for Street Fighter result' })).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows available covers while a coverless result stays disabled without a download spinner', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [
       { id: 1, name: 'Street Fighter III', coverImageId: 'co7t3g', firstReleaseDate: null },
       { id: 2, name: 'Coverless game', coverImageId: null },
-    ] });
+    ] }));
     render(<CoverSearchDialog open {...defaultProps} />);
     const unavailable = await screen.findByRole('button', { name: 'Select cover for Coverless game' });
     expect(unavailable.hasAttribute('disabled')).toBe(true);
     expect(unavailable.querySelector('.animate-spin')).toBeNull();
     expect(screen.getByRole('button', { name: 'Select cover for Street Fighter III' }).hasAttribute('disabled')).toBe(false);
-  });
-
-  it('does not re-fetch when the search button is clicked with an unchanged query', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => [],
-    });
-    global.fetch = fetchMock;
-
-    render(<CoverSearchDialog open={true} {...defaultProps} />);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getAllByRole('button')[0]);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('fetches a new query then serves the first query from cache on reopen', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => [],
-    });
-    global.fetch = fetchMock;
-
-    const { rerender } = render(<CoverSearchDialog open={true} {...defaultProps} />);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    // Search a different term via the internal input
-    fireEvent.change(screen.getByPlaceholderText(/search for a game/i), {
-      target: { value: 'Tekken' },
-    });
-    fireEvent.click(screen.getAllByRole('button')[0]);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    // Close and reopen with the original query — should hit cache
-    await act(async () => {
-      rerender(<CoverSearchDialog open={false} {...defaultProps} />);
-      rerender(<CoverSearchDialog open={true} {...defaultProps} />);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('does not let an older response overwrite newer cover results', async () => {
@@ -115,7 +70,7 @@ describe('CoverSearchDialog', () => {
       .mockImplementationOnce(
         () => new Promise<Response>((resolve) => (resolveSecond = resolve)),
       );
-    global.fetch = fetchMock;
+    vi.stubGlobal('fetch', fetchMock);
     render(<CoverSearchDialog open={true} {...defaultProps} />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
