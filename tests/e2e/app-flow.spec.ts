@@ -202,6 +202,12 @@ test.describe('Core E2E Flows', () => {
         await expect(page.getByRole('img', { name: label }).first()).toBeVisible();
       }
 
+      // Icons render optimistically; reload only after the preference is saved.
+      await expect.poll(() => page.evaluate(async () => {
+        const path = '/src/lib/storage/indexedDbStorage.ts';
+        const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+        return (await indexedDbStorage.settings.get()).displayMode;
+      })).toBe('visual-icons');
       await page.reload();
       await page.locator('h3', { hasText: profileCase.game }).first().click();
       await page.locator('h3', { hasText: 'E2E Fighter' }).first().click();
