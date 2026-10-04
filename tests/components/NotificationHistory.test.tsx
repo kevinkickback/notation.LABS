@@ -77,8 +77,10 @@ describe('notification panel', () => {
     render(<NotificationHistory />);
     await user.click(screen.getByRole('button', { name: 'Notifications' }));
     expect(await screen.findByText('Could not load notification history.')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    screen.getByRole('button', { name: 'Try again' }).focus();
+    await user.keyboard('{Enter}');
     expect(await screen.findByText('No notifications yet.')).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close notifications' }));
   });
 
   it('keeps failed management and clipboard feedback out of history', async () => {

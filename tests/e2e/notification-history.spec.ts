@@ -69,6 +69,29 @@ test('keeps keyboard focus in the panel after removing the final entry and clear
   await expect(history.getByRole('button', { name: 'Close notifications' })).toBeFocused();
 });
 
+test('preserves keyboard focus when retrying a failed history read', async ({ page }) => {
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  const history = page.getByRole('dialog', { name: 'Notifications', exact: true });
+  await expect(history.getByText('No notifications yet.')).toBeVisible();
+  await page.evaluate(async () => {
+    const repositoryPath = '/src/lib/storage/notificationRepository.ts';
+    const { notificationRepository } = await import(/* @vite-ignore */ repositoryPath) as typeof import('../../src/lib/storage/notificationRepository');
+    const original = notificationRepository.list;
+    notificationRepository.list = async () => {
+      notificationRepository.list = original;
+      throw new Error('Temporary read failure');
+    };
+    const commandPath = '/src/lib/application/notificationCommands.ts';
+    const { recordNotification } = await import(/* @vite-ignore */ commandPath) as typeof import('../../src/lib/application/notificationCommands');
+    await recordNotification({ id: 'recovery', type: 'success', message: 'Recovered history' });
+  });
+  await expect(history.getByText('Could not load notification history.')).toBeVisible();
+  await history.getByRole('button', { name: 'Try again' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(history.getByText('Recovered history')).toBeVisible();
+  await expect(history.getByRole('button', { name: 'Close notifications' })).toBeFocused();
+});
+
 test('does not duplicate a retained update error or restore it after clearing and reloading', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'electronAPI', { value: {

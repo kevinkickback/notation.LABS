@@ -174,7 +174,10 @@ export function NotificationHistory() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setAttempt((value) => value + 1)}
+                  onClick={() => {
+                    closeRef.current?.focus();
+                    setAttempt((value) => value + 1);
+                  }}
                 >
                   Try again
                 </Button>
