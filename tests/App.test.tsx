@@ -90,7 +90,6 @@ vi.mock('@/components/header/Header', () => ({ Header: () => <header>Header</hea
 vi.mock('@/components/header/BreadcrumbBar', () => ({
   BreadcrumbBar: () => <nav>Breadcrumbs</nav>,
 }));
-vi.mock('@/components/ui/sonner', () => ({ Toaster: () => null }));
 
 vi.mock('@/components/updates/ChangelogModal', () => ({
   ChangelogModal: ({

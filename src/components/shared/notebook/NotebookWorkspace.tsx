@@ -26,7 +26,7 @@ const NotebookWorkspaceContext = createContext<{
 
 export function NotebookWorkspace({ children }: { children: ReactNode }) {
   const { notebookDockWidth = DEFAULT_DOCK_WIDTH } = useSettings();
-  const { main, footer } = useWorkspaceLayout();
+  const { main, footer, scroll } = useWorkspaceLayout();
   const { setSetting } = useSettingsActions();
   const [triggerTarget, setTriggerTarget] = useState<HTMLDivElement | null>(
     null,
@@ -60,7 +60,9 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
             (Number.parseFloat(style.paddingLeft) || 0) -
             (Number.parseFloat(style.paddingRight) || 0),
         );
-        const top = workspace.getBoundingClientRect().top + window.scrollY;
+        const top =
+          workspace.getBoundingClientRect().top +
+          (scroll?.scrollTop ?? window.scrollY);
         setDockTop(top);
         const footerHeight = footer?.getBoundingClientRect().height ?? 0;
         setDockBottom(
@@ -78,7 +80,7 @@ export function NotebookWorkspace({ children }: { children: ReactNode }) {
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [workspace, main, footer]);
+  }, [workspace, main, footer, scroll]);
   return (
     <NotebookWorkspaceContext.Provider
       value={{

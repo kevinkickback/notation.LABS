@@ -5,7 +5,6 @@ import { GameLibrary } from '@/components/game/GameLibrary';
 import { BreadcrumbBar } from '@/components/header/BreadcrumbBar';
 import { Header } from '@/components/header/Header';
 import { WorkspaceStatus } from '@/components/shared/WorkspaceStatus';
-import { Toaster } from '@/components/ui/sonner';
 import { AppLoadingOverlay } from '@/components/workbench/AppLoadingOverlay';
 import { WorkspaceFrame } from '@/components/workbench/WorkspaceFrame';
 import {
@@ -111,44 +110,41 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-dvh bg-background text-foreground">
       <div
-        className="app-workspace min-h-screen flex flex-col"
+        className="app-workspace h-full flex flex-col overflow-hidden"
         inert={workspaceBlocked}
         aria-hidden={workspaceBlocked || undefined}
       >
         {!workspaceBlocked && (
-          <>
-            <Header activeGame={selectedGame} />
-            <BreadcrumbBar
-              selectedGame={selectedGame}
-              selectedCharacter={selectedCharacter}
-            />
-
-            <WorkspaceFrame
-              footer={<WorkspaceStatus />}
-              aria-busy={!pageIsCurrent}
-              inert={!pageIsCurrent}
-            >
-              {page && !page.gameId && <GameLibrary games={page.games} />}
-
-              {page?.gameId && !page.characterId && selectedGame && (
-                <CharacterView
-                  game={selectedGame}
-                  characters={page.characters}
+          <WorkspaceFrame
+            header={
+              <>
+                <Header activeGame={selectedGame} />
+                <BreadcrumbBar
+                  selectedGame={selectedGame}
+                  selectedCharacter={selectedCharacter}
                 />
-              )}
+              </>
+            }
+            footer={<WorkspaceStatus />}
+            aria-busy={!pageIsCurrent}
+            inert={!pageIsCurrent}
+          >
+            {page && !page.gameId && <GameLibrary games={page.games} />}
 
-              {page?.characterId && selectedGame && selectedCharacter && (
-                <ComboView
-                  game={selectedGame}
-                  character={selectedCharacter}
-                  combos={page.combos}
-                />
-              )}
-            </WorkspaceFrame>
-            <Toaster />
-          </>
+            {page?.gameId && !page.characterId && selectedGame && (
+              <CharacterView game={selectedGame} characters={page.characters} />
+            )}
+
+            {page?.characterId && selectedGame && selectedCharacter && (
+              <ComboView
+                game={selectedGame}
+                character={selectedCharacter}
+                combos={page.combos}
+              />
+            )}
+          </WorkspaceFrame>
         )}
       </div>
       {workspaceBlocked && (

@@ -1,14 +1,60 @@
-import type { CSSProperties } from 'react';
+import { type CSSProperties, useLayoutEffect, useState } from 'react';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
+import { useWorkspaceLayout } from '@/components/workbench/WorkspaceFrame';
 import { useSettings } from '@/context/SettingsContext';
 
-const Toaster = ({ ...props }: ToasterProps) => {
+export const HISTORY_TOAST_HEIGHT = 120;
+
+const Toaster = ({
+  anchor,
+  ...props
+}: ToasterProps & { anchor?: HTMLElement | null }) => {
   const { colorTheme } = useSettings();
+  const { footer } = useWorkspaceLayout();
+  const [bottom, setBottom] = useState(48);
+  useLayoutEffect(() => {
+    let frame = 0;
+    const measure = () => {
+      const top =
+        (anchor ?? footer)?.getBoundingClientRect().top ??
+        window.innerHeight - 40;
+      setBottom(Math.max(8, window.innerHeight - top + 8));
+    };
+    // Read after Radix has repositioned the panel, including a move without a size change.
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    const observer = new ResizeObserver(schedule);
+    if (footer) observer.observe(footer);
+    if (anchor) observer.observe(anchor);
+    measure();
+    window.addEventListener('resize', schedule);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [anchor, footer]);
+  const offset = { bottom, right: 16, left: 16, top: 16 };
 
   return (
     <Sonner
       theme={colorTheme}
-      position="top-center"
+      position="bottom-right"
+      offset={offset}
+      mobileOffset={offset}
+      visibleToasts={anchor ? 1 : 3}
+      richColors
+      toastOptions={{
+        style: {
+          maxHeight: anchor
+            ? `${HISTORY_TOAST_HEIGHT}px`
+            : `max(48px, calc(100dvh - ${bottom + 16}px))`,
+          overflowY: 'auto',
+          touchAction: 'pan-y',
+        },
+      }}
       className="toaster group"
       style={
         {
