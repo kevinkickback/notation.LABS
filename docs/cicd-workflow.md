@@ -139,6 +139,9 @@ recreate dismissed notices. New checks receive new identities, including across 
 Electron permits sanitized clipboard writes only from the live app's main frame at its configured
 renderer URL. Clipboard reads, embedded pages, and unrelated permissions remain denied.
 
+The renderer entry imports `src/main.css` once; HTML must not also load it as a stylesheet.
+Tailwind source discovery is limited to `src/`, with the HTML entry included by the existing config,
+so dependency watches do not walk the entire workspace during cold development startup.
 Styling imports Tailwind once through `src/main.css`. `src/styles/theme.css` owns the app's light and
 dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings provider
 applies the `.dark` class, font, and custom accent, and notifications read the same theme preference.
