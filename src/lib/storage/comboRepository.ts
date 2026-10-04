@@ -6,6 +6,7 @@ import {
   collectLocalVideoIds,
   deleteUnreferencedLocalVideos,
   getLocalVideoId,
+  saveVideo,
   validatePendingVideoReference,
 } from './videoRepository';
 
@@ -19,24 +20,28 @@ async function insertCombo(
   validatePendingVideoReference(sanitizedCombo.demoUrl, video);
   const id = generateId();
   const now = Date.now();
-  await db.transaction('rw', [db.combos, db.demoVideos], async () => {
-    const existing = await db.combos
-      .where('characterId')
-      .equals(combo.characterId)
-      .toArray();
-    const maxOrder = existing.reduce(
-      (max, current) => Math.max(max, current.sortOrder ?? 0),
-      -1,
-    );
-    if (video) await db.demoVideos.add(video);
-    await db.combos.add({
-      ...sanitizedCombo,
-      id,
-      sortOrder: maxOrder + 1,
-      createdAt: now,
-      updatedAt: now,
-    });
-  });
+  await db.transaction(
+    'rw',
+    [db.combos, db.demoVideos, db.mediaPayloads, db.backupRecords],
+    async () => {
+      const existing = await db.combos
+        .where('characterId')
+        .equals(combo.characterId)
+        .toArray();
+      const maxOrder = existing.reduce(
+        (max, current) => Math.max(max, current.sortOrder ?? 0),
+        -1,
+      );
+      if (video) await saveVideo(video);
+      await db.combos.add({
+        ...sanitizedCombo,
+        id,
+        sortOrder: maxOrder + 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    },
+  );
   return id;
 }
 
@@ -65,52 +70,64 @@ export const comboRepository = {
     video?: DemoVideo,
   ) => {
     const sanitizedUpdates = sanitizeRuntimeVideoReference(updates);
-    await db.transaction('rw', [db.combos, db.demoVideos], async () => {
-      const current = await db.combos.get(id);
-      if (!current) throw new Error(`Combo "${id}" was not found`);
+    await db.transaction(
+      'rw',
+      [db.combos, db.demoVideos, db.mediaPayloads, db.backupRecords],
+      async () => {
+        const current = await db.combos.get(id);
+        if (!current) throw new Error(`Combo "${id}" was not found`);
 
-      const nextDemoUrl =
-        'demoUrl' in sanitizedUpdates
-          ? sanitizedUpdates.demoUrl
-          : current.demoUrl;
-      validatePendingVideoReference(nextDemoUrl, video);
+        const nextDemoUrl =
+          'demoUrl' in sanitizedUpdates
+            ? sanitizedUpdates.demoUrl
+            : current.demoUrl;
+        validatePendingVideoReference(nextDemoUrl, video);
 
-      if (video) await db.demoVideos.add(video);
-      const updated = await db.combos.update(id, {
-        ...sanitizedUpdates,
-        updatedAt: Date.now(),
-      });
-      if (updated !== 1) {
-        throw new Error(`Combo "${id}" could not be updated`);
-      }
+        if (video) await saveVideo(video);
+        const updated = await db.combos.update(id, {
+          ...sanitizedUpdates,
+          updatedAt: Date.now(),
+        });
+        if (updated !== 1) {
+          throw new Error(`Combo "${id}" could not be updated`);
+        }
 
-      const previousVideoId = getLocalVideoId(current.demoUrl);
-      const nextVideoId = getLocalVideoId(nextDemoUrl);
-      if (previousVideoId && previousVideoId !== nextVideoId) {
-        await deleteUnreferencedLocalVideos([previousVideoId]);
-      }
-    });
+        const previousVideoId = getLocalVideoId(current.demoUrl);
+        const nextVideoId = getLocalVideoId(nextDemoUrl);
+        if (previousVideoId && previousVideoId !== nextVideoId) {
+          await deleteUnreferencedLocalVideos([previousVideoId]);
+        }
+      },
+    );
   },
   delete: async (id: string) => {
-    await db.transaction('rw', [db.combos, db.demoVideos], async () => {
-      const combo = await db.combos.get(id);
-      const videoId = getLocalVideoId(combo?.demoUrl);
-      await db.combos.delete(id);
-      if (videoId) await deleteUnreferencedLocalVideos([videoId]);
-    });
+    await db.transaction(
+      'rw',
+      [db.combos, db.demoVideos, db.mediaPayloads, db.backupRecords],
+      async () => {
+        const combo = await db.combos.get(id);
+        const videoId = getLocalVideoId(combo?.demoUrl);
+        await db.combos.delete(id);
+        if (videoId) await deleteUnreferencedLocalVideos([videoId]);
+      },
+    );
   },
   bulkDelete: async (ids: string[]) => {
     const uniqueIds = toUniqueIds(ids);
     if (uniqueIds.length === 0) return;
 
-    await db.transaction('rw', [db.combos, db.demoVideos], async () => {
-      const combos = (await db.combos.bulkGet(uniqueIds)).filter(
-        (combo): combo is Combo => combo !== undefined,
-      );
-      const videoIds = collectLocalVideoIds(combos);
-      await db.combos.bulkDelete(uniqueIds);
-      await deleteUnreferencedLocalVideos(videoIds);
-    });
+    await db.transaction(
+      'rw',
+      [db.combos, db.demoVideos, db.mediaPayloads, db.backupRecords],
+      async () => {
+        const combos = (await db.combos.bulkGet(uniqueIds)).filter(
+          (combo): combo is Combo => combo !== undefined,
+        );
+        const videoIds = collectLocalVideoIds(combos);
+        await db.combos.bulkDelete(uniqueIds);
+        await deleteUnreferencedLocalVideos(videoIds);
+      },
+    );
   },
   markOutdated: async (ids: string[], outdated: boolean) => {
     const uniqueIds = toUniqueIds(ids);

@@ -72,6 +72,65 @@ test('exports JSON through the browser download fallback and restores the librar
   await expect(page.getByRole('heading', { name: 'JSON combo', exact: true })).toBeVisible();
 });
 
+test('restores a playable local video through the current ZIP format', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }));
+  await page.goto('/');
+  const original = await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+    const stream = canvas.captureStream(10);
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    const pieces: Blob[] = [];
+    recorder.ondataavailable = event => pieces.push(event.data);
+    const stopped = new Promise<void>(resolve => { recorder.onstop = () => resolve(); });
+    recorder.start();
+    for (const color of ['red', 'green', 'blue']) {
+      const drawing = canvas.getContext('2d')!; drawing.fillStyle = color; drawing.fillRect(0, 0, 32, 32);
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    recorder.stop(); await stopped; stream.getTracks().forEach(track => track.stop());
+    const data = new Blob(pieces, { type: 'video/webm' });
+    const gameId = await indexedDbStorage.games.add({ name: 'Playback backup', buttonLayout: ['A'] });
+    const characterId = await indexedDbStorage.characters.add({ gameId, name: 'Fighter' });
+    await indexedDbStorage.demoVideos.add({ id: 'playable', data, mimeType: data.type, fileName: 'demo.webm' });
+    await indexedDbStorage.combos.add({ characterId, name: 'Playable combo', notation: 'A', parsedNotation: [], tags: [], demoUrl: 'local:playable' });
+    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await data.arrayBuffer())));
+  });
+  await page.getByRole('button', { name: 'Export data', exact: true }).click();
+  await page.getByRole('switch', { name: 'Include demo videos', exact: true }).check();
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const bytes = await readFile((await (await downloading).path())!);
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/database.ts';
+    const { db } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/database');
+    await db.transaction('rw', db.tables, () => Promise.all(db.tables.map(table => table.clear())));
+  });
+  await page.getByRole('button', { name: 'Import data', exact: true }).click();
+  await page.getByRole('switch', { name: /include.*video/i }).check();
+  const choosing = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose backup file', exact: true }).click();
+  await (await choosing).setFiles({ name: 'playable.zip', mimeType: 'application/zip', buffer: bytes });
+  await expect(page.getByText('Data imported. Current settings were preserved.', { exact: true })).toBeVisible();
+  const restored = await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const data = (await indexedDbStorage.demoVideos.get('playable'))!.data as Blob;
+    const video = document.createElement('video'); video.muted = true;
+    const url = await indexedDbStorage.demoVideos.getBlobUrl('playable'); video.src = url!; document.body.append(video);
+    try {
+      const decoded = new Promise<void>((resolve, reject) => {
+        video.requestVideoFrameCallback(() => resolve()); video.onerror = () => reject(new Error('Restored video did not decode'));
+      });
+      await video.play(); await decoded;
+      return { width: video.videoWidth, hash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await data.arrayBuffer()))) };
+    } finally { video.pause(); video.remove(); URL.revokeObjectURL(url!); }
+  });
+  expect(restored.width).toBe(32);
+  expect(restored.hash).toEqual(original);
+});
+
 test('shows a JSON save failure, aborts the destination, and allows retry', async ({ page }) => {
   await page.addInitScript(() => {
     let aborted = false;

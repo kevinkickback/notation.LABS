@@ -5,6 +5,14 @@ import { Dexie } from 'dexie';
 import { ExportDialog, ExportProgressModal } from '@/components/header/ExportDialog';
 import type { Game, Character, Combo } from '@/lib/types';
 
+vi.mock('@/lib/storage/backupSnapshot', async () => {
+  const { indexedDbStorage } = await import('@/lib/storage/indexedDbStorage');
+  return { readBackupSelection: () => Promise.all([
+    indexedDbStorage.games.getAll(), indexedDbStorage.characters.getAll(), indexedDbStorage.combos.getAll(),
+    indexedDbStorage.demoVideos.getIds().then(ids => ids.length),
+  ]) };
+});
+
 const mockGames: Game[] = [
   {
     id: 'game-1',

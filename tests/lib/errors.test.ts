@@ -10,6 +10,9 @@ describe('errors util', () => {
     expect(toUserMessage('oops')).toBe('An unexpected error occurred');
     expect(toUserMessage(null)).toBe('An unexpected error occurred');
   });
+  it('explains storage quota failures without exposing browser exception text', () => {
+    expect(toUserMessage(new DOMException('quota exceeded', 'QuotaExceededError'))).toMatch(/Local storage is full/);
+  });
 
   it('logs contextual error details', () => {
     const consoleErrorSpy = vi

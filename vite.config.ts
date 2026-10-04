@@ -44,6 +44,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      // Packaged validation profiles contain locked databases and generated files.
+      watch: {
+        ignored: ['**/.tmp/**', '**/release/**', '**/dist-electron/**'],
+      },
       proxy: {
         '/api/igdb': {
           target:

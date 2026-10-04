@@ -1,249 +1,521 @@
 import {
   BlobReader,
+  BlobWriter,
+  configure,
   type FileEntry,
   ZipReader,
 } from '@zip.js/zip.js/lib/zip-core-native.js';
-import { normalizeBackupImport } from '@/lib/backup/importPipeline';
+import type { VideoReference } from '@/lib/backup/archiveContract';
+import { BACKUP_RECORD_FILES } from '@/lib/backup/archiveContract';
 import {
-  MAX_BACKUP_ENTRY_COUNT,
-  MAX_BACKUP_METADATA_BYTES,
-  MAX_BACKUP_UNCOMPRESSED_BYTES,
-  MAX_BACKUP_VIDEO_BYTES,
-  MAX_BACKUP_VIDEO_COUNT,
-  MAX_VIDEO_SIZE_BYTES,
-  MAX_ZIP_BACKUP_BYTES,
-} from '@/lib/defaults';
+  archiveCharacterSchema,
+  archiveComboSchema,
+  archiveGameSchema,
+  archiveManifestSchema,
+  archiveVideoSchema,
+  imageDataUrl,
+} from '@/lib/backup/archiveFormat';
+import {
+  assertSafeSize,
+  BACKUP_DIRECTORY_BYTES,
+  BACKUP_MANIFEST_BYTES,
+  BackupDirectoryBudget,
+} from '@/lib/backup/capabilities';
+import { storageWarning } from '@/lib/backup/capacity';
+import { BACKUP_CHUNK_BYTES } from '@/lib/backup/exportContract';
+import { normalizeBackupImport } from '@/lib/backup/importPipeline';
+import { ndjsonWriter } from '@/lib/backup/recordStreams';
+import { parseComboRecords } from '@/lib/comboParsing';
+import { MAX_IMAGE_SIZE_BYTES } from '@/lib/media/images';
+import { normalizeGameNotationProfile } from '@/lib/notationProfiles';
 import { importDataSchema } from '@/lib/schemas';
 import {
   applyBackupImportPlan,
   base64ToArrayBuffer,
+  publishBackupSession,
 } from './backupImportShared';
-import type { DemoVideo } from './database';
-import { importJsonBackup } from './jsonImport';
-
-const ZIP_BACKUP_METADATA_FILE = 'backup.json';
+import {
+  createBackupRecordStager,
+  createBackupSession,
+  finishBackupSession,
+  readStagedRecord,
+  stagedRowsBatches,
+  withBackupSessionLock,
+} from './backupSessionRepository';
+import { db } from './database';
+import { importJsonBackupUnlocked } from './jsonImport';
+import {
+  getImportedLocalVideoId,
+  sanitizeImportedVideoReference,
+} from './videoReferences';
+import { createVideoStager, stageVideoPayload } from './videoRepository';
 
 export interface ZipImportProgress {
-  phase: 'loading' | 'videos' | 'finalizing';
+  phase: 'loading' | 'videos' | 'finalizing' | 'committing';
   current: number;
   total: number | null;
+  bytesProcessed?: number;
+  warning?: string;
 }
 
 class BoundedBlobReader extends BlobReader {
   override readUint8Array(offset: number, length: number) {
-    // The library reads the directory in one allocation, before yielding entries.
-    if (length > MAX_BACKUP_METADATA_BYTES) {
-      throw new Error('Backup zip directory exceeds the size limit');
-    }
+    assertSafeSize(offset);
+    assertSafeSize(length);
+    // zip.js reads its central directory before yielding entries.
+    if (length > BACKUP_DIRECTORY_BYTES)
+      throw new Error('Backup zip directory exceeds its memory budget');
     return super.readUint8Array(offset, length);
   }
 }
 
-async function readZipEntry(
+async function extractEntry(
   entry: FileEntry,
-  limit: number,
-  limitMessage: string,
-): Promise<ArrayBuffer> {
-  if (entry.uncompressedSize > limit) throw new Error(limitMessage);
-  const chunks: Uint8Array[] = [];
+  target: WritableStream<Uint8Array>,
+  signal?: AbortSignal,
+  onBytes?: (bytes: number) => void,
+): Promise<void> {
   let size = 0;
-  await entry.getData(
-    new WritableStream<Uint8Array>({
-      write(chunk) {
-        size += chunk.byteLength;
-        if (size > limit) throw new Error(limitMessage);
-        if (size > entry.uncompressedSize) {
-          throw new Error(
-            'Invalid backup zip: file size does not match its contents',
-          );
-        }
-        chunks.push(new Uint8Array(chunk));
-      },
-    }),
-    { checkCrc32: true },
-  );
-  const result = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.byteLength;
+  const writer = target.getWriter();
+  try {
+    await entry.getData(
+      new WritableStream<Uint8Array>({
+        async write(chunk) {
+          signal?.throwIfAborted();
+          size += chunk.byteLength;
+          if (size > entry.uncompressedSize)
+            throw new Error(
+              'Invalid backup zip: file size does not match its contents',
+            );
+          await writer.write(chunk);
+          onBytes?.(chunk.byteLength);
+        },
+        async close() {
+          if (size !== entry.uncompressedSize)
+            throw new Error(
+              'Invalid backup zip: file size does not match its contents',
+            );
+          await writer.close();
+        },
+        abort(reason) {
+          return writer.abort(reason);
+        },
+      }),
+      { checkCrc32: true, signal },
+    );
+  } catch (error) {
+    await writer.abort(error).catch(() => {});
+    throw error;
+  } finally {
+    writer.releaseLock();
   }
-  return result.buffer;
 }
 
-export async function importZipBackup(
+async function entryBlob(
+  entry: FileEntry,
+  mimeType: string,
+  signal?: AbortSignal,
+  onBytes?: (bytes: number) => void,
+  source?: Blob,
+): Promise<Blob> {
+  if (source && entry.compressionMethod === 0 && !entry.encrypted) {
+    // zip.js still validates headers, overlap, lengths, and CRC. Its public validated
+    // offset then lets a STORE payload share the disk-backed archive instead of
+    // creating a temporary Response/Blob for every small attachment.
+    await extractEntry(
+      entry,
+      new WritableStream<Uint8Array>(),
+      signal,
+      onBytes,
+    );
+    const offset = entry.localDirectory?.dataOffset;
+    if (offset === undefined)
+      throw new Error('Backup payload offset is unavailable');
+    assertSafeSize(offset);
+    assertSafeSize(offset + entry.uncompressedSize);
+    if (offset + entry.uncompressedSize > source.size)
+      throw new Error('Backup payload is outside the archive');
+    return source.slice(offset, offset + entry.uncompressedSize, mimeType);
+  }
+  const writer = new BlobWriter(mimeType);
+  await extractEntry(entry, writer.writable, signal, onBytes);
+  return writer.getData();
+}
+
+async function boundedEntry(
+  entry: FileEntry,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  if (entry.uncompressedSize > limit)
+    throw new Error(
+      'Backup metadata exceeds its memory budget. Use the current ZIP format for large libraries.',
+    );
+  return new Uint8Array(
+    await (
+      await entryBlob(entry, 'application/octet-stream', signal)
+    ).arrayBuffer(),
+  );
+}
+
+export function importZipBackup(
   file: Blob,
   includeVideos = false,
   includeSettings = false,
   onProgress?: (progress: ZipImportProgress) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  if (file.size > MAX_ZIP_BACKUP_BYTES) {
-    throw new Error('Backup zip exceeds the 512 MB import limit');
-  }
+  return withBackupSessionLock(
+    () =>
+      importZipBackupUnlocked(
+        file,
+        includeVideos,
+        includeSettings,
+        onProgress,
+        signal,
+      ),
+    signal,
+  );
+}
 
-  onProgress?.({ phase: 'loading', current: 0, total: null });
+async function importZipBackupUnlocked(
+  file: Blob,
+  includeVideos: boolean,
+  includeSettings: boolean,
+  onProgress?: (progress: ZipImportProgress) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  // Let directory and decoder objects become collectible before the atomic transaction.
+  const prepared = await stageZipBackup(
+    file,
+    includeVideos,
+    includeSettings,
+    onProgress,
+    signal,
+  );
+  if (!prepared) return; // Legacy formats publish through their compatibility adapter.
+  try {
+    signal?.throwIfAborted();
+    onProgress?.({ ...prepared.progress, phase: 'committing' });
+    await publishBackupSession(prepared.sessionId);
+  } finally {
+    await finishBackupSession(prepared.sessionId);
+  }
+}
+
+async function stageZipBackup(
+  file: Blob,
+  includeVideos: boolean,
+  includeSettings: boolean,
+  onProgress: ((progress: ZipImportProgress) => void) | undefined,
+  signal: AbortSignal | undefined,
+): Promise<{ sessionId: string; progress: ZipImportProgress } | undefined> {
+  signal?.throwIfAborted();
+  assertSafeSize(file.size);
+  const progress: ZipImportProgress = {
+    phase: 'loading',
+    current: 0,
+    total: null,
+    bytesProcessed: 0,
+  };
+  const report = () => onProgress?.({ ...progress });
+  const countBytes = (bytes: number) => {
+    progress.bytesProcessed = (progress.bytesProcessed ?? 0) + bytes;
+    report();
+  };
+  report();
+  configure({ chunkSize: BACKUP_CHUNK_BYTES });
   const reader = new ZipReader(new BoundedBlobReader(file), {
     strictness: 'strict',
     filenameValidation: 'strict',
     useWebWorkers: false,
   });
   try {
-    await importArchive(reader, includeVideos, includeSettings, onProgress);
+    const entries = new Map<string, FileEntry>();
+    const budget = new BackupDirectoryBudget();
+    for await (const entry of reader.getEntriesGenerator()) {
+      signal?.throwIfAborted();
+      assertSafeSize(entry.uncompressedSize);
+      assertSafeSize(entry.compressedSize);
+      assertSafeSize(entry.offset);
+      budget.add(
+        entry.filename,
+        entry.rawExtraField.byteLength + entry.rawComment.byteLength,
+      );
+      if (!entry.directory) {
+        if (entries.has(entry.filename))
+          throw new Error('Ambiguous archive: duplicate filenames');
+        entries.set(entry.filename, entry);
+      }
+    }
+    const requiredEntry = (path: string) => {
+      const entry = entries.get(path);
+      if (!entry) throw new Error(`Invalid backup zip: missing ${path}`);
+      return entry;
+    };
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(
+      await boundedEntry(
+        requiredEntry('backup.json'),
+        BACKUP_MANIFEST_BYTES,
+        signal,
+      ),
+    );
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error('Invalid backup zip: backup.json is not valid JSON');
+    }
+    const version =
+      typeof json === 'object' && json !== null && 'version' in json
+        ? json.version
+        : undefined;
+    if (version !== 4) {
+      const parsed = importDataSchema.parse(json);
+      if (parsed.version !== 3) {
+        await importJsonBackupUnlocked(
+          text,
+          includeVideos,
+          includeSettings,
+          onProgress,
+          signal,
+        );
+        return;
+      }
+      const session = await createBackupSession('import');
+      try {
+        const videos: VideoReference[] = [];
+        const ids = new Set<string>();
+        const paths = new Set<string>();
+        progress.total = includeVideos ? (parsed.demoVideos?.length ?? 0) : 0;
+        progress.phase = 'videos';
+        report();
+        for (const video of parsed.demoVideos ?? []) {
+          signal?.throwIfAborted();
+          if (ids.has(video.id))
+            throw new Error(`Backup contains duplicate video id "${video.id}"`);
+          ids.add(video.id);
+          let entry: FileEntry | undefined;
+          if (video.path) {
+            if (paths.has(video.path))
+              throw new Error('Backup contains duplicate video paths');
+            paths.add(video.path);
+            entry = requiredEntry(video.path);
+          }
+          if (!includeVideos) continue;
+          const data = entry
+            ? await entryBlob(entry, video.mimeType, signal, countBytes, file)
+            : new Blob([base64ToArrayBuffer(video.dataBase64 ?? '')], {
+                type: video.mimeType,
+              });
+          videos.push(
+            await stageVideoPayload(
+              {
+                id: video.id,
+                fileName: video.fileName,
+                mimeType: video.mimeType,
+                data,
+              },
+              session.id,
+            ),
+          );
+          progress.current++;
+          report();
+        }
+        signal?.throwIfAborted();
+        const plan = normalizeBackupImport(parsed, {
+          includeSettings,
+          videos,
+          sessionId: session.id,
+        });
+        progress.phase = 'finalizing';
+        report();
+        await applyBackupImportPlan(plan, {
+          signal,
+          onCommitting: () => {
+            progress.phase = 'committing';
+            report();
+          },
+        });
+      } finally {
+        await finishBackupSession(session.id);
+      }
+      return;
+    }
+    const manifest = archiveManifestSchema.parse(json);
+    let stagingBytes = 0;
+    for (const [path, entry] of entries) {
+      if (path.startsWith('videos/')) {
+        if (includeVideos) stagingBytes += entry.uncompressedSize;
+      } else
+        stagingBytes +=
+          entry.uncompressedSize * (path.startsWith('images/') ? 8 / 3 : 2);
+    }
+    progress.warning = await storageWarning(stagingBytes);
+    report();
+    const session = await createBackupSession('import');
+    let prepared = false;
+    try {
+      const counts = { games: 0, characters: 0, combos: 0, videos: 0 };
+      const usedAssets = new Set<string>();
+      const claimAsset = (path: string) => {
+        if (usedAssets.has(path))
+          throw new Error('Backup contains duplicate asset references');
+        usedAssets.add(path);
+        return requiredEntry(path);
+      };
+      await db.backupSessions.update(session.id, {
+        settings: includeSettings ? manifest.settings : undefined,
+        includeVideos,
+      });
+      const games = createBackupRecordStager(session.id, 'games');
+      await extractEntry(
+        requiredEntry(BACKUP_RECORD_FILES.games),
+        ndjsonWriter(async (raw) => {
+          const { image, ...game } = archiveGameSchema.parse(raw);
+          if (image) claimAsset(image.path);
+          await games.add(normalizeGameNotationProfile(game), image);
+          counts.games++;
+        }, signal),
+        signal,
+        countBytes,
+      );
+      await games.flush();
+      const characters = createBackupRecordStager(session.id, 'characters');
+      await extractEntry(
+        requiredEntry(BACKUP_RECORD_FILES.characters),
+        ndjsonWriter(async (raw) => {
+          const { image, ...character } = archiveCharacterSchema.parse(raw);
+          if (!(await readStagedRecord(session.id, 'games', character.gameId)))
+            throw new Error(
+              'Import has referential integrity issues: orphaned character',
+            );
+          if (image) claimAsset(image.path);
+          await characters.add(character, image);
+          counts.characters++;
+        }, signal),
+        signal,
+        countBytes,
+      );
+      await characters.flush();
+      for (const kind of ['games', 'characters'] as const) {
+        for await (const batch of stagedRowsBatches(session.id, kind))
+          for (const row of batch) {
+            if (!row.asset) continue;
+            const source = row.asset;
+            const image = imageDataUrl(
+              await boundedEntry(
+                requiredEntry(source.path),
+                MAX_IMAGE_SIZE_BYTES,
+                signal,
+              ),
+              source.mimeType,
+            );
+            if (row.kind === 'games') row.value.logoImage = image;
+            else if (row.kind === 'characters') row.value.portraitImage = image;
+            row.bytes = new TextEncoder().encode(
+              JSON.stringify(row.value),
+            ).byteLength;
+            await db.backupRecords.put(row);
+          }
+      }
+      progress.phase = 'videos';
+      progress.total = includeVideos ? manifest.counts.videos : 0;
+      report();
+      const videos = createBackupRecordStager(session.id, 'videos');
+      await extractEntry(
+        requiredEntry(BACKUP_RECORD_FILES.videos),
+        ndjsonWriter(async (raw) => {
+          const video = archiveVideoSchema.parse(raw);
+          const entry = claimAsset(video.path);
+          if (entry.uncompressedSize !== video.size)
+            throw new Error('Backup video size does not match its descriptor');
+          const reference = {
+            id: video.id,
+            fileName: video.fileName,
+            mimeType: video.mimeType,
+            size: video.size,
+            payloadId: '',
+          };
+          await videos.add(reference, {
+            path: video.path,
+            mimeType: video.mimeType,
+          });
+          counts.videos++;
+        }, signal),
+        signal,
+        countBytes,
+      );
+      await videos.flush();
+      if (includeVideos) {
+        const media = createVideoStager(session.id, signal);
+        for await (const batch of stagedRowsBatches(session.id, 'videos'))
+          for (const row of batch) {
+            if (row.kind !== 'videos' || !row.asset)
+              throw new Error('Backup video descriptor is unavailable');
+            const data = await entryBlob(
+              requiredEntry(row.asset.path),
+              row.value.mimeType,
+              signal,
+              countBytes,
+              file,
+            );
+            // Release decoded entry headers before metadata validation/publication.
+            entries.delete(row.asset.path);
+            await media.add({ ...row.value, data }, row);
+            progress.current++;
+            report();
+          }
+        await media.flush();
+      }
+      progress.phase = 'finalizing';
+      report();
+      const combos = createBackupRecordStager(session.id, 'combos');
+      await extractEntry(
+        requiredEntry(BACKUP_RECORD_FILES.combos),
+        ndjsonWriter(async (raw) => {
+          const combo = archiveComboSchema.parse(raw);
+          const character = await readStagedRecord(
+            session.id,
+            'characters',
+            combo.characterId,
+          );
+          const game = character
+            ? await readStagedRecord(session.id, 'games', character.gameId)
+            : undefined;
+          if (!character || !game)
+            throw new Error(
+              'Import has referential integrity issues: orphaned combo',
+            );
+          const available = new Set<string>();
+          const videoId = getImportedLocalVideoId(combo.demoUrl);
+          if (
+            includeVideos &&
+            videoId &&
+            (await readStagedRecord(session.id, 'videos', videoId))
+          )
+            available.add(videoId);
+          const normalized = sanitizeImportedVideoReference(combo, available);
+          await combos.add(
+            parseComboRecords([normalized], [game], [character])[0],
+          );
+          counts.combos++;
+        }, signal),
+        signal,
+        countBytes,
+      );
+      await combos.flush();
+      for (const kind of ['games', 'characters', 'combos', 'videos'] as const)
+        if (counts[kind] !== manifest.counts[kind])
+          throw new Error(`Backup ${kind} count does not match its manifest`);
+      entries.clear();
+      signal?.throwIfAborted();
+      prepared = true;
+      return { sessionId: session.id, progress };
+    } finally {
+      if (!prepared) await finishBackupSession(session.id);
+    }
   } finally {
     await reader.close();
   }
-}
-
-async function importArchive(
-  reader: ZipReader<Blob>,
-  includeVideos: boolean,
-  includeSettings: boolean,
-  onProgress?: (progress: ZipImportProgress) => void,
-): Promise<void> {
-  const archiveEntries = new Map<string, FileEntry>();
-  let entryCount = 0;
-  let totalUncompressedBytes = 0;
-  for await (const entry of reader.getEntriesGenerator()) {
-    if (++entryCount > MAX_BACKUP_ENTRY_COUNT) {
-      throw new Error(
-        `Backup zip contains more than ${MAX_BACKUP_ENTRY_COUNT} files`,
-      );
-    }
-    totalUncompressedBytes += entry.uncompressedSize;
-    if (totalUncompressedBytes > MAX_BACKUP_UNCOMPRESSED_BYTES) {
-      throw new Error('Backup zip exceeds the uncompressed size limit');
-    }
-    if (!entry.directory) archiveEntries.set(entry.filename, entry);
-  }
-  const metadataEntry = archiveEntries.get(ZIP_BACKUP_METADATA_FILE);
-  if (!metadataEntry) {
-    throw new Error('Invalid backup zip: missing backup.json');
-  }
-  const metadataText = new TextDecoder().decode(
-    await readZipEntry(
-      metadataEntry,
-      MAX_BACKUP_METADATA_BYTES,
-      'Backup metadata exceeds the 10 MB import limit',
-    ),
-  );
-  let json: unknown;
-  try {
-    json = JSON.parse(metadataText);
-  } catch {
-    throw new Error('Invalid backup zip: backup.json is not valid JSON');
-  }
-
-  const parsed = importDataSchema.parse(json);
-  if (parsed.version !== 3) {
-    await importJsonBackup(metadataText, includeVideos, includeSettings);
-    return;
-  }
-  if ((parsed.demoVideos?.length ?? 0) > MAX_BACKUP_VIDEO_COUNT) {
-    throw new Error(
-      `Backup contains more than ${MAX_BACKUP_VIDEO_COUNT} videos`,
-    );
-  }
-
-  const videoIds = new Set<string>();
-  const videoPaths = new Set<string>();
-  let declaredVideoBytes = 0;
-  for (const video of parsed.demoVideos ?? []) {
-    if (videoIds.has(video.id)) {
-      throw new Error(`Backup contains duplicate video id "${video.id}"`);
-    }
-    videoIds.add(video.id);
-
-    let videoBytes = 0;
-    if (video.path) {
-      if (videoPaths.has(video.path)) {
-        throw new Error(`Backup contains duplicate video path "${video.path}"`);
-      }
-      videoPaths.add(video.path);
-      const entry = archiveEntries.get(video.path);
-      if (!entry) {
-        throw new Error(
-          `Video "${video.fileName}" is missing from the backup zip`,
-        );
-      }
-      videoBytes = entry.uncompressedSize;
-    } else if (video.dataBase64) {
-      videoBytes = Math.ceil(video.dataBase64.length * 0.75);
-    }
-    if (videoBytes > MAX_VIDEO_SIZE_BYTES) {
-      throw new Error(
-        `Video "${video.fileName}" exceeds the 50 MB per-video limit`,
-      );
-    }
-    declaredVideoBytes += videoBytes;
-    if (declaredVideoBytes > MAX_BACKUP_VIDEO_BYTES) {
-      throw new Error('Backup videos exceed the 500 MB aggregate limit');
-    }
-  }
-
-  const videosToImport: DemoVideo[] = [];
-  let actualVideoBytes = 0;
-  if (includeVideos && parsed.demoVideos) {
-    onProgress?.({
-      phase: 'videos',
-      current: 0,
-      total: parsed.demoVideos.length,
-    });
-    for (const video of parsed.demoVideos) {
-      let buffer: ArrayBuffer;
-      if (video.path) {
-        const zipEntry = archiveEntries.get(video.path);
-        if (!zipEntry) {
-          throw new Error(
-            `Video "${video.fileName}" is missing from the backup zip`,
-          );
-        }
-        buffer = await readZipEntry(
-          zipEntry,
-          Math.min(
-            MAX_VIDEO_SIZE_BYTES,
-            MAX_BACKUP_VIDEO_BYTES - actualVideoBytes,
-          ),
-          `Video "${video.fileName}" exceeds the backup video size limit`,
-        );
-      } else if (video.dataBase64) {
-        buffer = base64ToArrayBuffer(video.dataBase64);
-      } else {
-        throw new Error(
-          `Video "${video.fileName}" is missing path and data payload`,
-        );
-      }
-      if (buffer.byteLength > MAX_VIDEO_SIZE_BYTES) {
-        throw new Error(
-          `Video "${video.fileName}" exceeds the 50 MB per-video limit`,
-        );
-      }
-      actualVideoBytes += buffer.byteLength;
-      if (actualVideoBytes > MAX_BACKUP_VIDEO_BYTES) {
-        throw new Error('Backup videos exceed the 500 MB aggregate limit');
-      }
-      videosToImport.push({
-        id: video.id,
-        fileName: video.fileName,
-        mimeType: video.mimeType,
-        data: buffer,
-      });
-      onProgress?.({
-        phase: 'videos',
-        current: videosToImport.length,
-        total: parsed.demoVideos.length,
-      });
-    }
-  }
-
-  onProgress?.({
-    phase: 'finalizing',
-    current: videosToImport.length,
-    total: includeVideos ? (parsed.demoVideos?.length ?? 0) : null,
-  });
-  await applyBackupImportPlan(
-    normalizeBackupImport(parsed, {
-      includeSettings,
-      videos: includeVideos ? videosToImport : [],
-    }),
-  );
 }

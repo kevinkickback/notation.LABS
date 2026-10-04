@@ -39,7 +39,7 @@ describe('UpdaterProvider', () => {
       cancelUpdate: vi.fn(), installUpdate: vi.fn(), getUpdateStatus: vi.fn().mockResolvedValue(INITIAL_UPDATE_STATUS),
       setAutoCheck, getAppVersion: vi.fn().mockResolvedValue('1.8.0'), getCurrentChangelog: vi.fn(),
       onUpdateStatus: callback => { listener = callback; return unsubscribe; },
-      beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(),
+      beginBackup: vi.fn(), writeBackupChunk: vi.fn(), finishBackup: vi.fn(), abortBackup: vi.fn(), getBackupCapacity: vi.fn().mockResolvedValue(null),
     };
   });
   afterEach(() => { vi.restoreAllMocks(); window.electronAPI = originalApi; });

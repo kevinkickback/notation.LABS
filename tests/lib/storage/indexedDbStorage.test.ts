@@ -1,9 +1,9 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { captureBackup } from '../../helpers/backup';
 import { initializeApplication } from '@/lib/application/initializeApplication';
 import JSZip from 'jszip';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_ZIP_BACKUP_BYTES } from '@/lib/defaults';
 import { COMBO_NOTATION_PARSER_VERSION, parseComboNotation } from '@/lib/parser';
 import { indexedDbStorage, db } from '@/lib/storage/indexedDbStorage';
 import { characterRepository } from '@/lib/storage/characterRepository';
@@ -610,7 +610,9 @@ describe('indexedDbStorage.combos', () => {
     expect((await indexedDbStorage.combos.get(id))?.demoUrl).toBe(
       'local:pending-video',
     );
-    expect(await indexedDbStorage.demoVideos.get(video.id)).toEqual(video);
+    const saved = await indexedDbStorage.demoVideos.get(video.id);
+    expect(saved).toMatchObject({ id: video.id, fileName: video.fileName, mimeType: video.mimeType });
+    expect(Array.from(new Uint8Array(await (saved!.data as Blob).arrayBuffer()))).toEqual([1, 2, 3]);
   });
 
   it('replaces local video references atomically and removes the old orphan', async () => {
@@ -1052,13 +1054,11 @@ describe('backup export command', () => {
     expect(backupEntry).toBeTruthy();
     const parsed = JSON.parse(await backupEntry!.async('string'));
 
-    expect(parsed.version).toBe(3);
-    expect(parsed.demoVideos).toBeDefined();
-    expect(parsed.demoVideos).toHaveLength(1);
-    expect(parsed.demoVideos[0].path).toBeTruthy();
-    expect(parsed.demoVideos[0].mimeType).toBe('video/mp4');
-
-    const videoEntry = zip.file(parsed.demoVideos[0].path);
+    expect(parsed.version).toBe(4);
+    expect(parsed.counts.videos).toBe(1);
+    const video = JSON.parse((await zip.file('videos.ndjson')!.async('string')).trim());
+    expect(video.mimeType).toBe('video/mp4');
+    const videoEntry = zip.file(video.path);
     expect(videoEntry).toBeTruthy();
   });
 
@@ -1140,20 +1140,20 @@ describe('backup export command', () => {
 });
 
 describe('indexedDbStorage.import', () => {
-  it('rejects oversized zip files before reading them into memory', async () => {
+  it('rejects unsupported numerical file sizes before reading the archive', async () => {
     const arrayBuffer = vi.fn();
     const oversizedFile = {
-      size: MAX_ZIP_BACKUP_BYTES + 1,
+      size: Number.MAX_SAFE_INTEGER + 1,
       arrayBuffer,
     } as unknown as Blob;
 
     await expect(indexedDbStorage.importZip(oversizedFile)).rejects.toThrow(
-      '512 MB import limit',
+      'unsupported file size',
     );
     expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
-  it('rejects zip metadata declaring too many videos', async () => {
+  it('still rejects missing payloads when a legacy backup contains more than 100 videos', async () => {
     const zip = new JSZip();
     zip.file(
       'backup.json',
@@ -1171,7 +1171,7 @@ describe('indexedDbStorage.import', () => {
     const backup = await zip.generateAsync({ type: 'blob' });
 
     await expect(indexedDbStorage.importZip(backup, true)).rejects.toThrow(
-      'more than 100 videos',
+      'missing videos/0.mp4',
     );
   });
   it('imports games, characters, and combos', async () => {
@@ -1517,7 +1517,7 @@ describe('indexedDbStorage.import', () => {
     expect(importedSettings.notationColors.direction).toBe('#123456');
     assertDefined(importedVideo);
     expect(importedVideo.fileName).toBe('roundtrip.mp4');
-    expect(Array.from(new Uint8Array(importedVideo.data))).toEqual(
+    expect(Array.from(new Uint8Array('size' in importedVideo.data ? await importedVideo.data.arrayBuffer() : importedVideo.data))).toEqual(
       Array.from(videoBytes),
     );
   });
@@ -1602,7 +1602,7 @@ describe('indexedDbStorage.import', () => {
 
     const exportedBlob = await captureBackup(true);
     const progressEvents: Array<{
-      phase: 'loading' | 'videos' | 'finalizing';
+      phase: 'loading' | 'videos' | 'finalizing' | 'committing';
       current: number;
       total: number | null;
     }> = [];
@@ -1617,7 +1617,7 @@ describe('indexedDbStorage.import', () => {
       progressEvents.push(progress);
     });
 
-    expect(progressEvents).toEqual(
+    expect(progressEvents.map(({ phase, current, total }) => ({ phase, current, total }))).toEqual(
       expect.arrayContaining([
         { phase: 'loading', current: 0, total: null },
         { phase: 'videos', current: 0, total: 2 },

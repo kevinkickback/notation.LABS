@@ -1,23 +1,15 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db, indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { importZipBackup } from '@/lib/storage/zipImport';
 import { createBackupZip, forgeZipSize } from '../../helpers/zip';
 
-const limits = vi.hoisted(() => ({ metadata: 10 * 1024 * 1024, video: 50 * 1024 * 1024 }));
-vi.mock('@/lib/defaults', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/defaults')>(),
-  get MAX_BACKUP_METADATA_BYTES() { return limits.metadata; },
-  get MAX_VIDEO_SIZE_BYTES() { return limits.video; },
-}));
-
 const metadata = { version: 3, exported: '2026-10-03', games: [], characters: [], combos: [] };
 const video = { id: 'demo', fileName: 'demo.mp4', mimeType: 'video/mp4', path: 'videos/demo' };
 
 describe('bounded ZIP imports', () => {
   beforeEach(async () => {
-    limits.metadata = 10 * 1024 * 1024;
-    limits.video = 50 * 1024 * 1024;
     await Promise.all([db.games.clear(), db.characters.clear(), db.combos.clear(), db.settings.clear(), db.demoVideos.clear()]);
     await indexedDbStorage.games.add({ name: 'Existing library', buttonLayout: ['A'] });
   });
@@ -28,7 +20,6 @@ describe('bounded ZIP imports', () => {
   }
 
   it('rejects expanding metadata with forged small size declarations', async () => {
-    limits.metadata = 128 * 1024;
     const bytes = await createBackupZip({ ...metadata, padding: 'x'.repeat(1024 * 1024) });
     forgeZipSize(bytes, 'backup.json', 1);
     await expect(importZipBackup(new Blob([bytes]))).rejects.toThrow(/size/);
@@ -36,7 +27,6 @@ describe('bounded ZIP imports', () => {
   });
 
   it('rejects expanding video data before applying any backup records', async () => {
-    limits.video = 1024;
     const bytes = await createBackupZip({ ...metadata, demoVideos: [video] }, { [video.path]: new Uint8Array(1024 * 1024) });
     forgeZipSize(bytes, video.path, 1);
     await expect(importZipBackup(new Blob([bytes]), true)).rejects.toThrow(/size/);
@@ -50,13 +40,32 @@ describe('bounded ZIP imports', () => {
     await expectUnchanged();
   });
 
+  it.each([true, false])('rejects missing legacy payloads even when includeVideos is %s', async (includeVideos) => {
+    const { path: _path, ...missingPayload } = video;
+    const bytes = await createBackupZip({ ...metadata, demoVideos: [missingPayload] });
+    await expect(importZipBackup(new Blob([bytes]), includeVideos)).rejects.toThrow(/include either dataBase64 or path/);
+    await expectUnchanged();
+    expect(await db.backupSessions.count()).toBe(0);
+    expect(await db.backupRecords.count()).toBe(0);
+  });
+
+  it('continues restoring legacy base64 payloads', async () => {
+    const { path: _path, ...header } = video;
+    const bytes = await createBackupZip({ ...metadata, demoVideos: [{ ...header, dataBase64: 'Kg==' }] });
+    await importZipBackup(new Blob([bytes]), true);
+    expect(await db.demoVideos.count()).toBe(1);
+    const restored = await indexedDbStorage.demoVideos.get(video.id);
+    expect(Array.from(new Uint8Array(await (restored?.data as Blob).arrayBuffer()))).toEqual([42]);
+  });
+
   it('reads large stored videos in slices rather than buffering the archive', async () => {
     const bytes = await createBackupZip({ ...metadata, demoVideos: [video] }, { [video.path]: new Uint8Array(2 * 1024 * 1024).fill(42) }, 'STORE');
     const file = new Blob([bytes]);
     const readWholeArchive = vi.spyOn(file, 'arrayBuffer');
     await importZipBackup(file, true);
     expect(readWholeArchive).not.toHaveBeenCalled();
-    const restored = new Uint8Array((await db.demoVideos.get(video.id))?.data ?? new ArrayBuffer(0));
+    const data = (await indexedDbStorage.demoVideos.get(video.id))?.data;
+    const restored = new Uint8Array(data && 'size' in data ? await data.arrayBuffer() : data ?? new ArrayBuffer(0));
     expect(restored.byteLength).toBe(2 * 1024 * 1024);
     expect(restored[0]).toBe(42);
     expect(restored[restored.length - 1]).toBe(42);

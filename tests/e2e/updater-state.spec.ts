@@ -33,7 +33,7 @@ test('keeps newer update state through delayed replies and closing update detail
       beginBackup: async () => null,
       writeBackupChunk: async () => undefined,
       finishBackup: async () => undefined,
-      abortBackup: async () => undefined,
+      abortBackup: async () => undefined, getBackupCapacity: async () => null,
     };
   }, { checking });
   await page.goto('/');

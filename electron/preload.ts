@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(BACKUP_CHANNELS.write, id, chunk),
   finishBackup: (id: string) => ipcRenderer.invoke(BACKUP_CHANNELS.finish, id),
   abortBackup: (id: string) => ipcRenderer.invoke(BACKUP_CHANNELS.abort, id),
+  getBackupCapacity: (id: string) =>
+    ipcRenderer.invoke(BACKUP_CHANNELS.capacity, id),
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,

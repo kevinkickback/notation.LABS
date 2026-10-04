@@ -24,7 +24,6 @@ const __dirname = dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 let rendererGeneration = 0;
-const backupWriter = new BackupWriter();
 const MAIN_WINDOW_LOAD_TIMEOUT_MS = 15_000;
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
@@ -39,6 +38,9 @@ if (isDev) {
 }
 
 const hasInstanceLock = app.requestSingleInstanceLock();
+const backupWriter = new BackupWriter(
+  join(app.getPath('userData'), 'backup-transfers'),
+);
 if (!hasInstanceLock) app.quit();
 
 app.on('second-instance', () => {
@@ -278,6 +280,7 @@ app.on('ready', async () => {
 
   session.defaultSession.setPermissionCheckHandler(() => false);
 
+  await backupWriter.recover().catch(console.error);
   const mainWindowReady = createWindow();
 
   initAutoUpdater();
@@ -385,6 +388,10 @@ app.on('ready', async () => {
   ipcMain.handle(BACKUP_CHANNELS.finish, async (event, id: unknown) => {
     assertTrustedIpcSender(event);
     await backupWriter.finish(id);
+  });
+  ipcMain.handle(BACKUP_CHANNELS.capacity, (event, id: unknown) => {
+    assertTrustedIpcSender(event);
+    return backupWriter.availableBytes(id);
   });
   ipcMain.handle(BACKUP_CHANNELS.abort, async (event, id: unknown) => {
     assertTrustedIpcSender(event);

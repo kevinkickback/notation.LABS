@@ -15,6 +15,8 @@ async function loadMainModule(loadOptions: LoadMainModuleOptions = {}) {
   const rawIpcHandlers: Record<string, (...args: unknown[]) => unknown> = {};
   const browserWindows: BrowserWindowMock[] = [];
   const backupWriterMock = {
+    recover: vi.fn(async () => undefined),
+    availableBytes: vi.fn(async () => 1024 ** 3),
     begin: vi.fn(async () => 'backup-session'),
     write: vi.fn(async () => undefined),
     finish: vi.fn(async () => undefined),

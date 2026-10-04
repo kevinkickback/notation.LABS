@@ -8,10 +8,11 @@ import type {
   Game,
   UserSettings,
 } from '@/lib/types';
+import type { VideoReference } from './archiveContract';
 
 export interface ResolvedBackupVideo {
   id: string;
-  data: ArrayBuffer;
+  data: ArrayBuffer | Blob;
   mimeType: string;
   fileName: string;
 }
@@ -21,14 +22,16 @@ export interface BackupImportPlan {
   characters: Character[];
   combos: Combo[];
   settings?: UserSettings;
-  videos: ResolvedBackupVideo[];
+  videos: (ResolvedBackupVideo | VideoReference)[];
+  sessionId?: string;
 }
 
 export function normalizeBackupImport(
   data: BackupImportData,
   options: {
     includeSettings: boolean;
-    videos: ResolvedBackupVideo[];
+    videos: (ResolvedBackupVideo | VideoReference)[];
+    sessionId?: string;
   },
 ): BackupImportPlan {
   const availableVideoIds = new Set(options.videos.map((video) => video.id));
@@ -40,6 +43,7 @@ export function normalizeBackupImport(
     ),
     settings: options.includeSettings ? data.settings : undefined,
     videos: options.videos,
+    sessionId: options.sessionId,
   };
 
   const gameIds = new Set(plan.games.map((game) => game.id));

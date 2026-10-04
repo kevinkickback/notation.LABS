@@ -41,6 +41,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
     exportBackup,
     importFile,
     cancelExport,
+    cancelImport,
   } = useBackupTransfer();
   const [importOptions, setImportOptions] = useState({
     includeVideos: true,
@@ -202,6 +203,9 @@ export function Header({ activeGame }: { activeGame?: Game }) {
           phase={importProgress.phase}
           current={importProgress.current}
           total={importProgress.total}
+          bytesProcessed={importProgress.bytesProcessed}
+          warning={importProgress.warning}
+          onCancel={cancelImport}
         />
       )}
       <ImportDialog

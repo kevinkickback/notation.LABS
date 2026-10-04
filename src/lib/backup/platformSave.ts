@@ -1,3 +1,4 @@
+import { BlobWriter } from '@zip.js/zip.js/lib/zip-core-native.js';
 import {
   BACKUP_FORMATS,
   type BackupFormat,
@@ -29,7 +30,15 @@ export async function openBackupSink(
   if (window.electronAPI) {
     const id = await window.electronAPI.beginBackup(suggestedName, mimeType);
     if (!id) return null;
+    let availableBytes: number | null;
+    try {
+      availableBytes = await window.electronAPI.getBackupCapacity(id);
+    } catch (error) {
+      await window.electronAPI.abortBackup(id).catch(() => {});
+      throw error;
+    }
     return {
+      availableBytes: availableBytes ?? undefined,
       // IPC clones the backing buffer, so do not pass a view into an entire video.
       write: (chunk) =>
         window.electronAPI.writeBackupChunk(id, new Uint8Array(chunk)),
@@ -61,21 +70,20 @@ export async function openBackupSink(
       throw error;
     }
   }
-  // Browsers without a file picker retain native Blob pieces, never one giant ArrayBuffer.
-  const parts: Blob[] = [];
+  // zip.js uses Response(stream).blob() on supported browsers. Native Blob storage
+  // can spill to disk; each write waits instead of retaining a JS array of pieces.
+  const blobWriter = new BlobWriter(mimeType);
+  const writable = blobWriter.writable.getWriter();
   return {
-    write: (chunk) => {
-      parts.push(new Blob([new Uint8Array(chunk)]));
-      return Promise.resolve();
+    write: (chunk) => writable.write(new Uint8Array(chunk)),
+    close: async () => {
+      await writable.close();
+      triggerBlobDownload(await blobWriter.getData(), suggestedName);
+      writable.releaseLock();
     },
-    close: () => {
-      triggerBlobDownload(new Blob(parts, { type: mimeType }), suggestedName);
-      parts.length = 0;
-      return Promise.resolve();
-    },
-    abort: () => {
-      parts.length = 0;
-      return Promise.resolve();
+    abort: async () => {
+      await writable.abort();
+      writable.releaseLock();
     },
   };
 }

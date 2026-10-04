@@ -1,3 +1,4 @@
+// @vitest-environment node
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeApplication } from '@/lib/application/initializeApplication';
@@ -29,6 +30,28 @@ describe('atomic notation maintenance', () => {
     expect(write).not.toHaveBeenCalled();
     expect((await db.combos.get(comboId))?.parsedNotation).toEqual([]);
     expect((await db.settings.get(1))?.parsedNotationVersion).toBe(0);
+  });
+
+  it('updates multiple batches for one game without reading unrelated combos', async () => {
+    const comboId = await seed(COMBO_NOTATION_PARSER_VERSION);
+    const stored = (await db.combos.get(comboId))!;
+    const character = (await db.characters.get(stored.characterId))!;
+    const otherGame = await indexedDbStorage.games.add({ name: 'Unrelated', buttonLayout: ['A'] });
+    const otherCharacter = await indexedDbStorage.characters.add({ name: 'Other fighter', gameId: otherGame });
+    const target = Array.from({ length: 129 }, (_, index) => ({ ...stored, id: `target-${index}`, sortOrder: index }));
+    const unrelated = { ...stored, id: 'unrelated', characterId: otherCharacter };
+    await db.combos.bulkPut([...target, unrelated]);
+    const reads = new Set<string>();
+    const observe = (combo: typeof stored) => { reads.add(combo.id); return combo; };
+    db.combos.hook('reading', observe);
+    try {
+      await indexedDbStorage.games.update(character.gameId, { buttonLayout: ['A'] });
+    } finally {
+      db.combos.hook('reading').unsubscribe(observe);
+    }
+    expect(reads).toEqual(new Set([stored.id, ...target.map(combo => combo.id)]));
+    for (const id of reads) expect((await db.combos.get(id))?.parsedNotation).toEqual(parseComboNotation('LP', ['A']));
+    expect(await db.combos.get(unrelated.id)).toEqual(unrelated);
   });
 
   it('rolls tokens back when writing the maintenance marker fails and permits retry', async () => {

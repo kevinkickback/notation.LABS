@@ -12,10 +12,20 @@ export interface BackupRecords {
   combos: Combo[];
 }
 
-export function closeBackupSelection(
-  records: BackupRecords,
+export interface BackupSelectionRecords {
+  games: Pick<Game, 'id' | 'name'>[];
+  characters: Pick<Character, 'id' | 'name' | 'gameId'>[];
+  combos: Pick<Combo, 'id' | 'name' | 'characterId' | 'demoUrl'>[];
+}
+
+export function closeBackupSelection<
+  G extends Pick<Game, 'id'>,
+  C extends Pick<Character, 'id' | 'gameId'>,
+  B extends Pick<Combo, 'id' | 'characterId'>,
+>(
+  records: { games: G[]; characters: C[]; combos: B[] },
   filter?: BackupFilter,
-): BackupRecords {
+): { games: G[]; characters: C[]; combos: B[] } {
   if (!filter) return records;
 
   const requestedGameIds = new Set(filter.gameIds ?? []);
