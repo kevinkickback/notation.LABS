@@ -18,7 +18,7 @@ describe('CoverSearchDialog', () => {
     }));
   });
 
-  it('shows query results and reuses successful and empty searches across reopening', async () => {
+  it('reuses successful results after reopening and empty results on retry', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => [{ id: 1, name: 'Street Fighter result', coverImageId: 'cover' }] })

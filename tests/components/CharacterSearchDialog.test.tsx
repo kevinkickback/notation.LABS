@@ -18,7 +18,7 @@ describe('CharacterSearchDialog', () => {
     }));
   });
 
-  it('shows query results and reuses successful and empty searches across reopening', async () => {
+  it('reuses successful results after reopening and empty results on retry', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => [{ title: 'Ryu result', imageUrl: 'https://example.test/ryu.png', thumbnailUrl: '', width: 800, height: 800 }] })
       .mockResolvedValueOnce({ ok: true, json: async () => [] });

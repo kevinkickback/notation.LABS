@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
 
-test('keeps Settings a shared, viewport-safe height across categories', async ({ page }) => {
+test('shows each real Settings panel at a shared, viewport-safe height', async ({ page }) => {
   await page.goto('/');
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 800, height: 600 }]) {
     await page.setViewportSize(viewport);
@@ -14,9 +14,16 @@ test('keeps Settings a shared, viewport-safe height across categories', async ({
     await expect(dialog).toBeVisible();
     const initial = await dialog.boundingBox();
     expect(initial).not.toBeNull();
-    for (const category of ['Colors', 'Notation', 'About', 'General']) {
+    for (const [category, panelLabel] of [
+      ['Colors', 'Separators'],
+      ['Notation', 'Display Mode'],
+      ['About', 'FGC Resources'],
+      ['General', 'Accent Color'],
+    ]) {
       await page.getByRole('tab', { name: category, exact: true }).click();
-      await expect(dialog.getByRole('tabpanel', { name: category, exact: true })).toBeVisible();
+      const panel = dialog.getByRole('tabpanel', { name: category, exact: true });
+      await expect(panel).toBeVisible();
+      await expect(panel.getByText(panelLabel, { exact: true })).toBeVisible();
       const box = await dialog.boundingBox();
       expect(Math.abs((box?.height ?? 0) - (initial?.height ?? 0))).toBeLessThan(1);
       expect(box?.y).toBeGreaterThanOrEqual(0);
