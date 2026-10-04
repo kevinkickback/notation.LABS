@@ -78,7 +78,6 @@ export function separateImage<T extends Game | Character>(
     );
   // Older providers could label JPEG bytes as PNG. Keep the bytes and correct only the backup label.
   const { mimeType, encoded } = embedded;
-  const bytes = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
   const image = archiveImageSchema.parse({ path, mimeType });
   const wire = {
     ...record,
@@ -86,7 +85,15 @@ export function separateImage<T extends Game | Character>(
     portraitImage: undefined,
     image,
   };
-  return { record: wire, blob: new Blob([bytes], { type: mimeType }) };
+  return {
+    record: wire,
+    get blob() {
+      const bytes = Uint8Array.from(atob(encoded), (char) =>
+        char.charCodeAt(0),
+      );
+      return new Blob([bytes], { type: mimeType });
+    },
+  };
 }
 
 export function imageDataUrl(bytes: Uint8Array, mimeType: string): string {

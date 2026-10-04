@@ -85,6 +85,9 @@ record allocation budget instead, so larger images already saved by older versio
 ZIP export preserves image bytes and corrects legacy labels only when both the declared and detected
 types are supported raster formats. Import still rejects invalid signatures, mismatched archive
 descriptors, SVG, and active content. Export does not rewrite the library's original images.
+Game and character saves check the complete prospective record before writing, so image data and
+other fields share the same budget as backups. Restore hydrates one image at a time without keeping
+completed images in the descriptor batch; metadata-only export does not decode their payloads.
 
 ## Validation
 

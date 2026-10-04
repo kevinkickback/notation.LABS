@@ -1,6 +1,7 @@
 // @vitest-environment node
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { separateImage } from '@/lib/backup/archiveFormat';
 import { db } from '@/lib/storage/database';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { importZipBackup } from '@/lib/storage/zipImport';
@@ -31,6 +32,17 @@ async function unchanged() {
   expect(await db.backupRecords.count()).toBe(0);
 }
 describe('version 4 validation and rollback', () => {
+  it('decodes only the raster header when producing an image descriptor', () => {
+    const image = `data:image/jpeg;base64,/9j/${'A'.repeat(4096)}`;
+    const decode = vi.spyOn(globalThis, 'atob');
+    try {
+      const separated = separateImage({ ...game, notationProfile: 'standard' as const, logoImage: image }, 'images/g-0.bin');
+      expect(separated.record).toMatchObject({ image: { path: 'images/g-0.bin', mimeType: 'image/jpeg' } });
+      expect(decode.mock.calls.every(([value]) => value.length <= 24)).toBe(true);
+      expect(separated.blob?.size).toBe(3075);
+      expect(decode.mock.calls.some(([value]) => value.length > 24)).toBe(true);
+    } finally { decode.mockRestore(); }
+  });
   it.each(['games', 'characters'] as const)('validates inline image signatures and supported types in %s', async kind => {
     const images = ['data:image/jpeg;base64,AQID', 'data:text/html;base64,AQID', 'data:image/png;base64,/9j/AA=='];
     for (const image of images) {

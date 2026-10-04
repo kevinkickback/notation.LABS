@@ -402,7 +402,11 @@ async function stageZipBackup(
       for (const kind of ['games', 'characters'] as const) {
         for await (const batch of stagedRowsBatches(session.id, kind))
           for (const row of batch) {
-            if (!row.asset) continue;
+            if (
+              !row.asset ||
+              (row.kind !== 'games' && row.kind !== 'characters')
+            )
+              continue;
             const source = row.asset;
             const image = imageDataUrl(
               await boundedEntry(
@@ -412,10 +416,12 @@ async function stageZipBackup(
               ),
               source.mimeType,
             );
-            if (row.kind === 'games') row.value.logoImage = image;
-            else if (row.kind === 'characters') row.value.portraitImage = image;
-            row.bytes = encodeBackupRecord(row.value).byteLength;
-            await db.backupRecords.put(row);
+            const hydrated =
+              row.kind === 'games'
+                ? { ...row, value: { ...row.value, logoImage: image } }
+                : { ...row, value: { ...row.value, portraitImage: image } };
+            hydrated.bytes = encodeBackupRecord(hydrated.value).byteLength;
+            await db.backupRecords.put(hydrated);
           }
       }
       progress.phase = 'videos';
