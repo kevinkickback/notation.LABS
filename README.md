@@ -23,7 +23,7 @@ Build, visualize, organize, and share combos using standard fighting game notati
 - **Dual Display Modes** — Toggle between custom colored text and visual icon display for combos
 - **Beautiful Organization** — Organize your combos by game and character with cover images
 - **Import / Export** — Backup, restore, and share your entire library or individual combos as JSON
-- **Search & Filter** — Search across combo names, tags, and descriptions with multiple filters. Tags ignore capitalization while keeping their displayed spelling.
+- **Search & Filter** — Search across combo names, tags, and descriptions with multiple filters. Tags ignore capitalization while keeping their displayed spelling and consistent colors.
 - **Video Demonstrations** — Attach local videos or YouTube links to combos for visual reference
 - **Offline-First** — All data stored locally via IndexedDB — no account, no cloud, no tracking
 - **Auto-Updates** — Built-in update system keeps you on the latest version

@@ -44,7 +44,7 @@ import {
   generateId,
   getLocalVideoId,
 } from '@/lib/storage/indexedDbStorage';
-import { hasTag, tagKey, uniqueTags } from '@/lib/tags';
+import { getTagTone, hasTag, tagKey, uniqueTags } from '@/lib/tags';
 import type { Character, Combo, Game } from '@/lib/types';
 import {
   buildComboPayload,
@@ -406,7 +406,8 @@ export function ComboFormDialog({
                       <Badge
                         key={tag}
                         variant="secondary"
-                        className="gap-1 cursor-pointer shrink-0"
+                        className="combo-tag gap-1 cursor-pointer shrink-0"
+                        data-tone={getTagTone(tag)}
                         onClick={() => removeTag(tag)}
                         onKeyDown={(e) => {
                           if (

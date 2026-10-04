@@ -1,0 +1,59 @@
+:root {
+  --tag-blue: #1e40af;
+  --tag-teal: #115e59;
+  --tag-green: #166534;
+  --tag-amber: #854d0e;
+  --tag-orange: #9a3412;
+  --tag-rose: #9f1239;
+  --tag-violet: #5b21b6;
+  --tag-cyan: #155e75;
+}
+.dark {
+  --tag-blue: #93c5fd;
+  --tag-teal: #5eead4;
+  --tag-green: #86efac;
+  --tag-amber: #fde68a;
+  --tag-orange: #fdba74;
+  --tag-rose: #fda4af;
+  --tag-violet: #c4b5fd;
+  --tag-cyan: #67e8f9;
+}
+.combo-tag {
+  --tag-color: var(--tag-blue);
+  color: var(--tag-color);
+  background: color-mix(in srgb, var(--tag-color) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--tag-color) 30%, var(--border));
+}
+.combo-tag[data-tone="teal"] {
+  --tag-color: var(--tag-teal);
+}
+.combo-tag[data-tone="green"] {
+  --tag-color: var(--tag-green);
+}
+.combo-tag[data-tone="amber"] {
+  --tag-color: var(--tag-amber);
+}
+.combo-tag[data-tone="orange"] {
+  --tag-color: var(--tag-orange);
+}
+.combo-tag[data-tone="rose"] {
+  --tag-color: var(--tag-rose);
+}
+.combo-tag[data-tone="violet"] {
+  --tag-color: var(--tag-violet);
+}
+.combo-tag[data-tone="cyan"] {
+  --tag-color: var(--tag-cyan);
+}
+.combo-tag:hover {
+  background: color-mix(in srgb, var(--tag-color) 12%, var(--card));
+}
+.combo-tag[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--tag-color) 16%, var(--card));
+  border-color: var(--tag-color);
+  box-shadow: inset 0 0 0 1px var(--tag-color);
+}
+.combo-tag:focus-visible {
+  outline: 2px solid var(--tag-color);
+  outline-offset: 3px;
+}

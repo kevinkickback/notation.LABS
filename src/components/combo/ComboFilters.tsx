@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { hasTag } from '@/lib/tags';
+import { getTagTone, hasTag } from '@/lib/tags';
 
 interface ComboFiltersProps {
   filterSearch: string;
@@ -56,7 +56,8 @@ export function ComboFilters({
             <Badge
               key={tag}
               variant={hasTag(filterTags, tag) ? 'default' : 'outline'}
-              className="cursor-pointer select-none"
+              className="combo-tag cursor-pointer select-none"
+              data-tone={getTagTone(tag)}
               asChild
             >
               <button

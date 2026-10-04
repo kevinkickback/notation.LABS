@@ -3,15 +3,17 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   CopyIcon,
   DotsSixVerticalIcon,
+  GaugeIcon,
   PencilIcon,
   PlayIcon,
+  StarFourIcon,
   TrashIcon,
   WarningIcon,
 } from '@phosphor-icons/react';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { NotesMarkdown } from '@/components/shared/NotesMarkdown';
 import { Button } from '@/components/ui/button';
-import { uniqueTags } from '@/lib/tags';
+import { getTagTone, uniqueTags } from '@/lib/tags';
 import type { Combo, DisplayMode, Game } from '@/lib/types';
 
 interface SortableComboCardProps {
@@ -167,11 +169,25 @@ export function SortableComboCard({
         <div className="combo-card-metadata">
           <div className="combo-card-stats">
             {combo.damage && (
-              <span>
-                <strong>{combo.damage}</strong> damage
+              <span className="combo-card-stat">
+                <StarFourIcon
+                  className="combo-card-stat-icon"
+                  aria-hidden="true"
+                />
+                <span>
+                  <strong>{combo.damage}</strong> damage
+                </span>
               </span>
             )}
-            {combo.meterCost && <span>{combo.meterCost}</span>}
+            {combo.meterCost && (
+              <span className="combo-card-stat">
+                <GaugeIcon
+                  className="combo-card-stat-icon"
+                  aria-hidden="true"
+                />
+                <span>{combo.meterCost}</span>
+              </span>
+            )}
             {combo.difficulty && (
               <span
                 className="combo-card-difficulty"
@@ -195,6 +211,8 @@ export function SortableComboCard({
               <button
                 type="button"
                 key={tag}
+                className="combo-tag"
+                data-tone={getTagTone(tag)}
                 onClick={() => onTagClick(tag)}
                 aria-label={`Filter by ${tag}`}
               >

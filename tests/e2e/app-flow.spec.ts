@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { textContrast } from '../helpers/contrast';
 
 async function addGame(
   page: Page,
@@ -123,14 +124,65 @@ test.describe('Core E2E Flows', () => {
     await page.locator('h3', { hasText: 'E2E Hero' }).click();
     const legacy = page.getByRole('article', { name: 'Anti Air Route', exact: true });
     await expect(legacy.getByRole('button', { name: /^Filter by/ })).toHaveCount(1);
+    const originalTag = page.getByRole('article', { name: 'BnB Starter', exact: true }).getByRole('button', { name: 'Filter by BnB', exact: true });
+    const originalColor = await originalTag.evaluate(element => getComputedStyle(element).color);
+    expect(await legacy.getByRole('button', { name: 'Filter by BNB', exact: true }).evaluate(element => getComputedStyle(element).color)).toBe(originalColor);
     await legacy.getByRole('button', { name: 'Filter by BNB', exact: true }).click();
     const tagFilter = page.getByRole('button', { name: '#BnB', exact: true });
     await expect(tagFilter).toHaveAttribute('aria-pressed', 'true');
+    expect(await tagFilter.evaluate(element => getComputedStyle(element).color)).toBe(originalColor);
     await expect(page.getByRole('button', { name: '#BNB', exact: true })).toHaveCount(0);
     await expect(page.getByText('2 of 2 combos', { exact: true })).toBeVisible();
     await tagFilter.press('Space');
     await expect(tagFilter).toHaveAttribute('aria-pressed', 'false');
     await expect(page.getByRole('article')).toHaveCount(2);
+  });
+
+  test('keeps tag colors distinct and readable across cards, filters, and editing in both themes', async ({ page }) => {
+    await navigateToComboView(page);
+    const tags = Array.from({ length: 8 }, (_, index) => `tag-${index}`);
+    await addCombo(page, 'Colored tags', '5L > 236H', tags);
+    const card = page.getByRole('article', { name: 'Colored tags', exact: true });
+    await page.getByTitle('Filter Combos').click();
+    for (const colorTheme of ['light', 'dark'] as const) {
+      await page.evaluate(async colorTheme => {
+        const path = '/src/lib/storage/indexedDbStorage.ts';
+        const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+        await indexedDbStorage.settings.update({ colorTheme });
+      }, colorTheme);
+      await expect(page.locator('html')).toHaveClass(colorTheme === 'dark' ? /dark/ : /^$/);
+      const colors: string[] = [];
+      for (const tag of tags) {
+        const chip = card.getByRole('button', { name: `Filter by ${tag}`, exact: true });
+        const filter = page.getByRole('button', { name: `#${tag}`, exact: true });
+        await chip.hover();
+        await expect.poll(() => textContrast(chip), { message: `${colorTheme} card tag ${tag}` }).toBeGreaterThanOrEqual(4.5);
+        const color = await chip.evaluate(element => getComputedStyle(element).color);
+        colors.push(color);
+        expect(await filter.evaluate(element => getComputedStyle(element).color)).toBe(color);
+        await expect.poll(() => textContrast(filter), { message: `${colorTheme} inactive filter ${tag}` }).toBeGreaterThanOrEqual(4.5);
+        await filter.click();
+        await expect(filter).toHaveAttribute('aria-pressed', 'true');
+        await expect.poll(() => textContrast(filter), { message: `${colorTheme} selected filter ${tag}` }).toBeGreaterThanOrEqual(4.5);
+        await filter.press('Space');
+        await expect(filter).toHaveAttribute('aria-pressed', 'false');
+        await filter.press('Space');
+        await expect(filter).toHaveAttribute('aria-pressed', 'true');
+        const focus = await filter.evaluate(element => ({ style: getComputedStyle(element).outlineStyle, width: Number.parseFloat(getComputedStyle(element).outlineWidth) }));
+        expect(focus.style).not.toBe('none');
+        expect(focus.width).toBeGreaterThan(0);
+        await filter.press('Space');
+      }
+      expect(new Set(colors).size).toBe(tags.length);
+      await card.getByRole('button', { name: 'Edit combo', exact: true }).click();
+      const editor = page.getByRole('dialog', { name: 'Edit Combo for E2E Hero', exact: true });
+      for (const [index, tag] of tags.entries()) {
+        const chip = editor.getByRole('button', { name: `Remove tag: ${tag}`, exact: true });
+        expect(await chip.evaluate(element => getComputedStyle(element).color)).toBe(colors[index]);
+        await expect.poll(() => textContrast(chip), { message: `${colorTheme} editor tag ${tag}` }).toBeGreaterThanOrEqual(4.5);
+      }
+      await editor.getByRole('button', { name: 'Close', exact: true }).click();
+    }
   });
 
   test('persists favorite games and keeps them first', async ({
