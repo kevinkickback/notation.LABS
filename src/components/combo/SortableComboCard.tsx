@@ -10,10 +10,8 @@ import {
 } from '@phosphor-icons/react';
 import { ComboDisplay } from '@/components/combo/ComboDisplay';
 import { NotesMarkdown } from '@/components/shared/NotesMarkdown';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { uniqueTags } from '@/lib/tags';
 import type { Combo, DisplayMode, Game } from '@/lib/types';
 
 interface SortableComboCardProps {
@@ -49,157 +47,163 @@ export function SortableComboCard({
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: combo.id, disabled: isDragDisabled });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
+  } = useSortable({ id: combo.id, disabled: isDragDisabled || isSelecting });
+  const tags = uniqueTags(combo.tags);
+  const hasDetails = !!(
+    combo.difficulty ||
+    combo.damage ||
+    combo.meterCost ||
+    tags.length
+  );
   return (
-    <Card
+    <article
       ref={setNodeRef}
-      style={style}
-      className={`combo-card hover:shadow-md transition-shadow ${isSelected ? 'ring-2 ring-primary' : ''} ${combo.outdated ? 'border-l-4 border-l-amber-500' : ''}`}
+      aria-label={combo.name}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      className={`combo-card ${isSelected ? 'is-selected' : ''} ${combo.outdated ? 'is-outdated' : ''}`}
     >
-      <CardContent className="px-3 py-2">
-        <div className="combo-card-heading">
-          {isSelecting && (
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => onToggleSelect(combo.id)}
-              aria-label={`Select ${combo.name}`}
-              className="combo-card-handle w-4 h-4 accent-primary cursor-pointer shrink-0"
-            />
-          )}
-          {!isSelecting && (
-            <button
-              {...(!isDragDisabled ? attributes : {})}
-              {...(!isDragDisabled ? listeners : {})}
-              className={`combo-card-handle touch-none shrink-0 ${
-                isDragDisabled
-                  ? 'cursor-not-allowed opacity-40'
-                  : 'cursor-grab active:cursor-grabbing hover:text-foreground'
-              } text-muted-foreground`}
-              tabIndex={isDragDisabled ? -1 : -1}
-              disabled={isDragDisabled}
-              title={
-                isDragDisabled
-                  ? 'Drag disabled while filters are active'
-                  : 'Drag to reorder'
-              }
-            >
-              <DotsSixVerticalIcon className="w-5 h-5" />
-            </button>
-          )}
-
-          <div className="combo-card-summary">
-            <h3 className="combo-card-title font-semibold text-xl leading-snug">
-              {combo.name}
-            </h3>
-            <div className="combo-card-metadata">
-              {combo.outdated && (
-                <Badge className="text-sm py-0.5 px-2.5 rounded-md gap-1 bg-amber-500/15 text-amber-400 border border-amber-500/60">
-                  <WarningIcon className="w-3 h-3" weight="fill" />
-                  Outdated
-                </Badge>
-              )}
-              {combo.difficulty && (
-                <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-yellow-400/15 text-yellow-300 border border-yellow-400/50">
-                  Difficulty: {combo.difficulty}/5
-                </Badge>
-              )}
-              {combo.damage && (
-                <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/50">
-                  {combo.damage} dmg
-                </Badge>
-              )}
-              {combo.meterCost && (
-                <Badge className="text-sm py-0.5 px-2.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/50">
-                  {combo.meterCost}
-                </Badge>
-              )}
-              {combo.tags.map((tag) => (
-                <Badge
-                  key={tag}
-                  className="text-sm py-0.5 px-3 rounded-md cursor-pointer transition-colors bg-primary/10 text-primary border border-primary/40 hover:bg-primary/20"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTagClick(tag);
-                  }}
-                >
-                  #{tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <div className="combo-card-actions">
-            {combo.demoUrl && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 px-3 gap-2 text-primary hover:text-primary"
-                aria-label="Watch Demo"
-                onClick={() => onWatchDemo(combo)}
-              >
-                <PlayIcon className="size-5" weight="fill" />
-                <span className="text-sm font-medium">
-                  <span className="combo-demo-verbose">Watch </span>Demo
-                </span>
-              </Button>
-            )}
-            {combo.demoUrl && (
-              <Separator orientation="vertical" className="!h-6 mx-1" />
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-muted-foreground hover:text-foreground"
-              aria-label="Edit combo"
-              onClick={() => onEdit(combo)}
-            >
-              <PencilIcon className="size-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-muted-foreground hover:text-foreground"
-              aria-label="Duplicate combo"
-              onClick={() => onDuplicate(combo)}
-            >
-              <CopyIcon className="size-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 text-destructive hover:text-destructive"
-              aria-label="Delete combo"
-              onClick={() => onDelete(combo.id)}
-            >
-              <TrashIcon className="size-5" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="bg-muted/40 border border-border rounded-lg px-4 py-3">
-          <ComboDisplay
-            tokens={combo.parsedNotation}
-            mode={displayMode}
-            game={game}
+      <div className="combo-card-heading">
+        {isSelecting ? (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(combo.id)}
+            aria-label={`Select ${combo.name}`}
+            className="combo-card-handle combo-card-checkbox"
           />
-          {combo.description && (
-            <div className="mt-2 border-t border-border/50 pt-2">
-              <NotesMarkdown content={combo.description} />
-            </div>
+        ) : (
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            {...attributes}
+            {...listeners}
+            disabled={isDragDisabled}
+            aria-label={`Reorder ${combo.name}`}
+            title={
+              isDragDisabled
+                ? 'Drag disabled while filters are active'
+                : 'Drag, or press Space and use arrow keys to reorder'
+            }
+            className="combo-card-handle combo-card-grip"
+          >
+            <DotsSixVerticalIcon className="size-5" />
+          </button>
+        )}
+        <div className="combo-card-summary">
+          <h3 className="combo-card-title">{combo.name}</h3>
+          {combo.outdated && (
+            <span className="combo-card-outdated">
+              <WarningIcon className="size-3.5" />
+              Outdated
+            </span>
           )}
         </div>
-      </CardContent>
-    </Card>
+        <div className="combo-card-actions">
+          {combo.demoUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="combo-card-demo"
+              aria-label="Watch Demo"
+              onClick={() => onWatchDemo(combo)}
+            >
+              <PlayIcon className="size-4" weight="fill" />
+              <span>Demo</span>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="combo-card-action"
+            aria-label="Edit combo"
+            title="Edit combo"
+            onClick={() => onEdit(combo)}
+          >
+            <PencilIcon className="size-[18px]" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="combo-card-action"
+            aria-label="Duplicate combo"
+            title="Duplicate combo"
+            onClick={() => onDuplicate(combo)}
+          >
+            <CopyIcon className="size-[18px]" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="combo-card-action combo-card-delete"
+            aria-label="Delete combo"
+            title="Delete combo"
+            onClick={() => onDelete(combo.id)}
+          >
+            <TrashIcon className="size-[18px]" />
+          </Button>
+        </div>
+      </div>
+      <div className="combo-card-notation">
+        <ComboDisplay
+          tokens={combo.parsedNotation}
+          mode={displayMode}
+          game={game}
+        />
+      </div>
+      {combo.description && (
+        <div className="combo-card-notes">
+          <NotesMarkdown content={combo.description} />
+        </div>
+      )}
+      {hasDetails && (
+        <div className="combo-card-metadata">
+          <div className="combo-card-stats">
+            {combo.damage && (
+              <span>
+                <strong>{combo.damage}</strong> damage
+              </span>
+            )}
+            {combo.meterCost && <span>{combo.meterCost}</span>}
+            {combo.difficulty && (
+              <span
+                className="combo-card-difficulty"
+                data-difficulty={combo.difficulty}
+              >
+                <span>Difficulty:</span>{' '}
+                <span className="combo-card-difficulty-bars" aria-hidden="true">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <i
+                      key={level}
+                      data-active={level <= (combo.difficulty ?? 0)}
+                    />
+                  ))}
+                </span>
+                <strong>{combo.difficulty}/5</strong>
+              </span>
+            )}
+          </div>
+          <div className="combo-card-tags">
+            {tags.map((tag) => (
+              <button
+                type="button"
+                key={tag}
+                onClick={() => onTagClick(tag)}
+                aria-label={`Filter by ${tag}`}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </article>
   );
 }

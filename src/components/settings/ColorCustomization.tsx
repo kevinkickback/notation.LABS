@@ -19,7 +19,11 @@ import type { Game, NotationColors } from '@/lib/types';
 
 const DEFAULT_COLORS: NotationColors = DEFAULT_SETTINGS.notationColors;
 
-export function ColorCustomization() {
+export function ColorCustomization({
+  onUnsavedChangesChange,
+}: {
+  onUnsavedChangesChange: (hasChanges: boolean) => void;
+}) {
   const settings = useSettings();
   const { setSetting } = useSettingsActions();
   const [tempColors, setTempColors] = useState<NotationColors>(
@@ -32,6 +36,7 @@ export function ColorCustomization() {
   >({});
   const [tempButtonLayout, setTempButtonLayout] = useState<string[]>([]);
   const [newButtonName, setNewButtonName] = useState('');
+  const [separatorHex, setSeparatorHex] = useState<string>();
   const [hexEdits, setHexEdits] = useState<Record<string, string>>({});
 
   const refreshGames = useCallback(async () => {
@@ -45,6 +50,23 @@ export function ColorCustomization() {
 
   // Derive selectedGame directly from state
   const selectedGame = games.find((g) => g.id === selectedGameId);
+  const hasChanges =
+    Object.entries(tempColors).some(
+      ([key, color]) => color !== settings.notationColors[key],
+    ) ||
+    !!(
+      selectedGame &&
+      (tempButtonLayout.length !== selectedGame.buttonLayout.length ||
+        tempButtonLayout.some(
+          (button, index) =>
+            button !== selectedGame.buttonLayout[index] ||
+            tempButtonColors[button] !== selectedGame.buttonColors?.[button],
+        ))
+    );
+  useEffect(() => {
+    onUnsavedChangesChange(hasChanges);
+    return () => onUnsavedChangesChange(false);
+  }, [hasChanges, onUnsavedChangesChange]);
 
   useEffect(() => {
     refreshGames().then((sorted) => {
@@ -90,6 +112,7 @@ export function ColorCustomization() {
 
   const handleReset = async () => {
     setTempColors(DEFAULT_COLORS);
+    setSeparatorHex(undefined);
     if (!(await setSetting('notationColors', DEFAULT_COLORS))) return;
 
     if (selectedGameId && selectedGame) {
@@ -135,13 +158,11 @@ export function ColorCustomization() {
                 />
                 <input
                   type="color"
+                  aria-label="Separator color"
                   value={tempColors.separator}
                   onChange={(e) => {
                     handleColorChange('separator', e.target.value);
-                    setHexEdits((prev) => ({
-                      ...prev,
-                      separator: e.target.value,
-                    }));
+                    setSeparatorHex(e.target.value);
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
@@ -151,13 +172,9 @@ export function ColorCustomization() {
                 return (
                   <input
                     type="text"
-                    value={hexEdits.separator ?? currentHex}
-                    onChange={(e) =>
-                      setHexEdits((prev) => ({
-                        ...prev,
-                        separator: e.target.value,
-                      }))
-                    }
+                    aria-label="Separator color hex"
+                    value={separatorHex ?? currentHex}
+                    onChange={(e) => setSeparatorHex(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') e.currentTarget.blur();
                     }}
@@ -166,12 +183,9 @@ export function ColorCustomization() {
                       if (!val.startsWith('#')) val = `#${val}`;
                       if (/^#[0-9a-fA-F]{6}$/.test(val)) {
                         handleColorChange('separator', val);
-                        setHexEdits((prev) => ({ ...prev, separator: val }));
+                        setSeparatorHex(val);
                       } else {
-                        setHexEdits((prev) => ({
-                          ...prev,
-                          separator: currentHex,
-                        }));
+                        setSeparatorHex(currentHex);
                       }
                     }}
                     className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
@@ -190,7 +204,7 @@ export function ColorCustomization() {
               Select Game
             </Label>
             <Select value={selectedGameId} onValueChange={setSelectedGameId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Select Game">
                 <SelectValue placeholder="Choose a game" />
               </SelectTrigger>
               <SelectContent>
@@ -225,6 +239,7 @@ export function ColorCustomization() {
                         />
                         <input
                           type="color"
+                          aria-label={`${button} button color`}
                           value={currentHex}
                           onChange={(e) => {
                             handleButtonColorChange(button, e.target.value);
@@ -238,6 +253,7 @@ export function ColorCustomization() {
                       </label>
                       <input
                         type="text"
+                        aria-label={`${button} button color hex`}
                         value={editHex}
                         onChange={(e) =>
                           setHexEdits((prev) => ({
@@ -268,6 +284,7 @@ export function ColorCustomization() {
                       variant="ghost"
                       size="icon"
                       className="size-8 text-muted-foreground hover:text-destructive shrink-0"
+                      aria-label={`Remove ${button} button`}
                       onClick={() =>
                         setTempButtonLayout((prev) =>
                           prev.filter((b) => b !== button),
@@ -329,22 +346,21 @@ export function ColorCustomization() {
                   Add
                 </Button>
               </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button onClick={handleApply} className="flex-1">
-                  Apply Changes
-                </Button>
-                <Button
-                  onClick={handleReset}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <ArrowClockwiseIcon className="w-4 h-4" />
-                  Reset to Defaults
-                </Button>
-              </div>
             </div>
           )}
+          <div className="flex flex-wrap gap-2 pt-4">
+            <Button onClick={handleApply} className="flex-1">
+              Apply Changes
+            </Button>
+            <Button
+              onClick={handleReset}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <ArrowClockwiseIcon className="w-4 h-4" />
+              Reset to Defaults
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

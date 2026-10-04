@@ -1,4 +1,5 @@
 import type { ComboEditableInput } from '@/lib/application/comboCommands';
+import { uniqueTags } from '@/lib/tags';
 import type { Combo } from '@/lib/types';
 
 export interface ComboDraft {
@@ -23,7 +24,7 @@ export function createComboDraft(combo?: Combo | null): ComboDraft {
     difficulty: combo?.difficulty?.toString() ?? '',
     damage: combo?.damage ?? '',
     meterCost: combo?.meterCost ?? '',
-    tags: [...(combo?.tags ?? [])],
+    tags: uniqueTags(combo?.tags ?? []),
     demoUrl: combo?.demoUrl ?? '',
     demoFileName: combo?.demoFileName ?? '',
     demoVideoTitle: combo?.demoVideoTitle ?? '',
@@ -41,7 +42,7 @@ export function buildComboPayload(draft: ComboDraft): ComboEditableInput {
       : undefined,
     damage: draft.damage.trim(),
     meterCost: draft.meterCost.trim(),
-    tags: draft.tags,
+    tags: uniqueTags(draft.tags),
     demoUrl: draft.demoUrl.trim() || undefined,
     demoFileName: draft.demoFileName || undefined,
     demoVideoTitle: draft.demoVideoTitle || undefined,

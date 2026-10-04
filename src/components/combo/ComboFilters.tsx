@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { hasTag } from '@/lib/tags';
 
 interface ComboFiltersProps {
   filterSearch: string;
@@ -54,12 +55,18 @@ export function ComboFilters({
           {allTags.map((tag) => (
             <Badge
               key={tag}
-              variant={filterTags.includes(tag) ? 'default' : 'outline'}
+              variant={hasTag(filterTags, tag) ? 'default' : 'outline'}
               className="cursor-pointer select-none"
-              onClick={() => onToggleFilterTag(tag)}
+              asChild
             >
-              #{tag}
-              {filterTags.includes(tag) && <XIcon className="w-3 h-3 ml-1" />}
+              <button
+                type="button"
+                aria-pressed={hasTag(filterTags, tag)}
+                onClick={() => onToggleFilterTag(tag)}
+              >
+                #{tag}
+                {hasTag(filterTags, tag) && <XIcon className="w-3 h-3 ml-1" />}
+              </button>
             </Badge>
           ))}
         </div>

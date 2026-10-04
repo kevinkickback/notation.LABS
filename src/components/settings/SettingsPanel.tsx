@@ -4,6 +4,7 @@ import {
   PaletteIcon,
   TextAaIcon,
 } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,6 +30,14 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState('general');
+  const [hasUnsavedColors, setHasUnsavedColors] = useState(false);
+  useEffect(() => {
+    if (!open) {
+      setActiveTab('general');
+      setHasUnsavedColors(false);
+    }
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="settings-dialog max-w-[691px] flex flex-col overflow-hidden">
@@ -41,7 +50,8 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
         </DialogHeader>
 
         <Tabs
-          defaultValue="general"
+          value={activeTab}
+          onValueChange={setActiveTab}
           orientation={isMobile ? 'horizontal' : 'vertical'}
           className="settings-layout min-w-0 min-h-0"
         >
@@ -70,7 +80,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
             <GeneralSettings />
           </TabsContent>
           <TabsContent value="colors">
-            <ColorCustomization />
+            <ColorCustomization onUnsavedChangesChange={setHasUnsavedColors} />
           </TabsContent>
           <TabsContent value="notation">
             <NotationSettings />
@@ -79,8 +89,17 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
             <AboutTab />
           </TabsContent>
         </Tabs>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="settings-footer">
+          {activeTab === 'colors' && hasUnsavedColors && (
+            <output className="settings-color-hint" aria-live="polite">
+              Use Apply Changes to save your color changes.
+            </output>
+          )}
+          <Button
+            className="settings-done"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             Done
           </Button>
         </DialogFooter>

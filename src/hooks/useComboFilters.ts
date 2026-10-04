@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { hasTag, tagKey, uniqueTags } from '@/lib/tags';
 import type { Combo } from '@/lib/types';
 
 /**
@@ -13,21 +14,19 @@ export function useComboFilters(combos: Combo[]) {
   >('all');
   const [filterSearch, setFilterSearch] = useState('');
 
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    combos.forEach((c) => {
-      c.tags.forEach((t) => {
-        tagSet.add(t);
-      });
-    });
-    return Array.from(tagSet).sort();
-  }, [combos]);
+  const allTags = useMemo(
+    () =>
+      uniqueTags(combos.flatMap((combo) => combo.tags)).sort((a, b) =>
+        tagKey(a).localeCompare(tagKey(b)),
+      ),
+    [combos],
+  );
 
   const filteredCombos = useMemo(() => {
     return combos.filter((combo) => {
       if (
         filterTags.length > 0 &&
-        !filterTags.every((t) => combo.tags.includes(t))
+        !filterTags.every((tag) => hasTag(combo.tags, tag))
       )
         return false;
       if (
@@ -72,14 +71,14 @@ export function useComboFilters(combos: Combo[]) {
 
   const toggleFilterTag = (tag: string) => {
     setFilterTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+      hasTag(prev, tag)
+        ? prev.filter((value) => tagKey(value) !== tagKey(tag))
+        : [...prev, tag],
     );
   };
 
   const addFilterTag = (tag: string) => {
-    if (!filterTags.includes(tag)) {
-      setFilterTags((prev) => [...prev, tag]);
-    }
+    setFilterTags((prev) => (hasTag(prev, tag) ? prev : [...prev, tag]));
   };
 
   return {

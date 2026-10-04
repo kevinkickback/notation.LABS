@@ -364,7 +364,7 @@ test('keeps the game title and toolbar usable when either notebook dock constrai
   await expect(page.getByPlaceholder('Search characters...')).toBeVisible();
 });
 
-test('spreads combo details below the actions in narrow cards and preserves their controls', async ({ page }, testInfo) => {
+test('keeps notation above the details footer in narrow cards and preserves their controls', async ({ page }, testInfo) => {
   await page.evaluate(async () => {
     const path = '/src/lib/storage/indexedDbStorage.ts';
     const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
@@ -375,17 +375,18 @@ test('spreads combo details below the actions in narrow cards and preserves thei
   const metadata = card.locator('.combo-card-metadata');
   const actions = card.locator('.combo-card-actions');
   await expect(metadata.getByText('Difficulty: 2/5', { exact: true })).toBeVisible();
-  await expect(metadata.locator('[data-slot="badge"]')).toHaveCount(7);
+  await expect(metadata.getByText('4200', { exact: true })).toBeVisible();
+  await expect(metadata.getByText('1 bar', { exact: true })).toBeVisible();
+  await expect(metadata.getByRole('button', { name: /^Filter by/ })).toHaveCount(3);
+  await expect(card.locator('.combo-card-heading').getByText('Outdated', { exact: true })).toBeVisible();
   const checkNarrowCard = async () => {
     const metadataBox = await metadata.boundingBox();
     const actionsBox = await actions.boundingBox();
-    if (!metadataBox || !actionsBox) throw new Error('Missing combo controls');
-    expect(metadataBox.y).toBeGreaterThanOrEqual(actionsBox.y + actionsBox.height + 7);
-    expect(metadataBox.x).toBeCloseTo(actionsBox.x, 0);
-    expect(metadataBox.width).toBeCloseTo(actionsBox.width, 0);
-    const status = await metadata.getByText('Outdated', { exact: true }).boundingBox();
-    const difficulty = await metadata.getByText('Difficulty: 2/5', { exact: true }).boundingBox();
-    expect(status?.y).toBeCloseTo(difficulty?.y ?? -1, 0);
+    const notationBox = await card.locator('.combo-card-notation').boundingBox();
+    if (!metadataBox || !actionsBox || !notationBox) throw new Error('Missing combo controls');
+    expect(notationBox.y).toBeGreaterThanOrEqual(actionsBox.y + actionsBox.height);
+    expect(metadataBox.y).toBeGreaterThanOrEqual(notationBox.y + notationBox.height);
+    expect(metadataBox.width).toBeGreaterThan(notationBox.width);
     expect(await card.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     for (const name of ['Watch Demo', 'Edit combo', 'Duplicate combo', 'Delete combo']) {

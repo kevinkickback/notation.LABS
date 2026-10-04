@@ -151,8 +151,10 @@ The renderer entry imports `src/main.css` once; HTML must not also load it as a 
 Tailwind source discovery is limited to `src/`, with the HTML entry explicitly included by `@source`,
 so dependency watches do not walk the entire workspace during cold development startup.
 Styling imports Tailwind once through `src/main.css`. `src/styles/theme.css` owns the app's light and
-dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings provider
+dark values and Tailwind aliases; `src/index.css` holds global element styles. The settings presentation provider
 applies the `.dark` class, font, and custom accent, and notifications read the same theme preference.
+The application supplies persisted preferences; the sample card preview supplies in-memory preferences
+and never initializes, migrates, or writes the application database.
 The Tailwind configuration retains the centered container spacing used by the workspace.
 Accent appearance uses opaque sRGB colors and selects black or white foreground text by relative
 luminance using the [WCAG contrast calculation](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).

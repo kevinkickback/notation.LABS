@@ -73,3 +73,10 @@
   outline: 2px solid var(--accent-color, #3b82f6);
   outline-offset: 2px;
 }
+.toaster .toast-message {
+  min-width: 0;
+  max-height: var(--toast-message-max-height);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

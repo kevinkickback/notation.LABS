@@ -35,6 +35,12 @@ for (const theme of ['light', 'dark'] as const) {
       const bell = page.getByRole('button', { name: /Notifications/ });
       const footer = page.getByRole('contentinfo');
       await expect(toast).toBeVisible();
+      await toast.hover();
+      await page.mouse.down();
+      await expect(toast).toHaveAttribute('data-swiping', 'true');
+      await expect(toast).toHaveCSS('overflow-x', 'visible');
+      await expect(toast).toHaveCSS('overflow-y', 'visible');
+      await page.mouse.up();
       const fits = async (anchor: typeof footer) => {
         const [notice, target] = await Promise.all([toast.boundingBox(), anchor.boundingBox()]);
         return !!notice && !!target && notice.y >= 0 && notice.x >= 0 && notice.x + notice.width <= width && notice.y + notice.height <= target.y - 7;
@@ -92,9 +98,11 @@ test('keeps very long feedback readable and scrollable above open history', asyn
   const notice = page.locator('[data-sonner-toast][data-front="true"]');
   await expect(notice).toHaveText(message);
   await expect(notice).toHaveCSS('touch-action', 'pan-y');
-  await expect.poll(() => notice.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
-  await notice.evaluate(element => { element.scrollTop = element.scrollHeight; });
-  expect(await notice.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  const messageRegion = notice.locator('[data-content]');
+  await expect.poll(() => messageRegion.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  await messageRegion.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  expect(await messageRegion.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  expect(await messageRegion.evaluate(element => element.scrollWidth - element.clientWidth)).toBe(0);
   await expect(history.getByRole('button', { name: 'Close notifications' })).toBeInViewport();
   const bounds = await notice.boundingBox();
   const panel = await history.boundingBox();

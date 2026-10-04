@@ -275,6 +275,24 @@
   font-size: 0.875rem;
   font-weight: 600;
 }
+.settings-dialog .settings-footer {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) minmax(0, auto) minmax(72px, 1fr);
+}
+.settings-color-hint {
+  grid-column: 2;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #875a00;
+}
+.dark .settings-color-hint {
+  color: #fde047;
+}
+.settings-done {
+  grid-column: 3;
+  justify-self: end;
+}
 .settings-dialog [data-slot="card-description"] {
   font-size: 0.8125rem;
   line-height: 1.6;
@@ -320,6 +338,13 @@
   }
 }
 @media (max-width: 480px) {
+  .settings-dialog .settings-footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-color-hint,
+  .settings-done {
+    grid-column: 1;
+  }
   [data-slot="dialog-content"],
   [data-slot="alert-dialog-content"] {
     --dialog-gutter: 18px;
@@ -535,6 +560,20 @@
   padding-bottom: 0;
   border-bottom: 0;
 }
+.guide-live-preview {
+  --guide-input-color: #bdceef;
+}
+.guide-preview-surface {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+:root:not(.dark) .guide-live-preview {
+  --guide-input-color: oklch(0.38 0.08 265);
+}
+:root:not(.dark) .guide-live-preview [data-motion-style="arrows"] {
+  background: color-mix(in srgb, var(--muted) 30%, var(--card));
+}
 .guide-motion-settings {
   padding-top: 20px;
   border-top: 1px solid var(--border);
@@ -548,7 +587,7 @@
   margin-top: 12px;
   padding: 12px;
   border-radius: var(--radius-md);
-  background: oklch(0.25 0.015 265);
+  background: var(--muted);
 }
 .guide-motion-example {
   display: flex;
@@ -560,7 +599,7 @@
   text-align: center;
 }
 .guide-motion-examples span {
-  color: #d9dee4;
+  color: var(--muted-foreground);
 }
 @container dialog (max-width: 800px) {
   .guide-workspace {
