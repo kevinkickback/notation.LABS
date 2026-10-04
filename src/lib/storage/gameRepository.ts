@@ -5,7 +5,7 @@ import type { Game } from '@/lib/types';
 import { db } from './database';
 import { deleteEntityCascade } from './entityDeletion';
 import { reparseCombosForGame } from './notationMaintenance';
-import { generateId } from './repositoryUtils';
+import { generateId, setEntityFavorite } from './repositoryUtils';
 
 export const gameRepository = {
   getAll: () => db.games.toArray(),
@@ -60,9 +60,8 @@ export const gameRepository = {
       },
     );
   },
-  setFavorite: async (id: string, favorite: boolean) => {
-    await db.games.update(id, { favorite });
-  },
+  setFavorite: (id: string, favorite: boolean) =>
+    setEntityFavorite(db.games, id, favorite),
   delete: (id: string) => deleteEntityCascade('game', [id]),
   bulkDelete: (ids: string[]) => deleteEntityCascade('game', ids),
 };

@@ -28,3 +28,22 @@ it.each(['game', 'character'] as const)('rejects a %s save when an accepted imag
     expect(await characterRepository.get(id)).toEqual(before);
   }
 }, 20000);
+
+it.each(['game', 'character'] as const)('preserves a near-budget %s when favoriting would prevent its export', async kind => {
+  const repository = kind === 'game' ? gameRepository : characterRepository;
+  const id = kind === 'game'
+    ? await gameRepository.add({ name: 'Near budget', buttonLayout: ['A'] })
+    : await characterRepository.add({ gameId: 'g', name: 'Near budget' });
+  const field = kind === 'game' ? 'logoImage' : 'portraitImage';
+  const prefix = 'data:image/jpeg;base64,';
+  const record = await repository.get(id);
+  const overhead = new TextEncoder().encode(JSON.stringify({ ...record, [field]: prefix })).byteLength;
+  const payloadLength = Math.floor((MAX_JSON_BACKUP_BYTES - overhead - 8) / 4) * 4;
+  const image = `${prefix}/9j/${'A'.repeat(payloadLength - 4)}`;
+  if (kind === 'game') await gameRepository.update(id, { logoImage: image });
+  else await characterRepository.update(id, { portraitImage: image });
+  await expect(repository.setFavorite(id, true)).rejects.toThrow('record is too large');
+  const retained = await repository.get(id);
+  expect(retained?.favorite).toBeUndefined();
+  expect(retained).toMatchObject({ [field]: image });
+}, 20000);

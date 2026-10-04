@@ -2,7 +2,7 @@ import { encodeBackupRecord } from '@/lib/backup/capabilities';
 import type { Character } from '@/lib/types';
 import { db } from './database';
 import { deleteEntityCascade } from './entityDeletion';
-import { generateId } from './repositoryUtils';
+import { generateId, setEntityFavorite } from './repositoryUtils';
 
 export const characterRepository = {
   getAll: () => db.characters.toArray(),
@@ -30,9 +30,8 @@ export const characterRepository = {
       await db.characters.update(id, { ...updates, updatedAt });
     });
   },
-  setFavorite: async (id: string, favorite: boolean) => {
-    await db.characters.update(id, { favorite });
-  },
+  setFavorite: (id: string, favorite: boolean) =>
+    setEntityFavorite(db.characters, id, favorite),
   delete: (id: string) => deleteEntityCascade('character', [id]),
   bulkDelete: (ids: string[]) => deleteEntityCascade('character', ids),
 };

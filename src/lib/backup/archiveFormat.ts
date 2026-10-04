@@ -13,6 +13,7 @@ import {
   videoHeaderSchema,
 } from '@/lib/schemas';
 import type { Character, Game } from '@/lib/types';
+import { base64ToArrayBuffer } from './base64';
 
 const sizeSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const archiveManifestSchema = z.object({
@@ -88,10 +89,7 @@ export function separateImage<T extends Game | Character>(
   return {
     record: wire,
     get blob() {
-      const bytes = Uint8Array.from(atob(encoded), (char) =>
-        char.charCodeAt(0),
-      );
-      return new Blob([bytes], { type: mimeType });
+      return new Blob([base64ToArrayBuffer(encoded)], { type: mimeType });
     },
   };
 }
