@@ -1,10 +1,11 @@
+import { encodeBackupRecord } from '@/lib/backup/capabilities';
 import { haveSameGameNotation } from '@/lib/comboParsing';
 import { resolveNotationProfile } from '@/lib/notationProfiles';
 import type { Game } from '@/lib/types';
 import { db } from './database';
 import { deleteEntityCascade } from './entityDeletion';
 import { reparseCombosForGame } from './notationMaintenance';
-import { generateId } from './repositoryUtils';
+import { generateId, setEntityFavorite } from './repositoryUtils';
 
 export const gameRepository = {
   getAll: () => db.games.toArray(),
@@ -16,13 +17,15 @@ export const gameRepository = {
   ) => {
     const id = generateId();
     const now = Date.now();
-    await db.games.add({
+    const record = {
       ...game,
       notationProfile: resolveNotationProfile(game),
       id,
       createdAt: now,
       updatedAt: now,
-    });
+    };
+    encodeBackupRecord(record);
+    await db.games.add(record);
     return id;
   },
   update: async (id: string, updates: Partial<Game>) => {
@@ -31,6 +34,9 @@ export const gameRepository = {
       [db.games, db.characters, db.combos],
       async () => {
         const currentGame = await db.games.get(id);
+        const updatedAt = Date.now();
+        if (currentGame)
+          encodeBackupRecord({ ...currentGame, ...updates, updatedAt });
         const nextButtonLayout = updates.buttonLayout;
         const nextNotationProfile = updates.notationProfile;
         const shouldReparseCombos =
@@ -45,7 +51,7 @@ export const gameRepository = {
           ...(nextNotationProfile
             ? { notationProfile: nextNotationProfile }
             : {}),
-          updatedAt: Date.now(),
+          updatedAt,
         });
 
         if (shouldReparseCombos) {
@@ -54,9 +60,8 @@ export const gameRepository = {
       },
     );
   },
-  setFavorite: async (id: string, favorite: boolean) => {
-    await db.games.update(id, { favorite });
-  },
+  setFavorite: (id: string, favorite: boolean) =>
+    setEntityFavorite(db.games, id, favorite),
   delete: (id: string) => deleteEntityCascade('game', [id]),
   bulkDelete: (ids: string[]) => deleteEntityCascade('game', ids),
 };

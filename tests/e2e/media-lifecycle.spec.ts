@@ -1,6 +1,37 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
+test('accepts large desktop artwork and keeps the smaller web upload limit', async ({ page }) => {
+  const image = Buffer.concat([await readFile('src/assets/images/defaultGame.jpg'), Buffer.alloc(3 * 1024 * 1024)]);
+  await page.goto('/');
+  await page.getByRole('button', { name: /add your first game/i }).click();
+  const editor = page.getByRole('dialog', { name: 'Add New Game', exact: true });
+  await expect(editor.getByText('Image files up to 2 MB', { exact: true })).toBeVisible();
+  const upload = async () => {
+    const choosing = page.waitForEvent('filechooser');
+    await editor.getByRole('button', { name: 'Upload Image', exact: true }).click();
+    await (await choosing).setFiles({ name: 'large-cover.jpg', mimeType: 'image/jpeg', buffer: image });
+  };
+  await upload();
+  await expect(page.getByText('Image must be under 2MB', { exact: true })).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Remove image', exact: true })).toHaveCount(0);
+  // The artwork policy reads the presence of the desktop bridge; no privileged calls are made here.
+  await page.evaluate(() => Object.defineProperty(window, 'electronAPI', { value: {}, configurable: true }));
+  await editor.getByLabel('Game Name').fill('Large desktop artwork');
+  await expect(editor.getByText('PNG, JPG, GIF, WebP or BMP', { exact: true })).toBeVisible();
+  await upload();
+  await expect(editor.getByRole('button', { name: 'Remove image', exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: 'Add Game', exact: true }).click();
+  await expect(editor).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Large desktop artwork', exact: true })).toBeVisible();
+  const restoredImage = await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { db } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    return (await db.games.toArray())[0].logoImage;
+  });
+  expect(restoredImage).toBe(`data:image/jpeg;base64,${image.toString('base64')}`);
+});
+
 test('a cancelled cover cannot replace artwork in another game editor', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const image = `data:image/jpeg;base64,${(await readFile('src/assets/images/defaultGame.jpg')).toString('base64')}`;

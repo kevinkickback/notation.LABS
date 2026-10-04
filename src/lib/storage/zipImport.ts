@@ -20,13 +20,14 @@ import {
   BACKUP_DIRECTORY_BYTES,
   BACKUP_MANIFEST_BYTES,
   BackupDirectoryBudget,
+  encodeBackupRecord,
 } from '@/lib/backup/capabilities';
 import { storageWarning } from '@/lib/backup/capacity';
 import { BACKUP_CHUNK_BYTES } from '@/lib/backup/exportContract';
 import { normalizeBackupImport } from '@/lib/backup/importPipeline';
 import { ndjsonWriter } from '@/lib/backup/recordStreams';
 import { parseComboRecords } from '@/lib/comboParsing';
-import { MAX_IMAGE_SIZE_BYTES } from '@/lib/media/images';
+import { MAX_EMBEDDED_IMAGE_BYTES } from '@/lib/media/images';
 import { normalizeGameNotationProfile } from '@/lib/notationProfiles';
 import { importDataSchema } from '@/lib/schemas';
 import {
@@ -401,22 +402,26 @@ async function stageZipBackup(
       for (const kind of ['games', 'characters'] as const) {
         for await (const batch of stagedRowsBatches(session.id, kind))
           for (const row of batch) {
-            if (!row.asset) continue;
+            if (
+              !row.asset ||
+              (row.kind !== 'games' && row.kind !== 'characters')
+            )
+              continue;
             const source = row.asset;
             const image = imageDataUrl(
               await boundedEntry(
                 requiredEntry(source.path),
-                MAX_IMAGE_SIZE_BYTES,
+                MAX_EMBEDDED_IMAGE_BYTES,
                 signal,
               ),
               source.mimeType,
             );
-            if (row.kind === 'games') row.value.logoImage = image;
-            else if (row.kind === 'characters') row.value.portraitImage = image;
-            row.bytes = new TextEncoder().encode(
-              JSON.stringify(row.value),
-            ).byteLength;
-            await db.backupRecords.put(row);
+            const hydrated =
+              row.kind === 'games'
+                ? { ...row, value: { ...row.value, logoImage: image } }
+                : { ...row, value: { ...row.value, portraitImage: image } };
+            hydrated.bytes = encodeBackupRecord(hydrated.value).byteLength;
+            await db.backupRecords.put(hydrated);
           }
       }
       progress.phase = 'videos';

@@ -70,7 +70,7 @@ writer and reader:
 | ZIP central-directory allocation | 64 MiB |
 | Estimated ZIP entry objects or subset relationship map | 256 MiB |
 | Lookup IDs and media filenames | 4,096 characters; MIME type 255 characters |
-| Embedded images | Existing 2 MiB per-image validation; no combined image allowance |
+| Embedded images | Up to 75 MiB decoded, derived from the 100 MiB record budget and base64 expansion; complete records still share that budget |
 
 The ZIP library reads the central directory before yielding entries. Directory checks therefore
 protect both that allocation and estimated per-entry objects; long names and extra fields consume
@@ -79,6 +79,16 @@ explicitly instead of dropping it; notes and image data are not truncated. JSON 
 directs the user to ZIP. Browser quota and filesystem errors remain authoritative even after a
 successful estimate. Native Blob storage can spill to disk but does not imply zero copying or zero
 temporary storage.
+
+The 2 MiB image-upload limit applies to the web editor. Desktop uploads and backups use the existing
+record allocation budget instead, so larger images already saved by older versions can be restored.
+ZIP export preserves image bytes and corrects legacy labels only when both the declared and detected
+types are supported raster formats. Import still rejects invalid signatures, mismatched archive
+descriptors, SVG, and active content. Export does not rewrite the library's original images.
+Game and character saves, including favorite changes, check the complete prospective record before writing, so image data and
+other fields share the same budget as backups. Restore hydrates one image at a time without keeping
+completed images in the descriptor batch; metadata-only export does not decode their payloads.
+Raster and legacy video decoding share a preallocated byte conversion without a temporary character list.
 
 ## Validation
 

@@ -6,6 +6,10 @@ import {
 } from '@phosphor-icons/react';
 import { useId } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  imageUploadByteBudget,
+  MAX_IMAGE_SIZE_BYTES,
+} from '@/lib/media/images';
 import type { CoverImageFit } from '@/lib/types';
 import { CoverImage } from './CoverImage';
 import { CoverImageControls } from './CoverImageControls';
@@ -93,7 +97,11 @@ export function EntityArtworkEditor({
             )}
           </div>
           <p className="entity-artwork-hint">
-            {image ? 'Drag image to reposition' : 'Image files up to 2 MB'}
+            {image
+              ? 'Drag image to reposition'
+              : imageUploadByteBudget() === MAX_IMAGE_SIZE_BYTES
+                ? 'Image files up to 2 MB'
+                : 'PNG, JPG, GIF, WebP or BMP'}
           </p>
         </div>
         <div className="entity-artwork-tools">

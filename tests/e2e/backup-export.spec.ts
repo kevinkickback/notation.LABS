@@ -72,7 +72,7 @@ test('exports JSON through the browser download fallback and restores the librar
   await expect(page.getByRole('heading', { name: 'JSON combo', exact: true })).toBeVisible();
 });
 
-test('restores a playable local video through the current ZIP format', async ({ page }) => {
+test('restores a playable local video and large legacy artwork through the current ZIP format', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }));
   await page.goto('/');
   const original = await page.evaluate(async () => {
@@ -91,17 +91,32 @@ test('restores a playable local video through the current ZIP format', async ({ 
     }
     recorder.stop(); await stopped; stream.getTracks().forEach(track => track.stop());
     const data = new Blob(pieces, { type: 'video/webm' });
-    const gameId = await indexedDbStorage.games.add({ name: 'Playback backup', buttonLayout: ['A'] });
+    const smallPng = await (await fetch(canvas.toDataURL('image/png'))).blob();
+    const largeImage = new Blob([smallPng, new Uint8Array(3 * 1024 * 1024)], { type: 'image/png' });
+    const bitmap = await createImageBitmap(largeImage); bitmap.close();
+    const logoImage = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve((reader.result as string).replace('data:image/png;', 'data:image/jpeg;'));
+      reader.onerror = () => reject(reader.error); reader.readAsDataURL(largeImage);
+    });
+    const gameId = await indexedDbStorage.games.add({ name: 'Playback backup', buttonLayout: ['A'], logoImage });
     const characterId = await indexedDbStorage.characters.add({ gameId, name: 'Fighter' });
     await indexedDbStorage.demoVideos.add({ id: 'playable', data, mimeType: data.type, fileName: 'demo.webm' });
     await indexedDbStorage.combos.add({ characterId, name: 'Playable combo', notation: 'A', parsedNotation: [], tags: [], demoUrl: 'local:playable' });
-    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await data.arrayBuffer())));
+    return {
+      videoHash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await data.arrayBuffer()))),
+      imageHash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await largeImage.arrayBuffer()))),
+    };
   });
   await page.getByRole('button', { name: 'Export data', exact: true }).click();
   await page.getByRole('switch', { name: 'Include demo videos', exact: true }).check();
   const downloading = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   const bytes = await readFile((await (await downloading).path())!);
+  expect(await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { db } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    return (await db.games.toArray())[0].logoImage?.startsWith('data:image/jpeg;');
+  })).toBe(true);
   await page.evaluate(async () => {
     const path = '/src/lib/storage/database.ts';
     const { db } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/database');
@@ -124,11 +139,47 @@ test('restores a playable local video through the current ZIP format', async ({ 
         video.requestVideoFrameCallback(() => resolve()); video.onerror = () => reject(new Error('Restored video did not decode'));
       });
       await video.play(); await decoded;
-      return { width: video.videoWidth, hash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await data.arrayBuffer()))) };
+      const image = (await indexedDbStorage.games.getAll())[0].logoImage!;
+      const imageData = await (await fetch(image)).blob();
+      const bitmap = await createImageBitmap(imageData);
+      const imageWidth = bitmap.width; bitmap.close();
+      return {
+        width: video.videoWidth,
+        hash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await data.arrayBuffer()))),
+        imageHash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await imageData.arrayBuffer()))),
+        imageMime: imageData.type, imageWidth,
+      };
     } finally { video.pause(); video.remove(); URL.revokeObjectURL(url!); }
   });
   expect(restored.width).toBe(32);
-  expect(restored.hash).toEqual(original);
+  expect(restored.hash).toEqual(original.videoHash);
+  expect(restored.imageHash).toEqual(original.imageHash);
+  expect(restored.imageMime).toBe('image/png');
+  expect(restored.imageWidth).toBe(32);
+});
+
+test('shows a readable image export failure and preserves the original library', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }));
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const gameId = await indexedDbStorage.games.add({ name: 'Damaged artwork', buttonLayout: ['A'], logoImage: 'data:image/jpeg;base64,AQID' });
+    const characterId = await indexedDbStorage.characters.add({ gameId, name: 'Fighter' });
+    await indexedDbStorage.demoVideos.add({ id: 'demo', data: new Blob([new Uint8Array([1, 2, 3])]), mimeType: 'video/mp4', fileName: 'demo.mp4' });
+    await indexedDbStorage.combos.add({ characterId, name: 'Combo', notation: 'A', parsedNotation: [], tags: [], demoUrl: 'local:demo' });
+  });
+  await page.getByRole('button', { name: 'Export data', exact: true }).click();
+  await page.getByRole('switch', { name: 'Include demo videos', exact: true }).check();
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const message = 'Cannot export the image for "Damaged artwork": it is unsupported, damaged, or too large to process safely. Replace it and try again.';
+  await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveText(message);
+  const retained = await page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { db } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    return { image: (await db.games.toArray())[0].logoImage, videos: await db.demoVideos.count(), staging: await db.backupRecords.count(), sessions: await db.backupSessions.count() };
+  });
+  expect(retained).toEqual({ image: 'data:image/jpeg;base64,AQID', videos: 1, staging: 0, sessions: 0 });
 });
 
 test('shows a JSON save failure, aborts the destination, and allows retry', async ({ page }) => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchImageAsBase64, isImageDataUrl, MAX_IMAGE_SIZE_BYTES, readImageFile } from '@/lib/media/images';
+import { fetchImageAsBase64, inspectImageDataUrl, isImageDataUrl, MAX_IMAGE_SIZE_BYTES, MAX_EMBEDDED_IMAGE_BYTES, readImageFile } from '@/lib/media/images';
 import { extractYouTubeVideoId, fetchYouTubeTitle, getYouTubeEmbedUrl } from '@/lib/media/youtube';
 import { downloadIgdbCover } from '@/lib/providers/igdbProvider';
 import { searchCharacterImages } from '@/lib/providers/imageSearchProvider';
@@ -17,6 +17,33 @@ describe('image acquisition', () => {
   });
   it('rejects oversized data URLs before decoding', () => {
     expect(isImageDataUrl(`data:image/png;base64,iVBORw0KGgoA${'A'.repeat(Math.ceil(MAX_IMAGE_SIZE_BYTES / 3) * 4)}`)).toBe(false);
+  });
+  it('keeps raster validation strict while allowing a caller to inspect a safe legacy MIME mismatch', () => {
+    const value = 'data:image/png;base64,/9j/AA==';
+    expect(isImageDataUrl(value)).toBe(false);
+    expect(inspectImageDataUrl(value)).toMatchObject({ mimeType: 'image/jpeg', declaredMimeType: 'image/png' });
+    expect(inspectImageDataUrl('data:text/html;base64,/9j/AA==')).toBeUndefined();
+    expect(inspectImageDataUrl(png, 7)).toBeUndefined();
+    expect(inspectImageDataUrl(png, 8)).toBeDefined();
+  });
+  it('accepts large desktop uploads while retaining the web upload limit', async () => {
+    const bytes = new Uint8Array(MAX_IMAGE_SIZE_BYTES + 1).fill(42);
+    bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
+    const file = new File([bytes], 'large.png', { type: 'image/png' });
+    vi.spyOn(file, 'slice').mockReturnValue({ arrayBuffer: async () => bytes.buffer } as Blob);
+    await expect(readImageFile(file, new AbortController().signal)).rejects.toThrow('2MB');
+    vi.stubGlobal('electronAPI', {});
+    const uploaded = await readImageFile(file, new AbortController().signal);
+    expect(isImageDataUrl(uploaded, MAX_EMBEDDED_IMAGE_BYTES)).toBe(true);
+    expect(isImageDataUrl(uploaded)).toBe(false);
+  });
+  it('rejects an image beyond the desktop record budget before reading it', async () => {
+    vi.stubGlobal('electronAPI', {});
+    const file = new File([], 'huge.png', { type: 'image/png' });
+    vi.spyOn(file, 'size', 'get').mockReturnValue(MAX_EMBEDDED_IMAGE_BYTES + 1);
+    const read = vi.spyOn(file, 'slice');
+    await expect(readImageFile(file, new AbortController().signal)).rejects.toThrow('memory');
+    expect(read).not.toHaveBeenCalled();
   });
   it.each([{ dataUrl: 1 }, { dataUrl: 'https://example.com/image' }, null, { dataUrl: 'data:image/png;base64,abc123' }])('validates downloaded provider payloads', async raw => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => raw }));
