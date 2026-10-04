@@ -130,6 +130,7 @@ test('keeps library lists, combo details, editors, notes and accent controls rea
     await settings.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(settings).toBeHidden();
     await checkText(page);
+    await expect(page.locator('.combo-card-notes a')).toHaveCSS('text-decoration-line', 'underline');
     const edit = page.getByRole('button', { name: 'Edit combo', exact: true });
     await page.keyboard.press('Tab');
     await edit.focus();
