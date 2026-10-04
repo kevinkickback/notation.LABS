@@ -137,6 +137,10 @@ continuous progress stay out of history. Operation IDs update an existing entry 
 saved messages; update actions resolve current updater state. Storage or clipboard failures use
 diagnostics and temporary feedback without recursively creating history or failing library writes.
 The footer panel uses the existing Radix focus and positioning primitives, with scrollable content.
+The workspace scroll area ends above the full-width status bar; notebook measurements use that same
+scroll owner. Temporary feedback appears at the bottom right above the footer or the open history
+panel. The open panel reserves space for one scrollable notice, and notification colors follow the
+current app theme.
 Update snapshots carry a stable state-event ID. A device-local cursor records consumed update events
 atomically with history and survives clearing/removal, so retained snapshots and delayed notes cannot
 recreate dismissed notices. New checks receive new identities, including across app restarts.

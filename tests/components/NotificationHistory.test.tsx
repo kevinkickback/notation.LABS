@@ -11,7 +11,7 @@ import type { UpdateDetails } from '@/lib/updater/ipcContract';
 
 const updater = vi.hoisted(() => ({ knownUpdate: null as UpdateDetails | null, showAvailableUpdate: vi.fn() }));
 vi.mock('@/context/UpdaterContext', () => ({ useUpdater: () => updater }));
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
+vi.mock('sonner', async original => ({ ...await original<typeof import('sonner')>(), toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }));
 vi.mock('@/lib/errors', async original => ({ ...await original<typeof import('@/lib/errors')>(), reportError: vi.fn() }));
 
 beforeEach(async () => {

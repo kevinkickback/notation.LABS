@@ -9,7 +9,10 @@ import {
 } from '@phosphor-icons/react';
 import * as Popover from '@radix-ui/react-popover';
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useSonner } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { HISTORY_TOAST_HEIGHT, Toaster } from '@/components/ui/sonner';
 import { useUpdater } from '@/context/UpdaterContext';
 import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
 import {
@@ -32,6 +35,8 @@ const types = {
 
 export function NotificationHistory() {
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null);
+  const { toasts } = useSonner();
   const [attempt, setAttempt] = useState(0);
   const [clock, setClock] = useState(Date.now);
   const titleId = useId();
@@ -113,6 +118,14 @@ export function NotificationHistory() {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
+          ref={setPanel}
+          style={
+            toasts.length
+              ? {
+                  maxHeight: `min(480px, max(0px, calc(var(--radix-popover-content-available-height) - ${HISTORY_TOAST_HEIGHT + 16}px)))`,
+                }
+              : undefined
+          }
           side="top"
           align="end"
           sideOffset={10}
@@ -275,6 +288,7 @@ export function NotificationHistory() {
           </div>
         </Popover.Content>
       </Popover.Portal>
+      {createPortal(<Toaster anchor={panel} />, document.body)}
     </Popover.Root>
   );
 }

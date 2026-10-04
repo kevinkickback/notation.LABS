@@ -1,7 +1,6 @@
 /* The footer keeps update state visible without changing the main workspace. */
 .workspace-footer {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 20;
   flex-shrink: 0;
   min-height: 32px;

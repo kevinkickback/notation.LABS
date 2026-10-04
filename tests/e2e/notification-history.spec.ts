@@ -7,13 +7,56 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
 });
 
-async function emitError(page: Page, message: string) {
-  await page.evaluate(async message => {
+async function emitError(page: Page, message: string, duration?: number) {
+  await page.evaluate(async ({ message, duration }) => {
     const path = '/src/lib/notifications.ts';
     const { notify } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/notifications');
-    notify.error(message);
-  }, message);
+    notify.error(message, { duration });
+  }, { message, duration });
   await expect(page.getByRole('button', { name: /Notifications, \d+ unread/ })).toBeVisible();
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [320, 800, 1440]) {
+    test(`positions feedback above the bell and open history at ${width}px in ${theme} mode`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 600 });
+      await page.evaluate(async theme => {
+        const storagePath = '/src/lib/storage/indexedDbStorage.ts';
+        const { indexedDbStorage } = await import(/* @vite-ignore */ storagePath) as typeof import('../../src/lib/storage/indexedDbStorage');
+        await indexedDbStorage.settings.update({ colorTheme: theme });
+        const path = '/src/lib/application/notificationCommands.ts';
+        const { recordNotification } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/application/notificationCommands');
+        for (let index = 0; index < 15; index++) await recordNotification({ id: `layout-${index}`, type: 'error', message: `Earlier error ${index}: ${'Details '.repeat(30)}` });
+      }, theme);
+      const message = 'Cannot export the image for "Practice library": it is unsupported, damaged, or too large to process safely. Replace it and try again.';
+      await emitError(page, message, 30000);
+      await expect(page.locator('[data-sonner-toaster]')).toHaveAttribute('data-sonner-theme', theme);
+      const toast = page.locator('[data-sonner-toast][data-front="true"]');
+      const bell = page.getByRole('button', { name: /Notifications/ });
+      const footer = page.getByRole('contentinfo');
+      await expect(toast).toBeVisible();
+      const fits = async (anchor: typeof footer) => {
+        const [notice, target] = await Promise.all([toast.boundingBox(), anchor.boundingBox()]);
+        return !!notice && !!target && notice.y >= 0 && notice.x >= 0 && notice.x + notice.width <= width && notice.y + notice.height <= target.y - 7;
+      };
+      await expect.poll(() => fits(footer)).toBe(true);
+      const closed = await toast.boundingBox();
+      expect(Math.round((closed?.x ?? 0) + (closed?.width ?? 0))).toBe(width - 16);
+      await bell.click();
+      const history = page.getByRole('dialog', { name: 'Notifications', exact: true });
+      await expect(history).toBeVisible();
+      await expect.poll(() => fits(history)).toBe(true);
+      await expect(history.getByRole('button', { name: 'Close notifications' })).toBeInViewport();
+      await page.screenshot({ path: testInfo.outputPath('feedback-layout.png') });
+      for (const height of [1000, 900, 500]) {
+        await page.setViewportSize({ width, height });
+        await expect.poll(() => fits(history)).toBe(true);
+      }
+      await history.getByRole('button', { name: 'Close notifications' }).click();
+      await expect(history).toHaveCount(0);
+      await expect.poll(() => fits(footer)).toBe(true);
+    });
+  }
 }
 
 test('captures real operations while closed, persists without replay, and manages history', async ({ page }) => {
@@ -38,6 +81,25 @@ test('captures real operations while closed, persists without replay, and manage
   await expect(history.getByText('A recoverable error')).toHaveCount(0);
   await history.getByRole('button', { name: 'Clear history' }).click();
   await expect(history.getByText('No notifications yet.')).toBeVisible();
+});
+
+test('keeps very long feedback readable and scrollable above open history', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 500 });
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  const message = `Transfer failed: ${'Please retry after replacing the affected artwork. '.repeat(25)}`;
+  await emitError(page, message, 30000);
+  const history = page.getByRole('dialog', { name: 'Notifications', exact: true });
+  const notice = page.locator('[data-sonner-toast][data-front="true"]');
+  await expect(notice).toHaveText(message);
+  await expect(notice).toHaveCSS('touch-action', 'pan-y');
+  await expect.poll(() => notice.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  await notice.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  expect(await notice.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await expect(history.getByRole('button', { name: 'Close notifications' })).toBeInViewport();
+  const bounds = await notice.boundingBox();
+  const panel = await history.boundingBox();
+  expect(bounds?.y).toBeGreaterThanOrEqual(0);
+  expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThan(panel?.y ?? 0);
 });
 
 test('opens with the keyboard, returns focus on Escape, and closes on outside clicks', async ({ page }) => {

@@ -1262,8 +1262,9 @@ for (const kind of ['game', 'character'] as const) {
     const dock = page.getByRole('complementary', { name: `${kind === 'game' ? 'Street Fighter 6' : 'Ryu'} Notebook` });
     for (const height of [1000, 600]) {
       await page.setViewportSize({ width: 1440, height });
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(500);
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      const scrollArea = page.locator('.workspace-scroll-area');
+      await expect.poll(() => scrollArea.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(500);
+      await scrollArea.evaluate(element => element.scrollTo(0, element.scrollHeight));
       const sidebar = await dock.boundingBox();
       const navigationBottom = await page.locator('main').evaluate(element => element.previousElementSibling?.getBoundingClientRect().bottom ?? 0);
       const footer = await page.locator('footer').boundingBox();
