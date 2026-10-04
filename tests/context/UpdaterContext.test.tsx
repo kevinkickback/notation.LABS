@@ -56,11 +56,24 @@ describe('UpdaterProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
     expect(screen.getByText('Downloading v2.0.0...')).toBeTruthy();
     emit(updateSnapshot({ status: 'error', update: available, error: 'Download interrupted' }, 2));
-    expect(recordNotificationMock).toHaveBeenLastCalledWith({ id: 'update:2.0.0', type: 'error', message: 'Download interrupted', action: { type: 'view-update' } });
+    expect(recordNotificationMock).toHaveBeenLastCalledWith({ id: 'update:2.0.0', type: 'error', message: 'Download interrupted', action: { type: 'view-update' }, event: { source: 'updater', id: 'fixture:2' } });
     emit(updateSnapshot({ status: 'downloaded', update: updateDetails({ status: 'downloaded' }) }, 3));
-    expect(recordNotificationMock).toHaveBeenLastCalledWith({ id: 'update:2.0.0', type: 'update', message: 'Update v2.0.0 ready to install', action: { type: 'view-update' } });
+    expect(recordNotificationMock).toHaveBeenLastCalledWith({ id: 'update:2.0.0', type: 'update', message: 'Update v2.0.0 ready to install', action: { type: 'view-update' }, event: { source: 'updater', id: 'fixture:3' } });
     emit(updateSnapshot({ status: 'downloaded', update: updateDetails({ status: 'downloaded' }) }, 2));
     expect(recordNotificationMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts delayed release notes without recording the same terminal event again', async () => {
+    render(<UpdaterProvider><StatusProbe /></UpdaterProvider>);
+    await waitFor(() => expect(listener).not.toBeNull());
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Download failed' }, 1, 0, 'failure'));
+    recordNotificationMock.mockClear();
+    emit(updateSnapshot({ status: 'error', update: { ...available, changelog: 'Delayed notes' }, error: 'Download failed' }, 2, 0, 'failure'));
+    expect(recordNotificationMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Show update' }));
+    expect(screen.getByText('Delayed notes')).toBeTruthy();
+    emit(updateSnapshot({ status: 'error', update: available, error: 'Another failure' }, 3, 0, 'new-failure'));
+    expect(recordNotificationMock).toHaveBeenCalledOnce();
   });
   async function mountFooter() {
     const view = render(<UpdaterProvider><WorkspaceStatus /></UpdaterProvider>);

@@ -53,6 +53,46 @@ test('opens with the keyboard, returns focus on Escape, and closes on outside cl
   await expect(history).toHaveCount(0);
 });
 
+test('keeps keyboard focus in the panel after removing the final entry and clearing history', async ({ page }) => {
+  await emitError(page, 'First error');
+  await page.getByRole('button', { name: 'Notifications, 1 unread' }).click();
+  const history = page.getByRole('dialog', { name: 'Notifications', exact: true });
+  await history.getByRole('button', { name: 'Remove notification: First error' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(history.getByText('No notifications yet.')).toBeVisible();
+  await expect(history.getByRole('button', { name: 'Close notifications' })).toBeFocused();
+  await emitError(page, 'Second error');
+  await history.getByRole('button', { name: 'Clear history' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(history.getByText('No notifications yet.')).toBeVisible();
+  await expect(history.getByRole('button', { name: 'Close notifications' })).toBeFocused();
+});
+
+test('does not duplicate a retained update error or restore it after clearing and reloading', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'electronAPI', { value: {
+      getUpdateStatus: async () => ({ status: 'error', update: null, error: 'Check failed', revision: 2, availabilityEventId: 0, eventId: 'retained-failure' }),
+      onUpdateStatus: () => () => {},
+      setAutoCheck: async () => {},
+      getAppVersion: async () => '1.8.0',
+    } });
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Notifications, 1 unread' }).click();
+  const history = page.getByRole('dialog', { name: 'Notifications', exact: true });
+  await history.getByRole('button', { name: 'Mark all read' }).click();
+  await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await expect(history.locator('li')).toHaveCount(1);
+  await expect(history.getByText('Unread', { exact: true })).toHaveCount(0);
+  await history.getByRole('button', { name: 'Clear history' }).click();
+  await expect(history.getByText('No notifications yet.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await expect(history.getByText('No notifications yet.')).toBeVisible();
+});
+
 for (const width of [320, 800, 1440]) {
   for (const colorTheme of ['light', 'dark'] as const) {
     test(`keeps long history readable as docked notes adapt at ${width}px in ${colorTheme} mode`, async ({ page }, testInfo) => {

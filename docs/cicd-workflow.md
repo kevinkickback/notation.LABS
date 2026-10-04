@@ -133,6 +133,9 @@ continuous progress stay out of history. Operation IDs update an existing entry 
 saved messages; update actions resolve current updater state. Storage or clipboard failures use
 diagnostics and temporary feedback without recursively creating history or failing library writes.
 The footer panel uses the existing Radix focus and positioning primitives, with scrollable content.
+Update snapshots carry a stable state-event ID. A device-local cursor records consumed update events
+atomically with history and survives clearing/removal, so retained snapshots and delayed notes cannot
+recreate dismissed notices. New checks receive new identities, including across app restarts.
 Electron permits sanitized clipboard writes only from the live app's main frame at its configured
 renderer URL. Clipboard reads, embedded pages, and unrelated permissions remain denied.
 

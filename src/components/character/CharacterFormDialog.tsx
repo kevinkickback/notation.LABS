@@ -24,7 +24,7 @@ import {
   updateCharacter,
 } from '@/lib/application/characterCommands';
 import { reportError } from '@/lib/errors';
-import { readImageFile } from '@/lib/media/images';
+import { ImageValidationError, readImageFile } from '@/lib/media/images';
 import { notify } from '@/lib/notifications';
 import type { Character, Game } from '@/lib/types';
 import { CharacterSearchDialog } from './CharacterSearchDialog';
@@ -154,6 +154,7 @@ export function CharacterFormDialog({
       onError: (error) =>
         notify.error(
           error instanceof Error ? error.message : 'Failed to read image file',
+          { history: !(error instanceof ImageValidationError) },
         ),
     });
   };

@@ -12,6 +12,11 @@ export const notificationTypeSchema = z.enum([
 export const notificationActionSchema = z.object({
   type: z.literal('view-update'),
 });
+export const notificationEventSchema = z.object({
+  source: z.literal('updater'),
+  id: z.string().min(1),
+});
+export type NotificationEvent = z.infer<typeof notificationEventSchema>;
 export const notificationSchema = z.object({
   id: z.string().min(1),
   message: z.string(),
@@ -26,4 +31,4 @@ export type NotificationEntry = z.infer<typeof notificationSchema>;
 export type NotificationInput = Pick<
   NotificationEntry,
   'id' | 'message' | 'type' | 'action'
->;
+> & { event?: NotificationEvent };

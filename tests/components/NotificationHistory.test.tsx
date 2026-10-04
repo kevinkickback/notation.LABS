@@ -50,10 +50,12 @@ describe('notification panel', () => {
     await waitFor(() => expect(screen.queryByText('Unread')).toBeNull());
     await user.click(screen.getByRole('button', { name: 'Remove notification: Save failed' }));
     expect(await screen.findByText('No notifications yet.')).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close notifications' }));
     await act(async () => notificationRepository.record({ id: 'next', message: 'Complete', type: 'success' }));
     expect(await screen.findByText('Complete')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Clear history' }));
     expect(await screen.findByText('No notifications yet.')).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close notifications' }));
   });
 
   it('resolves update actions through the current updater and hides expired actions', async () => {

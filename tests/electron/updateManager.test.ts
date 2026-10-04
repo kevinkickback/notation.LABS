@@ -63,6 +63,23 @@ describe('isUpdateEligible', () => {
 
 
 describe('updateManager', () => {
+  it('keeps a transition identity through metadata changes and creates a new identity for a retry', async () => {
+    const fetch = deferred<{ ok: boolean; json: () => Promise<{ body: string }> }>();
+    const context = await loadUpdateManager({ fetchImpl: vi.fn().mockReturnValue(fetch.promise) });
+    context.emit('update-available', { version: '2.0.0' });
+    context.emit('error', new Error('Download failed'));
+    const failure = context.module.getUpdateStatus();
+    expect(failure.eventId).toEqual(expect.any(String));
+    fetch.resolve({ ok: true, json: async () => ({ body: 'Delayed notes' }) });
+    await vi.waitFor(() => expect(context.module.getUpdateStatus().update?.changelog).toBe('Delayed notes'));
+    const enriched = context.module.getUpdateStatus();
+    expect(enriched.revision).toBeGreaterThan(failure.revision);
+    expect(enriched.eventId).toBe(failure.eventId);
+    context.emit('checking-for-update');
+    context.emit('error', new Error('Download failed'));
+    expect(context.module.getUpdateStatus().eventId).not.toBe(failure.eventId);
+  });
+
   it('publishes complete availability synchronously, then enriches its notes', async () => {
     const context = await loadUpdateManager();
     context.autoUpdaterMock.checkForUpdates.mockImplementation(async () => {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { externalHttpUrlSchema } from '@/lib/schemas';
 
 export const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+export class ImageValidationError extends Error {}
 const signatures = [
   ['image/jpeg', [0xff, 0xd8, 0xff]],
   ['image/png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
@@ -54,11 +55,11 @@ export async function readImageFile(
 ): Promise<string> {
   signal.throwIfAborted();
   if (file.size > MAX_IMAGE_SIZE_BYTES)
-    throw new Error('Image must be under 2MB');
+    throw new ImageValidationError('Image must be under 2MB');
   const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   signal.throwIfAborted();
   if (!matchesImageType(file.type, header))
-    throw new Error('Unsupported or invalid image file');
+    throw new ImageValidationError('Unsupported or invalid image file');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     const abort = () => reader.abort();
@@ -66,7 +67,8 @@ export async function readImageFile(
     reader.onload = () => {
       cleanup();
       if (isImageDataUrl(reader.result)) resolve(reader.result);
-      else reject(new Error('Unsupported or invalid image file'));
+      else
+        reject(new ImageValidationError('Unsupported or invalid image file'));
     };
     reader.onerror = () => {
       cleanup();

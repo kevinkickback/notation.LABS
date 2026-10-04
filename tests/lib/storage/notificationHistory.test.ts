@@ -1,5 +1,6 @@
 // @vitest-environment node
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/storage/database';
 import { notificationRepository } from '@/lib/storage/notificationRepository';
@@ -22,6 +23,23 @@ afterEach(() => vi.restoreAllMocks());
 const record = (id: string, type: 'error' | 'success' = 'error', message = id, now?: number) => notificationRepository.record({ id, type, message }, now);
 
 describe('notification history storage', () => {
+  it('upgrades an existing history database without losing history or library records', async () => {
+    const stores = Object.fromEntries(db.tables.filter(table => table.name !== 'notificationCursors')
+      .map(table => [table.name, [table.schema.primKey.src, ...table.schema.indexes.map(index => index.src)].join(',')]));
+    await db.delete();
+    const previous = new Dexie(db.name);
+    previous.version(8).stores(stores);
+    const message = { id: 'saved', type: 'error', message: 'Saved error', createdAt: Date.now(), read: true };
+    await previous.table('notifications').put(message);
+    await previous.table('games').put({ id: 'game', name: 'Preserved game', buttonLayout: ['A'], notationProfile: 'standard', createdAt: 1, updatedAt: 1 });
+    previous.close();
+    await db.open();
+    expect(await db.notifications.get('saved')).toEqual(message);
+    expect((await db.games.get('game'))?.name).toBe('Preserved game');
+    await notificationRepository.record({ id: 'next', type: 'error', message: 'New error', event: { source: 'updater', id: 'next-event' } });
+    expect(await db.notificationCursors.get('updater')).toEqual({ id: 'updater', eventId: 'next-event' });
+  });
+
   it('captures feedback without a mounted panel and keeps routine confirmations read', async () => {
     notify.success('Game added');
     notify.error('Could not save');
@@ -85,8 +103,35 @@ describe('notification history storage', () => {
     await record('saved');
     const json = JSON.parse(await (await captureBackup()).text());
     expect(json.notifications).toBeUndefined();
+    expect(json.notificationCursors).toBeUndefined();
     await importJsonBackup(JSON.stringify(json));
     expect((await notificationRepository.list()).map(row => row.id)).toEqual(['saved']);
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('consumes update events atomically and does not recreate read or dismissed notices on reload', async () => {
+    const input = { id: 'update-event:failure', type: 'error' as const, message: 'Check failed', event: { source: 'updater' as const, id: 'failure' } };
+    await notificationRepository.record(input);
+    await markNotificationsRead();
+    const read = await db.notifications.get(input.id);
+    await notificationRepository.record(input);
+    expect(await db.notifications.get(input.id)).toEqual(read);
+    await removeNotification(input.id);
+    await notificationRepository.record(input);
+    expect(await db.notifications.count()).toBe(0);
+    await notificationRepository.record({ ...input, event: { source: 'updater', id: 'retry' } });
+    expect((await db.notifications.get(input.id))?.read).toBe(false);
+    await clearNotifications();
+    await notificationRepository.record({ ...input, event: { source: 'updater', id: 'retry' } });
+    expect(await db.notifications.count()).toBe(0);
+  });
+
+  it('does not consume an event if its history transaction fails', async () => {
+    const input = { id: 'event', message: 'Check failed', type: 'error' as const, event: { source: 'updater' as const, id: 'failure' } };
+    vi.spyOn(db.notificationCursors, 'put').mockRejectedValueOnce(new Error('Quota exceeded'));
+    await expect(notificationRepository.record(input)).rejects.toThrow('Quota exceeded');
+    expect(await db.notifications.count()).toBe(0);
+    await notificationRepository.record(input);
+    expect(await db.notifications.count()).toBe(1);
   });
 });

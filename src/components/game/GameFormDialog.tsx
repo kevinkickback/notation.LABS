@@ -22,7 +22,7 @@ import { useSubmission } from '@/hooks/useSubmission';
 import { createGame, updateGame } from '@/lib/application/gameCommands';
 import { DEFAULT_BUTTON_PALETTE } from '@/lib/defaults';
 import { reportError } from '@/lib/errors';
-import { readImageFile } from '@/lib/media/images';
+import { ImageValidationError, readImageFile } from '@/lib/media/images';
 import {
   getNotationProfileDefinition,
   NOTATION_PROFILES,
@@ -213,6 +213,7 @@ export function GameFormDialog({
       onError: (error) =>
         notify.error(
           error instanceof Error ? error.message : 'Failed to read image file',
+          { history: !(error instanceof ImageValidationError) },
         ),
     });
   };

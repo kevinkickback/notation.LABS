@@ -8,7 +8,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react';
 import * as Popover from '@radix-ui/react-popover';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useUpdater } from '@/context/UpdaterContext';
 import { useRecoverableLiveQuery } from '@/hooks/useRecoverableLiveQuery';
@@ -35,6 +35,7 @@ export function NotificationHistory() {
   const [attempt, setAttempt] = useState(0);
   const [clock, setClock] = useState(Date.now);
   const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
   const { knownUpdate, showAvailableUpdate } = useUpdater();
   const { data: entries, error } = useRecoverableLiveQuery(
     () => notificationRepository.list(clock),
@@ -55,8 +56,17 @@ export function NotificationHistory() {
   }, [error]);
 
   const act = async (operation: () => Promise<unknown>) => {
+    const focused = document.activeElement;
     try {
       await operation();
+      if (
+        document.activeElement === focused ||
+        (document.activeElement === document.body &&
+          (focused?.isConnected === false ||
+            (focused instanceof HTMLButtonElement && focused.disabled)))
+      ) {
+        closeRef.current?.focus();
+      }
     } catch (failure) {
       reportError('notifications.action', failure);
       notify.error('Could not update notification history. Please retry.', {
@@ -118,6 +128,7 @@ export function NotificationHistory() {
                 size="icon"
                 className="size-7"
                 aria-label="Close notifications"
+                ref={closeRef}
               >
                 <XIcon aria-hidden="true" />
               </Button>

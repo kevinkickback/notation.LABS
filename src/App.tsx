@@ -36,7 +36,7 @@ function App() {
       return;
     notify.update(`Update v${updateStatus.update?.version} available`, {
       operationId: `update:${updateStatus.update?.version}`,
-      historyAction: { type: 'view-update' },
+      history: false,
       action: {
         label: 'View',
         onClick: () => showAvailableUpdate(),
