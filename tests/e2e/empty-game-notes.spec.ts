@@ -50,6 +50,13 @@ test('centers empty-game Notes beside Add Character and keeps notes usable after
   await expect(notebook.getByText('Practice before adding characters', { exact: true })).toBeVisible();
   await notebook.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(notes).toBeFocused();
+  await expect.poll(() => page.evaluate(async () => {
+    const path = '/src/lib/storage/indexedDbStorage.ts';
+    const { indexedDbStorage } = await import(/* @vite-ignore */ path) as typeof import('../../src/lib/storage/indexedDbStorage');
+    const game = (await indexedDbStorage.games.getAll()).find(game => game.name === 'Empty Game Notes');
+    if (!game) throw new Error('Missing game');
+    return (await indexedDbStorage.settings.get()).notebookOpenPages?.includes(game.id) ?? false;
+  })).toBe(false);
 
   await page.reload();
   await page.getByRole('heading', { name: 'Empty Game Notes', exact: true }).click();
