@@ -67,7 +67,7 @@ export function NotationSettings() {
           >
             <label
               htmlFor={coloredTextId}
-              className="flex-1 flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem value="colored-text" id={coloredTextId} />
               <div>
@@ -79,7 +79,7 @@ export function NotationSettings() {
             </label>
             <label
               htmlFor={visualIconsId}
-              className="flex-1 flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem value="visual-icons" id={visualIconsId} />
               <div>
@@ -108,7 +108,7 @@ export function NotationSettings() {
           >
             <label
               htmlFor={roundStyleId}
-              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem value="round" id={roundStyleId} />
               <div className="flex gap-1.5">
@@ -135,7 +135,7 @@ export function NotationSettings() {
             </label>
             <label
               htmlFor={squareStyleId}
-              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem value="square" id={squareStyleId} />
               <div className="flex gap-1.5">
@@ -162,7 +162,7 @@ export function NotationSettings() {
             </label>
             <label
               htmlFor={hexagonStyleId}
-              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem value="hexagon" id={hexagonStyleId} />
               <div className="flex gap-1.5">
@@ -208,7 +208,7 @@ export function NotationSettings() {
           >
             <label
               htmlFor={`${iconStyleBaseId}-joystick`}
-              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem
                 value="joystick"
@@ -223,7 +223,7 @@ export function NotationSettings() {
             </label>
             <label
               htmlFor={`${iconStyleBaseId}-arrows`}
-              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer has-[button[data-state=checked]]:border-primary"
+              className="flex-1 min-w-0 flex flex-col items-center gap-3 p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer has-[button[data-state=checked]]:border-accent-text"
             >
               <RadioGroupItem value="arrows" id={`${iconStyleBaseId}-arrows`} />
               <div className="flex gap-1.5 items-center">
@@ -284,13 +284,13 @@ export function NotationSettings() {
           <div className="space-y-2">
             <Label>Preview</Label>
             <div
-              className="border border-border rounded-md p-3"
+              className="notation-preview border border-border rounded-md p-3"
               style={{ fontSize: `${scale}rem` }}
             >
               <ComboDisplay tokens={sampleTokens} mode="colored-text" />
             </div>
             <div
-              className="border border-border rounded-md p-3 mt-2"
+              className="notation-preview border border-border rounded-md p-3 mt-2"
               style={{ fontSize: `${scale}rem` }}
             >
               <ComboDisplay tokens={sampleTokens} mode="visual-icons" />

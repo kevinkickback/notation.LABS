@@ -79,7 +79,7 @@
 }
 .guide-reference .guide-entries dt {
   margin-bottom: 5px;
-  color: var(--accent-color, #3b82f6);
+  color: var(--accent-text);
   font-size: 0.8125rem;
   font-weight: 500;
 }

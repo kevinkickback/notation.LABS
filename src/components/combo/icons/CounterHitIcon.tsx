@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { readableColor } from '@/lib/colorContrast';
 
 interface CounterHitIconProps {
   size?: number;
@@ -19,6 +20,7 @@ export function CounterHitIcon({
       height={size}
       viewBox="0 0 36 36"
       className={className}
+      style={{ color: readableColor(color) }}
       role="img"
       aria-labelledby={titleId}
     >
@@ -26,14 +28,14 @@ export function CounterHitIcon({
       {/* Starburst / impact shape */}
       <polygon
         points="18,1 21.5,12 33,8 24,16 35,18 24,20 33,28 21.5,24 18,35 14.5,24 3,28 12,20 1,18 12,16 3,8 14.5,12"
-        fill={color}
-        opacity="0.2"
+        fill="currentColor"
+        opacity="0.08"
         stroke="none"
       />
       <polygon
         points="18,1 21.5,12 33,8 24,16 35,18 24,20 33,28 21.5,24 18,35 14.5,24 3,28 12,20 1,18 12,16 3,8 14.5,12"
         fill="none"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
@@ -45,7 +47,7 @@ export function CounterHitIcon({
         dominantBaseline="middle"
         fontSize="11"
         fontWeight="800"
-        fill={color}
+        fill="currentColor"
         stroke="none"
       >
         CH

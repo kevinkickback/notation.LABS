@@ -20,7 +20,7 @@ export function ComboViewEmptyState({
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
       <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
-        <LightningIcon className="w-12 h-12 text-primary" />
+        <LightningIcon className="w-12 h-12 text-accent-text" />
       </div>
 
       <div className="text-center max-w-md">

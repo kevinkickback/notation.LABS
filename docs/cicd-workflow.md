@@ -160,6 +160,12 @@ Accent appearance uses opaque sRGB colors and selects black or white foreground 
 luminance using the [WCAG contrast calculation](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
 Native browser color parsing handles non-hex choices without an additional dependency.
 Primary and accent hover surfaces stay opaque so the calculated contrast is retained.
+Text, links, notation, and essential control outlines use the shared readable color range in
+`theme.css`, via native relative OKLCH colors. Light mode limits lightness to 0.4; dark mode raises
+it to at least 0.75. These presentation shades retain the chosen hue without rewriting saved colors
+or changing filled accent buttons. Notation previews share a themed surface, and joystick artwork
+receives an outline in light mode. Browser checks use axe for text contrast plus measured checks for
+short notation symbols, tinted SVG button labels, and control outlines that axe cannot assess.
 
 ## Releasing a version
 

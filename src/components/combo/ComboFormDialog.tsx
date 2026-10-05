@@ -501,7 +501,7 @@ export function ComboFormDialog({
                 {demoUrl && (
                   <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md min-w-0 overflow-hidden">
                     <PlayIcon
-                      className="w-4 h-4 text-primary shrink-0"
+                      className="w-4 h-4 text-accent-text shrink-0"
                       weight="fill"
                     />
                     <span className="text-xs text-muted-foreground truncate min-w-0">

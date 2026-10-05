@@ -111,7 +111,7 @@ export function NotificationHistory() {
           {unread > 0 && (
             <span
               aria-hidden="true"
-              className="absolute right-0 top-0 size-2 rounded-full bg-primary"
+              className="absolute right-0 top-0 size-2 rounded-full bg-accent-text"
             />
           )}
         </Button>

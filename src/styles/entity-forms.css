@@ -9,7 +9,7 @@
 }
 .entity-artwork-empty:focus-visible,
 .entity-artwork-remove:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: 3px;
 }
 .entity-form-dialog .entity-editor {

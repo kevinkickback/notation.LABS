@@ -374,7 +374,7 @@ export function MotionIcon({
 
     return (
       <div
-        className={`inline-flex items-center gap-0.5${hold ? ' motion-icon--hold' : ''} ${className}`}
+        className={`motion-icon--joystick inline-flex items-center gap-0.5${hold ? ' motion-icon--hold' : ''} ${className}`}
         role="img"
         aria-label={motionLabel}
       >

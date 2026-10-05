@@ -28,7 +28,7 @@ export function FavoriteButton({
       aria-pressed={isFavorite}
       title={action}
       className={cn(
-        'h-7 w-7 bg-black/70 hover:!bg-yellow-500/25 cursor-pointer',
+        'h-7 w-7 bg-black/70 hover:!bg-black/85 cursor-pointer',
         isFavorite
           ? 'text-yellow-300 hover:text-yellow-200'
           : 'text-gray-200 hover:text-yellow-200',

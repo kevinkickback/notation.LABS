@@ -81,7 +81,7 @@ export function Header({ activeGame }: { activeGame?: Game }) {
             style={{ fontFamily: '"JetBrains Mono", "Courier New", monospace' }}
           >
             notation
-            <span style={{ color: 'var(--accent-color, #3b82f6)' }}>.LABS</span>
+            <span style={{ color: 'var(--accent-text)' }}>.LABS</span>
           </h1>
         </div>
 

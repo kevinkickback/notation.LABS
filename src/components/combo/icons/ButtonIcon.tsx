@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { readableColor } from '@/lib/colorContrast';
 import type { IconStyle } from '@/lib/types';
 
 interface ButtonIconProps {
@@ -34,6 +35,7 @@ export function ButtonIcon({
     height: size,
     viewBox: '0 0 36 36',
     className,
+    style: { color: readableColor(color) },
   };
 
   const shape = resolveShape(button, iconStyle);
@@ -47,8 +49,8 @@ export function ButtonIcon({
             cx="18"
             cy="18"
             r="16"
-            fill={color}
-            opacity="0.2"
+            fill="currentColor"
+            opacity="0.08"
             stroke="none"
           />
           <circle
@@ -56,7 +58,7 @@ export function ButtonIcon({
             cy="18"
             r="16"
             fill="none"
-            stroke={color}
+            stroke="currentColor"
             strokeWidth="2.5"
           />
         </>
@@ -70,8 +72,8 @@ export function ButtonIcon({
             width="28"
             height="28"
             rx="4"
-            fill={color}
-            opacity="0.2"
+            fill="currentColor"
+            opacity="0.08"
             stroke="none"
           />
           <rect
@@ -81,7 +83,7 @@ export function ButtonIcon({
             height="28"
             rx="4"
             fill="none"
-            stroke={color}
+            stroke="currentColor"
             strokeWidth="2.5"
           />
         </>
@@ -91,14 +93,14 @@ export function ButtonIcon({
         <>
           <path
             d="M 18 2 L 32 10 L 32 26 L 18 34 L 4 26 L 4 10 Z"
-            fill={color}
-            opacity="0.2"
+            fill="currentColor"
+            opacity="0.08"
             stroke="none"
           />
           <path
             d="M 18 2 L 32 10 L 32 26 L 18 34 L 4 26 L 4 10 Z"
             fill="none"
-            stroke={color}
+            stroke="currentColor"
             strokeWidth="2.5"
           />
         </>
@@ -111,7 +113,7 @@ export function ButtonIcon({
         dominantBaseline="middle"
         fontSize="14"
         fontWeight="700"
-        fill={color}
+        fill="currentColor"
         stroke="none"
       >
         {button}
