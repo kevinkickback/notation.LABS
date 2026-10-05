@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { CharacterView } from '@/components/character/CharacterView';
+import { useNotebookOpen } from '@/hooks/useNotebookOpen';
 import { indexedDbStorage } from '@/lib/storage/indexedDbStorage';
 import { useAppStore } from '@/lib/store';
 import type { Character, Game } from '@/lib/types';
@@ -108,6 +110,30 @@ describe('CharacterView', () => {
     vi.clearAllMocks();
     useAppStore.getState().setSelectedGame(mockGame.id);
     setSettingMock.mockResolvedValue(true);
+    vi.mocked(useNotebookOpen).mockReturnValue([false, vi.fn()]);
+  });
+
+  it('opens game notes while empty and retains the notebook when the first character appears', async () => {
+    vi.mocked(useNotebookOpen).mockImplementation(() => {
+      const [open, setOpen] = useState(false);
+      return [open, () => setOpen((value) => !value)];
+    });
+    const user = userEvent.setup();
+    const game = { ...mockGame, notes: 'Practice before adding characters' };
+    const { rerender } = render(<CharacterView game={game} characters={[]} />);
+
+    expect(screen.getByText(/No characters added yet/)).not.toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Notes' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Notes' }));
+    const notebook = screen.getByRole('dialog', { name: 'Street Fighter 6 Notebook' });
+    expect(screen.getByText(game.notes)).not.toBeNull();
+
+    rerender(<CharacterView game={game} characters={mockCharacters.slice(0, 1)} />);
+    expect(screen.getByRole('heading', { name: 'Ryu' })).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Street Fighter 6 Notebook' })).toBe(notebook);
+    expect(screen.getAllByRole('button', { name: 'Notes' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Notes' }));
   });
 
   it('pins favorite characters ahead of the selected alphabetical sort', () => {
