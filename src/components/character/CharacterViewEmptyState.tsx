@@ -1,6 +1,7 @@
 import { PlusIcon, UserIcon } from '@phosphor-icons/react';
 import defaultGameImage from '@/assets/images/defaultGame.jpg';
 import { CoverImage } from '@/components/shared/CoverImage';
+import { NotebookTriggerSlot } from '@/components/shared/EntityNotebook';
 import { Button } from '@/components/ui/button';
 import type { Game } from '@/lib/types';
 
@@ -34,10 +35,13 @@ export function CharacterViewEmptyState({
           No characters added yet. Add your first character to start tracking
           combos.
         </p>
-        <Button onClick={onAddCharacter} size="lg" className="gap-2">
-          <PlusIcon weight="bold" />
-          Add Character
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <NotebookTriggerSlot />
+          <Button onClick={onAddCharacter} size="lg" className="gap-2">
+            <PlusIcon weight="bold" />
+            Add Character
+          </Button>
+        </div>
       </div>
     </div>
   );
