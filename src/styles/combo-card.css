@@ -36,7 +36,7 @@
   box-shadow: 0 3px 12px rgb(0 0 0 / 3%);
 }
 .combo-card.is-selected {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 .combo-card.is-outdated {
@@ -69,7 +69,7 @@
 .combo-card-checkbox {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent-color, #3b82f6);
+  accent-color: var(--accent-text);
   cursor: pointer;
 }
 .combo-card-summary {
@@ -239,7 +239,7 @@
   transition: background 120ms;
 }
 .combo-card button:focus-visible {
-  outline: 2px solid var(--accent-color, #3b82f6);
+  outline: 2px solid var(--accent-text);
   outline-offset: 3px;
 }
 @container combo-card (max-width: 760px) {

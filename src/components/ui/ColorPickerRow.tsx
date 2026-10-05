@@ -48,7 +48,7 @@ export function ColorPickerRow({
             setEditHex(value);
           }
         }}
-        className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+        className="text-xs font-mono w-[4.5rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-accent-text"
       />
       {onRemove && (
         <button

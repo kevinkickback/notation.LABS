@@ -62,6 +62,10 @@ const Toaster = ({
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
+          '--success-text': 'var(--success)',
+          '--warning-text': 'var(--warning)',
+          '--error-text': 'var(--error)',
+          '--info-text': 'var(--accent-text)',
         } as CSSProperties
       }
       {...props}

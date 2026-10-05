@@ -228,7 +228,7 @@ function DirectionsCard({
                 aria-label={`${entry.meaning}: ${entry.notation}`}
               >
                 <div className="flex items-center justify-center gap-1.5">
-                  <code className="font-mono text-sm font-semibold text-primary">
+                  <code className="font-mono text-sm font-semibold text-accent-text">
                     {entry.notation}
                   </code>
                   <span

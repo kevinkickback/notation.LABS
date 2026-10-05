@@ -191,7 +191,7 @@ export function GeneralSettings() {
                     void setSetting('accentColor', value);
                   }
                 }}
-                className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-primary"
+                className="text-xs font-mono w-[4.2rem] bg-transparent border-b border-dashed border-muted-foreground/40 focus:outline-none focus:border-accent-text"
                 aria-label="Accent color hex"
               />
             </div>
@@ -303,7 +303,7 @@ export function GeneralSettings() {
                 <Label>Check for Updates</Label>
                 <p className="text-sm text-muted-foreground">
                   {updateStatus === 'up-to-date' && (
-                    <span className="inline-flex items-center gap-1 text-green-500">
+                    <span className="inline-flex items-center gap-1 text-success">
                       <CheckCircleIcon size={14} weight="fill" /> Up to date
                     </span>
                   )}
@@ -313,7 +313,7 @@ export function GeneralSettings() {
                     </span>
                   )}
                   {updateStatus === 'available' && updaterStatus.update && (
-                    <span className="text-primary">
+                    <span className="text-accent-text">
                       v{updaterStatus.update.version} available
                     </span>
                   )}

@@ -57,7 +57,7 @@ export function ImportProgressModal({
           <div className="space-y-2 pt-1">
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-primary transition-all duration-200"
+                className="h-full rounded-full bg-accent-text transition-all duration-200"
                 style={{ width: `${pct}%` }}
               />
             </div>

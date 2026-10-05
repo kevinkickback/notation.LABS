@@ -132,8 +132,8 @@ describe('ComboDisplay', () => {
         const directionFive = screen.getByText('5');
         const heldButton = screen.getByText('[D]');
 
-        expect(directionFive.getAttribute('style')).toContain('color: rgb(18, 52, 86)');
-        expect(heldButton.getAttribute('style')).toContain('color: rgb(18, 52, 86)');
+        expect(directionFive.getAttribute('style')).toContain('oklch(from #123456 ');
+        expect(heldButton.getAttribute('style')).toContain('oklch(from #123456 ');
     });
 
     it('applies correct per-hit button colors for repeat notation (5L > 6H)x3', () => {
@@ -159,10 +159,10 @@ describe('ComboDisplay', () => {
         const buttonL = screen.getByText('L');
         const buttonH = screen.getByText('H');
 
-        expect(directionFive.getAttribute('style')).toContain('color: rgb(18, 52, 86)');
-        expect(buttonL.getAttribute('style')).toContain('color: rgb(18, 52, 86)');
-        expect(directionSix.getAttribute('style')).toContain('color: rgb(171, 205, 239)');
-        expect(buttonH.getAttribute('style')).toContain('color: rgb(171, 205, 239)');
+        expect(directionFive.getAttribute('style')).toContain('oklch(from #123456 ');
+        expect(buttonL.getAttribute('style')).toContain('oklch(from #123456 ');
+        expect(directionSix.getAttribute('style')).toContain('oklch(from #abcdef ');
+        expect(buttonH.getAttribute('style')).toContain('oklch(from #abcdef ');
     });
 
     it.each(['colored-text', 'visual-icons'] as const)(
@@ -193,9 +193,9 @@ describe('ComboDisplay', () => {
 
             for (const paren of [openingParen, closingParen]) {
                 expect(paren.getAttribute('style')).toContain(
-                    'color: rgb(204, 204, 204)',
+                    'oklch(from #ccc ',
                 );
-                expect(paren.getAttribute('class')).toContain('opacity-60');
+                expect(paren.getAttribute('class')).not.toContain('opacity-60');
             }
         },
     );
@@ -544,13 +544,13 @@ describe('ComboDisplay', () => {
         );
 
         const neutralStar = screen.getByRole('img', { name: 'Neutral' });
-        expect(neutralStar.querySelector('path')?.getAttribute('fill')).toBe(
-            '#fff',
+        expect(neutralStar.querySelector('path')?.getAttribute('fill')).toContain(
+            'oklch(from #fff ',
         );
 
         rerender(<ComboDisplay tokens={tokens} game={game} mode="colored-text" />);
         expect(screen.getByText('N').getAttribute('style')).toContain(
-            'color: rgb(255, 255, 255)',
+            'oklch(from #fff ',
         );
     });
 

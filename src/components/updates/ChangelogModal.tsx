@@ -83,7 +83,7 @@ export function ChangelogModal({
                 href={`https://github.com/kevinkickback/notation.LABS/releases/tag/v${version}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-accent-text hover:underline"
               >
                 View release on GitHub <ArrowSquareOutIcon size={14} />
               </a>

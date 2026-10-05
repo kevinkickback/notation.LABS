@@ -36,7 +36,7 @@ export function CharacterListCard({
 }: CharacterListCardProps) {
   return (
     <Card
-      className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden h-[72px] !py-0 !gap-0 ${isSelected ? 'ring-2 ring-primary' : ''}`}
+      className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent-text overflow-hidden h-[72px] !py-0 !gap-0 ${isSelected ? 'ring-2 ring-accent-text' : ''}`}
       onClick={onSelect}
     >
       <CardContent
@@ -49,7 +49,7 @@ export function CharacterListCard({
               checked={isSelected}
               onChange={onSelect}
               onClick={(e) => e.stopPropagation()}
-              className="w-4 h-4 accent-primary cursor-pointer"
+              className="w-4 h-4 accent-accent-text cursor-pointer"
             />
           </div>
         )}
@@ -57,7 +57,7 @@ export function CharacterListCard({
           className={`flex items-center flex-1 ${isSelecting ? 'pl-2' : 'pl-4'} ${isMobile ? 'gap-2 pr-28' : 'gap-6 pr-2'}`}
           style={isMobile ? { minWidth: 0 } : undefined}
         >
-          <h3 className="font-bold text-white text-base min-w-[120px] truncate max-w-[40vw]">
+          <h3 className="font-bold text-foreground text-base min-w-[120px] truncate max-w-[40vw]">
             {character.name}
           </h3>
           {!isMobile ? (

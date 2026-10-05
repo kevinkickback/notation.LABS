@@ -121,7 +121,7 @@ export function UpdateProgressModal({
             {/* Progress bar */}
             <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
               <div
-                className="bg-primary h-full rounded-full transition-all duration-300"
+                className="bg-accent-text h-full rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(percentage, 100)}%` }}
               />
             </div>
@@ -145,7 +145,10 @@ export function UpdateProgressModal({
 
         {phase === 'downloaded' && (
           <div className="flex items-center justify-center py-4">
-            <SpinnerGapIcon size={24} className="animate-spin text-primary" />
+            <SpinnerGapIcon
+              size={24}
+              className="animate-spin text-accent-text"
+            />
             <span className="ml-2 text-sm text-muted-foreground">
               Installing update...
             </span>

@@ -80,7 +80,7 @@ export function AboutTab() {
                 href="https://github.com/kevinkickback/notation.LABS"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-accent-text hover:underline"
                 aria-label="Open repository on GitHub"
               >
                 <GithubLogoIcon className="w-5 h-5" />
@@ -90,7 +90,7 @@ export function AboutTab() {
                 href="https://KevinKickback.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-accent-text hover:underline"
                 aria-label="Open KevinKickback.com homepage"
               >
                 <GlobeIcon className="w-5 h-5" />
@@ -125,7 +125,7 @@ export function AboutTab() {
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-sm group-hover:text-primary transition-colors">
+                    <span className="font-medium text-sm group-hover:text-accent-text transition-colors">
                       {resource.name}
                     </span>
                     <ArrowSquareOutIcon className="w-3.5 h-3.5 text-muted-foreground" />

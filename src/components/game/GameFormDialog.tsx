@@ -311,8 +311,8 @@ export function GameFormDialog({
                           onClick={() => handleProfileChange(profile.id)}
                           className={`rounded-md border px-3 py-2 text-center transition-colors ${
                             notationProfile === profile.id
-                              ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                              : 'border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                              ? 'border-accent-text bg-primary text-primary-foreground shadow-sm'
+                              : 'border-border bg-muted/40 text-muted-foreground hover:border-accent-text/50 hover:text-foreground'
                           }`}
                         >
                           <span className="block text-sm font-medium">

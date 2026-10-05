@@ -7,6 +7,14 @@ body {
   font-family: var(--app-font-family, system-ui, -apple-system, sans-serif);
 }
 
+.motion-icon--joystick img {
+  filter: var(--motion-joystick-filter);
+}
+
+.notation-preview {
+  background: var(--notation-surface);
+}
+
 .motion-icon--hold path {
   fill: var(--combo-hold);
   stroke: var(--combo-hold-outline);

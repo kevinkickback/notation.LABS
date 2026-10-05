@@ -37,7 +37,7 @@ export function CharacterGridCard({
 }: CharacterGridCardProps) {
   return (
     <Card
-      className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent overflow-hidden relative !py-0 !gap-0 hover:scale-[1.03] ${orientation === 'portrait' ? 'aspect-[3/4]' : 'aspect-[4/3]'} ${isSelected ? 'ring-2 ring-primary' : ''}`}
+      className={`group cursor-pointer hover:shadow-lg transition-all border-2 hover:border-accent-text overflow-hidden relative !py-0 !gap-0 hover:scale-[1.03] ${orientation === 'portrait' ? 'aspect-[3/4]' : 'aspect-[4/3]'} ${isSelected ? 'ring-2 ring-accent-text' : ''}`}
       onClick={onSelect}
     >
       {isSelecting && (
@@ -47,7 +47,7 @@ export function CharacterGridCard({
             checked={isSelected}
             onChange={onSelect}
             onClick={(e) => e.stopPropagation()}
-            className="w-4 h-4 accent-primary cursor-pointer"
+            className="w-4 h-4 accent-accent-text cursor-pointer"
           />
         </div>
       )}
