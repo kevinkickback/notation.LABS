@@ -16,7 +16,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@config "../tailwind.config.js";
+@config "../config/tailwind.config.js";
 
 @layer base {
   /* Preserve the v3 border default for pseudo-elements without an explicit color. */
