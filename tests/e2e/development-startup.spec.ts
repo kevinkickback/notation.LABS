@@ -14,7 +14,7 @@ test('loads a cold development workspace within the desktop window deadline', as
   try {
     process.env.ELECTRON = 'false';
     server = await createServer({
-      configFile: resolve('vite.config.ts'),
+      configFile: resolve('config/vite.config.ts'),
       cacheDir: cache,
       logLevel: 'error',
       server: { host: '127.0.0.1', port: 5174, open: false },

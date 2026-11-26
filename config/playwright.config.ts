@@ -1,7 +1,8 @@
+import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: '../tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -20,7 +21,8 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      'npx cross-env ELECTRON=false vite --host 127.0.0.1 --port 4173 --strictPort',
+      'npx cross-env ELECTRON=false vite --config config/vite.config.ts --host 127.0.0.1 --port 4173 --strictPort',
+    cwd: resolve(import.meta.dirname, '..'),
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

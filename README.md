@@ -107,6 +107,13 @@ npm install
 npm run dev:web
 ```
 
+### Repository Layout
+
+- `src/` and `electron/` contain the renderer and desktop code.
+- `config/` holds Vite, Vitest, Playwright, Tailwind, and test-specific TypeScript settings. The npm scripts load these settings for you.
+- `tests/` holds unit and browser tests. `scripts/` holds development and release helpers.
+- `build/` contains installer assets. `docs/` and `changelogs/` hold project documentation and release notes.
+
 ## 🕹️ Notation Reference
 
 | Notation | Meaning |
